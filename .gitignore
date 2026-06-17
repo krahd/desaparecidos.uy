@@ -1,0 +1,31 @@
+.DS_Store
+ignore/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local data and generated outputs
+data/raw/
+data/fragments/
+data/demo/
+data/manifests/demo-*.csv
+outputs/
+
+# Local environment and logs
+.env
+.env.*
+*.log

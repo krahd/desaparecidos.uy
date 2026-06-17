@@ -30,7 +30,9 @@ The normal workflow is the local web GUI.
 ./Start\ desaparecidos.command
 ```
 
-The launcher creates or reuses a local Python environment, installs Python and frontend dependencies when needed, starts the FastAPI backend at `http://127.0.0.1:8765`, starts the Vite GUI at `http://127.0.0.1:5173`, and opens the browser.
+The launcher creates or reuses a local Python environment, installs Python and frontend dependencies when needed, starts the FastAPI backend, starts the Vite GUI, and opens the browser. It prefers backend port `8765` and frontend port `5173`, but automatically moves to free localhost ports when those are already occupied.
+
+If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./Start\ desaparecidos.command` again. The launcher prints the exact backend and frontend URLs it selected.
 
 The GUI can validate manifests, download manifest-listed sources, run still/video generation, inspect progress logs, and review output sidecars.
 

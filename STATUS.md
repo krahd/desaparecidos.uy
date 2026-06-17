@@ -131,6 +131,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - Local API CORS was widened to localhost/127.0.0.1 on any port so alternate Vite ports remain usable.
 - 2026-06-17 11:18 GMT-3 follow-up: demo fixtures now use local-only `local://demo/...` provenance identifiers, generate a portrait-like synthetic target plus four synthetic place surfaces, and resolve manifest-relative preview paths in the GUI.
 - Stage 1 reuse accounting now applies `reuse_limit` per extracted fragment rather than per source image. Sidecars report fragment count and maximum observed fragment reuse.
+- 2026-06-17 15:40 GMT-3 follow-up: diagnosed GUI `501 Unsupported method ('POST')` responses as requests hitting `python -m http.server` on port `8765` instead of FastAPI. The launcher now selects free backend/frontend ports and passes the selected API URL into Vite.
 
 ## Tests and verification status
 
@@ -149,6 +150,7 @@ Verification run on 2026-06-17:
 - 2026-06-17 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, and `npm --prefix frontend run build` passed after adding the demo-fixture GUI path.
 - 2026-06-17 follow-up: patched API `/api/demo-fixtures`, `/api/validate`, and `/api/generate` were smoke-tested on isolated verification ports.
 - 2026-06-17 11:18 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, CLI demo validation, 720px still generation, and a small MP4 generation smoke run passed after the fragment reuse and demo fixture patch.
+- 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "Start desaparecidos.command"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
 
 ## Known issues, risks, and limitations
 

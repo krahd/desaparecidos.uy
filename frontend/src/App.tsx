@@ -2,6 +2,7 @@ import {
   Ban,
   Check,
   CheckCircle2,
+  CheckSquare,
   Download,
   Eye,
   FileCheck2,
@@ -11,6 +12,8 @@ import {
   Maximize2,
   Play,
   RefreshCw,
+  Square,
+  Trash2,
   Video,
   X,
 } from 'lucide-react';
@@ -22,6 +25,7 @@ import {
   ValidateResponse,
   crawlPages,
   createDemoFixtures,
+  deleteOutputs,
   downloadManifest,
   fileUrl,
   generateStage1,
@@ -39,6 +43,15 @@ type LogEntry = {
 type SectionId = 'manifests' | 'review' | 'generate' | 'outputs';
 type ReviewKind = 'targets' | 'places';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
+type CrawlPreset = {
+  id: string;
+  label: string;
+  kind: ReviewKind;
+  manifest: string;
+  pages: string[];
+  maxImages: number;
+  labelPrefix: string;
+};
 
 const defaultPaths = {
   targets: 'data/manifests/targets.csv',
@@ -50,6 +63,63 @@ const crawlerManifestDefaults: Record<ReviewKind, string> = {
   targets: 'data/manifests/crawled-targets.csv',
   places: 'data/manifests/crawled-places.csv',
 };
+
+const crawlPresets: CrawlPreset[] = [
+  {
+    id: 'cdf-home',
+    label: 'CdF Montevideo',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://cdf.montevideo.gub.uy/'],
+    maxImages: 12,
+    labelPrefix: 'CdF',
+  },
+  {
+    id: 'cdf-exhibitions',
+    label: 'CdF exhibitions',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://cdf.montevideo.gub.uy/exposiciones'],
+    maxImages: 18,
+    labelPrefix: 'CdF exhibition',
+  },
+  {
+    id: 'mume',
+    label: 'MUME',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://mume.montevideo.gub.uy/'],
+    maxImages: 12,
+    labelPrefix: 'MUME',
+  },
+  {
+    id: 'sitios-memoria',
+    label: 'Sitios de Memoria',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://sitiosdememoria.uy/'],
+    maxImages: 12,
+    labelPrefix: 'Sitio memoria',
+  },
+  {
+    id: 'commons-streets',
+    label: 'Commons streets',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://commons.wikimedia.org/wiki/Category:Streets_in_Montevideo'],
+    maxImages: 24,
+    labelPrefix: 'Montevideo street',
+  },
+  {
+    id: 'commons-buildings',
+    label: 'Commons buildings',
+    kind: 'places',
+    manifest: crawlerManifestDefaults.places,
+    pages: ['https://commons.wikimedia.org/wiki/Category:Buildings_in_Montevideo'],
+    maxImages: 24,
+    labelPrefix: 'Montevideo building',
+  },
+];
 
 export function App() {
   const [targets, setTargets] = useState(defaultPaths.targets);
@@ -64,6 +134,7 @@ export function App() {
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [selectedOutput, setSelectedOutput] = useState<OutputItem | null>(null);
+  const [selectedOutputIds, setSelectedOutputIds] = useState<Set<string>>(new Set());
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('manifests');
   const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
@@ -89,6 +160,7 @@ export function App() {
     ? validation?.targets.rows ?? []
     : validation?.sources.rows ?? [];
   const activeTarget = approvedTargets.find((row) => row.id === targetId) ?? approvedTargets[0];
+  const selectedOutputCount = selectedOutputIds.size;
 
   const statusLabel = useMemo(() => {
     if (busy) return 'running';
@@ -178,6 +250,8 @@ export function App() {
     );
     if (!response) return null;
     setOutputs(response.items);
+    const outputIds = new Set(response.items.map((item) => item.id));
+    setSelectedOutputIds((current) => new Set([...current].filter((id) => outputIds.has(id))));
     const selected = response.items.find((item) => (
       item.sidecar_path === preferredPath
       || item.still_path === preferredPath
@@ -308,6 +382,59 @@ export function App() {
     setReviewKind(value);
   }
 
+  function handleCrawlPreset(presetId: string) {
+    const preset = crawlPresets.find((candidate) => candidate.id === presetId);
+    if (!preset) return;
+    setCrawlKind(preset.kind);
+    setReviewKind(preset.kind);
+    setCrawlManifest(preset.manifest);
+    setCrawlPagesText(preset.pages.join('\n'));
+    setCrawlMaxImages(preset.maxImages);
+    setCrawlLabelPrefix(preset.labelPrefix);
+    appendLog(`Loaded crawler preset: ${preset.label}.`, 'ok');
+  }
+
+  function toggleOutputSelection(id: string) {
+    setSelectedOutputIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function handleDeleteOutputs(all = false) {
+    const ids = all ? [] : Array.from(selectedOutputIds);
+    const count = all ? outputs.length : ids.length;
+    if (count === 0) {
+      appendLog(all ? 'No generated outputs to delete.' : 'Select one or more outputs to delete.', 'error');
+      return;
+    }
+    const confirmed = window.confirm(
+      all
+        ? `Delete all ${count} generated output${count === 1 ? '' : 's'} from ${outputDir}?`
+        : `Delete ${count} selected generated output${count === 1 ? '' : 's'} from ${outputDir}?`,
+    );
+    if (!confirmed) return;
+
+    const response = await runAction(
+      all ? 'Deleting all generated outputs.' : `Deleting ${count} selected generated output${count === 1 ? '' : 's'}.`,
+      () => deleteOutputs({ output_dir: outputDir, ids, all }),
+      'Output deletion finished.',
+    );
+    if (!response) return;
+    response.errors.forEach((error) => appendLog(error, 'error'));
+    appendLog(`Deleted ${response.deleted.length} output${response.deleted.length === 1 ? '' : 's'}.`, response.ok ? 'ok' : 'error');
+    setSelectedOutputIds(new Set());
+    if (viewerOutput && (all || response.deleted.includes(viewerOutput.id))) {
+      setViewerOutput(null);
+    }
+    await refreshOutputs();
+  }
+
   useEffect(() => {
     listOutputs(defaultPaths.outputDir)
       .then((response) => {
@@ -428,6 +555,35 @@ export function App() {
               >
                 <Maximize2 size={14} /> View
               </button>
+              <button
+                className="text-button"
+                onClick={() => setSelectedOutputIds(new Set(outputs.map((item) => item.id)))}
+                disabled={busy || outputs.length === 0}
+              >
+                <CheckSquare size={14} /> Select all
+              </button>
+              <button
+                className="text-button"
+                onClick={() => setSelectedOutputIds(new Set())}
+                disabled={busy || selectedOutputCount === 0}
+              >
+                <Square size={14} /> Clear
+              </button>
+              <button
+                className="text-button danger"
+                onClick={() => void handleDeleteOutputs(false)}
+                disabled={busy || selectedOutputCount === 0}
+              >
+                <Trash2 size={14} /> Delete selected
+              </button>
+              <button
+                className="icon-button danger"
+                onClick={() => void handleDeleteOutputs(true)}
+                disabled={busy || outputs.length === 0}
+                title="Delete all outputs"
+              >
+                <Trash2 size={16} />
+              </button>
               <button className="icon-button" onClick={() => void refreshOutputs()} disabled={busy} title="Refresh outputs">
                 <RefreshCw size={16} />
               </button>
@@ -436,17 +592,29 @@ export function App() {
           <div className="output-list">
             {outputs.length === 0 && <EmptyState text="No generated outputs found." />}
             {outputs.map((item) => (
-              <button
-                className={`output-thumb ${selectedOutput?.id === item.id ? 'selected' : ''}`}
+              <article
+                className={`output-thumb ${selectedOutput?.id === item.id ? 'selected' : ''} ${selectedOutputIds.has(item.id) ? 'checked' : ''}`}
                 key={item.id}
-                onClick={() => {
-                  setSelectedOutput(item);
-                  setViewerOutput(item);
-                }}
               >
-                {item.still_path ? <img src={fileUrl(item.still_path)} alt="" /> : <ImageIcon size={24} />}
-                <span>{item.video_path ? <Video size={12} /> : <ImageIcon size={12} />}{item.target_id || item.id}</span>
-              </button>
+                <label className="output-select" title="Select output">
+                  <input
+                    type="checkbox"
+                    checked={selectedOutputIds.has(item.id)}
+                    onChange={() => toggleOutputSelection(item.id)}
+                  />
+                  {selectedOutputIds.has(item.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                </label>
+                <button
+                  className="output-open"
+                  onClick={() => {
+                    setSelectedOutput(item);
+                    setViewerOutput(item);
+                  }}
+                >
+                  {item.still_path ? <img src={fileUrl(item.still_path)} alt="" /> : <ImageIcon size={24} />}
+                  <span>{item.video_path ? <Video size={12} /> : <ImageIcon size={12} />}{item.target_id || item.id}</span>
+                </button>
+              </article>
             ))}
           </div>
         </section>
@@ -509,6 +677,17 @@ export function App() {
 
         <section className="crawler-box">
           <h2>Crawler</h2>
+          <label>
+            Starting page
+            <select value="" onChange={(event) => handleCrawlPreset(event.target.value)}>
+              <option value="">Choose source</option>
+              {crawlPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Kind
             <select value={crawlKind} onChange={(event) => handleCrawlKindChange(event.target.value as ReviewKind)}>

@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 16:15 GMT-3
+Last updated: 2026-06-17 16:43 GMT-3
 
 ## Project purpose
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-17 16:15 GMT-3
 
 ## Current implementation state
 
-The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, and a constrained page-image crawler for explicit user-supplied pages.
+The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, a constrained page-image crawler for explicit or preset pages, generated-output deletion controls, and browser-playable H.264 video rendering when `ffmpeg` is available.
 
 ## Active focus
 
@@ -16,7 +16,7 @@ Review real target/place manifests and crawler-produced pending rows before intr
 
 ## Architecture overview
 
-The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs constrained one-page image crawling on user-supplied URLs, updates row review status, and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars.
+The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs constrained one-page image crawling on user-supplied or preset URLs, updates row review status, deletes selected generated outputs on request, and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars.
 
 ### Architecture diagram
 
@@ -110,6 +110,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - Raw downloads belong under ignored `data/raw/`.
 - Crawler downloads belong under ignored `data/raw/crawl/`.
 - Generated outputs belong under ignored `outputs/stage1/`.
+- Browser-playable video generation requires `ffmpeg` with H.264/libx264 support.
 
 ## Important files and directories
 
@@ -135,6 +136,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - Stage 1 reuse accounting now applies `reuse_limit` per extracted fragment rather than per source image. Sidecars report fragment count and maximum observed fragment reuse.
 - 2026-06-17 15:40 GMT-3 follow-up: diagnosed GUI `501 Unsupported method ('POST')` responses as requests hitting `python -m http.server` on port `8765` instead of FastAPI. The launcher now selects free backend/frontend ports and passes the selected API URL into Vite.
 - 2026-06-17 16:11 GMT-3 follow-up: made the workflow rail clickable, added GUI review/approve/reject controls, added a large still/video output viewer, selected new outputs after generation, and added a constrained crawler that saves candidates as pending rows.
+- 2026-06-17 16:43 GMT-3 follow-up: added generated-output selection and delete controls, added a backend output deletion endpoint, switched video rendering to H.264 MP4 via `ffmpeg`, set explicit `video/mp4` responses, removed the unused OpenCV dependency, and added crawler starting-page presets for CdF, MUME, Sitios de Memoria, and Wikimedia Commons Montevideo categories.
 
 ## Tests and verification status
 
@@ -142,7 +144,7 @@ Verification run on 2026-06-17:
 
 - `python3 -m compileall src tests scripts`: passed before dependency installation.
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 15 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
+- `.venv/bin/python -m pytest -q`: passed, 21 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
 - `npm --prefix frontend run build`: passed.
 - Synthetic fixture generation with `scripts/create_synthetic_fixtures.py`: passed.
 - CLI Stage 1 smoke run against synthetic fixtures: passed and wrote ignored output files under `outputs/stage1/`.
@@ -155,12 +157,13 @@ Verification run on 2026-06-17:
 - 2026-06-17 11:18 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, CLI demo validation, 720px still generation, and a small MP4 generation smoke run passed after the fragment reuse and demo fixture patch.
 - 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "Start desaparecidos.command"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
 - 2026-06-17 16:15 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed after adding crawler/review/output-viewer UI and backend routes. A launcher smoke run selected backend `8766` and frontend `5178`; API smoke calls for `/api/demo-fixtures`, `/api/crawl` against a local page, `/api/generate` still, `/api/generate` video, and `/api/outputs` returned successful responses. Browser interaction automation is still unavailable in this environment.
+- 2026-06-17 16:43 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, `zsh -n "Start desaparecidos.command"`, and `git diff --check` passed after adding output deletion controls, crawler presets, and H.264 video rendering. A fresh demo video smoke render to `/private/tmp/desaparecidos-video-smoke-20260617` produced an MP4 whose video stream probed as `codec_name=h264` and `pix_fmt=yuv420p`, with `video_codec: h264` in the sidecar.
 
 ## Known issues, risks, and limitations
 
 - Public release requires provenance, legal, privacy, and historical-source review.
 - Stage 1 crawler support is intentionally limited to page URLs entered by the local user. It is not recursive, does not identify people, and writes pending rows that require explicit approval before generation.
-- MP4 generation depends on OpenCV runtime support.
+- MP4 generation depends on `ffmpeg` with H.264/libx264 support. Newly generated videos should be browser-playable; older videos created with the previous `mp4v` path should be regenerated.
 - `npm install` reported two high-severity audit findings in the frontend dependency tree. No forced audit fix was applied because it may introduce breaking dependency changes.
 - Local server binding required sandbox escalation during verification.
 - The GitHub remote is `origin` at `https://github.com/krahd/desaparecidos.uy.git`.
@@ -200,4 +203,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 16:15 GMT-3
+Last updated: 2026-06-17 16:43 GMT-3

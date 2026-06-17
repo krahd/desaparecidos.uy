@@ -12,7 +12,7 @@ from .crawl import crawl_pages
 from .demo import create_demo_fixtures
 from .download import download_manifest
 from .manifests import ManifestKind, set_review_status, validate_manifest
-from .outputs import list_outputs
+from .outputs import delete_outputs, list_outputs
 from .paths import PROJECT_ROOT, safe_project_path
 from .pipeline import Stage1Settings, run_stage1
 
@@ -55,6 +55,12 @@ class ReviewRequest(BaseModel):
     kind: ManifestKind
     row_id: str
     review_status: Literal["approved", "pending", "rejected"]
+
+
+class DeleteOutputsRequest(BaseModel):
+    output_dir: str = "outputs/stage1"
+    ids: list[str] = []
+    all: bool = False
 
 
 def create_app() -> FastAPI:
@@ -159,6 +165,17 @@ def create_app() -> FastAPI:
     def outputs(output_dir: str = "outputs/stage1") -> dict[str, Any]:
         return {"items": list_outputs(output_dir)}
 
+    @app.post("/api/outputs/delete")
+    def remove_outputs(request: DeleteOutputsRequest) -> dict[str, Any]:
+        try:
+            return delete_outputs(
+                safe_project_path(request.output_dir),
+                ids=request.ids,
+                all_outputs=request.all,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/file")
     def file(path: str) -> FileResponse:
         try:
@@ -167,7 +184,8 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not resolved.exists() or not resolved.is_file():
             raise HTTPException(status_code=404, detail="file not found")
-        return FileResponse(resolved)
+        media_type = "video/mp4" if resolved.suffix.lower() == ".mp4" else None
+        return FileResponse(resolved, media_type=media_type)
 
     return app
 

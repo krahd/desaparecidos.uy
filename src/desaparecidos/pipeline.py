@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import math
 import random
+import shutil
+import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -108,22 +111,24 @@ def render_video(
     seed: int,
     fps: int = 12,
     seconds: int = 8,
-) -> None:
-    try:
-        import cv2
-    except ImportError as exc:
-        raise RuntimeError("MP4 rendering requires opencv-python") from exc
-
-    width, height = still.size
-    writer = cv2.VideoWriter(
-        str(output_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (width, height),
+) -> str:
+    if _render_video_ffmpeg(still, target_row, output_path, seed=seed, fps=fps, seconds=seconds):
+        return "h264"
+    raise RuntimeError(
+        "Browser-playable MP4 rendering requires ffmpeg with libx264. "
+        "Install ffmpeg, then restart the launcher and generate the video again."
     )
-    if not writer.isOpened():
-        raise RuntimeError("OpenCV could not open MP4 writer")
 
+
+def _video_frames(
+    still: Image.Image,
+    target_row: ManifestRow,
+    *,
+    seed: int,
+    fps: int,
+    seconds: int,
+) -> Iterable[Image.Image]:
+    width, height = still.size
     total = fps * seconds
     still_arr = np.asarray(still, dtype=np.uint8)
     font = ImageFont.load_default()
@@ -137,12 +142,83 @@ def render_video(
         if progress > 0.72:
             draw = ImageDraw.Draw(pil_frame)
             label = target_row.values.get("name", target_row.id)
-            text = f"{label}"
             box_height = 34
             draw.rectangle((0, height - box_height, width, height), fill=(18, 18, 17))
-            draw.text((18, height - 24), text, fill=(245, 245, 240), font=font)
-        writer.write(cv2.cvtColor(np.asarray(pil_frame), cv2.COLOR_RGB2BGR))
-    writer.release()
+            draw.text((18, height - 24), label, fill=(245, 245, 240), font=font)
+        yield pil_frame
+
+
+def _render_video_ffmpeg(
+    still: Image.Image,
+    target_row: ManifestRow,
+    output_path: Path,
+    *,
+    seed: int,
+    fps: int,
+    seconds: int,
+) -> bool:
+    ffmpeg = _find_ffmpeg()
+    if not ffmpeg:
+        return False
+
+    width, height = still.size
+    command = [
+        ffmpeg,
+        "-y",
+        "-f",
+        "rawvideo",
+        "-vcodec",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-s",
+        f"{width}x{height}",
+        "-r",
+        str(fps),
+        "-i",
+        "-",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(output_path),
+    ]
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdin is not None
+    try:
+        for frame in _video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds):
+            process.stdin.write(frame.tobytes())
+        process.stdin.close()
+        stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""
+        return_code = process.wait()
+    except Exception:
+        process.kill()
+        output_path.unlink(missing_ok=True)
+        raise
+
+    if return_code != 0:
+        output_path.unlink(missing_ok=True)
+        raise RuntimeError(f"ffmpeg could not render H.264 MP4: {stderr.strip() or 'unknown error'}")
+    return True
+
+
+def _find_ffmpeg() -> str | None:
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    for candidate in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+        path = Path(candidate)
+        if path.exists() and path.is_file():
+            return str(path)
+    return None
 
 
 def run_stage1(
@@ -177,10 +253,11 @@ def run_stage1(
         still_path = output_root / f"{stem}.png"
         sidecar_path = output_root / f"{stem}.json"
         video_path = output_root / f"{stem}.mp4" if settings.make_video else None
+        video_codec = None
 
         still.save(still_path)
         if video_path is not None:
-            render_video(still, target_row, video_path, seed=settings.seed)
+            video_codec = render_video(still, target_row, video_path, seed=settings.seed)
 
         sidecar = {
             "target": target_row.values,
@@ -193,6 +270,7 @@ def run_stage1(
             "settings": asdict(settings),
             "still_path": display_path(still_path),
             "video_path": display_path(video_path) if video_path else None,
+            "video_codec": video_codec,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "method": "Stage 1 place-fragment reconstruction prototype",
         }

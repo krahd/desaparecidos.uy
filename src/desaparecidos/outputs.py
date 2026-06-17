@@ -6,6 +6,8 @@ from typing import Any
 
 from .paths import display_path
 
+OUTPUT_MEDIA_SUFFIXES = (".json", ".png", ".mp4", ".webm")
+
 
 def list_outputs(output_dir: str | Path = "outputs/stage1") -> list[dict[str, Any]]:
     root = Path(output_dir)
@@ -31,3 +33,42 @@ def list_outputs(output_dir: str | Path = "outputs/stage1") -> list[dict[str, An
             }
         )
     return items
+
+
+def delete_outputs(
+    output_dir: str | Path = "outputs/stage1",
+    *,
+    ids: list[str] | None = None,
+    all_outputs: bool = False,
+) -> dict[str, Any]:
+    root = Path(output_dir)
+    selected_ids = set(ids or [])
+    if not all_outputs and not selected_ids:
+        raise ValueError("select at least one output or request all outputs")
+    if not root.exists():
+        return {"ok": True, "deleted": [], "errors": []}
+
+    sidecars = sorted(root.glob("*.json"))
+    known_ids = {sidecar.stem for sidecar in sidecars}
+    requested = known_ids if all_outputs else selected_ids
+    missing = sorted(selected_ids - known_ids) if not all_outputs else []
+    deleted: list[str] = []
+    errors: list[str] = [f"output not found: {output_id}" for output_id in missing]
+
+    for sidecar_path in sidecars:
+        if sidecar_path.stem not in requested:
+            continue
+        output_deleted = False
+        for suffix in OUTPUT_MEDIA_SUFFIXES:
+            path = sidecar_path.with_suffix(suffix)
+            if not path.exists():
+                continue
+            try:
+                path.unlink()
+                output_deleted = True
+            except OSError as exc:
+                errors.append(f"could not delete {display_path(path)}: {exc}")
+        if output_deleted:
+            deleted.append(sidecar_path.stem)
+
+    return {"ok": not errors, "deleted": deleted, "errors": errors}

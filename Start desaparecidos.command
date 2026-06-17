@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 BACKEND_PORT="${BACKEND_PORT:-8765}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 find_free_port() {
   python - "$1" <<'PY'

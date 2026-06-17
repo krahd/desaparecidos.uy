@@ -150,3 +150,38 @@ def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_delete_outputs_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    (output_dir / "one.json").write_text('{"target_id": "t1"}', encoding="utf-8")
+    (output_dir / "one.png").write_bytes(b"png")
+    (output_dir / "two.json").write_text('{"target_id": "t2"}', encoding="utf-8")
+
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/outputs/delete",
+        json={"output_dir": str(output_dir), "ids": ["one"], "all": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] == ["one"]
+    assert not (output_dir / "one.json").exists()
+    assert not (output_dir / "one.png").exists()
+    assert (output_dir / "two.json").exists()
+
+
+def test_file_endpoint_serves_mp4_media_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"mp4")
+
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.get("/api/file", params={"path": str(video)})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("video/mp4")

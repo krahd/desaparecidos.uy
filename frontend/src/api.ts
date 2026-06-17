@@ -185,3 +185,14 @@ export function generateStage1(payload: {
 export function listOutputs(outputDir: string): Promise<{ items: OutputItem[] }> {
   return request(`/api/outputs?output_dir=${encodeURIComponent(outputDir)}`);
 }
+
+export function deleteOutputs(payload: {
+  output_dir: string;
+  ids: string[];
+  all: boolean;
+}): Promise<{ ok: boolean; deleted: string[]; errors: string[] }> {
+  return request('/api/outputs/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

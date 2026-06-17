@@ -56,6 +56,7 @@ def test_health_and_validate(tmp_path: Path) -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["targets"]["approved_count"] == 1
+    assert body["targets"]["rows"][0]["file_path"].endswith("target.png")
 
 
 def test_generate_endpoint(tmp_path: Path) -> None:

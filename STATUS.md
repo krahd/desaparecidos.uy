@@ -129,6 +129,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - Private GitHub repository `krahd/desaparecidos.uy` was created and `main` was pushed.
 - GUI demo fixtures were added so users can recover from empty template manifests without running CLI commands.
 - Local API CORS was widened to localhost/127.0.0.1 on any port so alternate Vite ports remain usable.
+- 2026-06-17 11:18 GMT-3 follow-up: demo fixtures now use local-only `local://demo/...` provenance identifiers, generate a portrait-like synthetic target plus four synthetic place surfaces, and resolve manifest-relative preview paths in the GUI.
+- Stage 1 reuse accounting now applies `reuse_limit` per extracted fragment rather than per source image. Sidecars report fragment count and maximum observed fragment reuse.
 
 ## Tests and verification status
 
@@ -136,7 +138,7 @@ Verification run on 2026-06-17:
 
 - `python3 -m compileall src tests scripts`: passed before dependency installation.
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 7 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
+- `.venv/bin/python -m pytest -q`: passed, 11 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
 - `npm --prefix frontend run build`: passed.
 - Synthetic fixture generation with `scripts/create_synthetic_fixtures.py`: passed.
 - CLI Stage 1 smoke run against synthetic fixtures: passed and wrote ignored output files under `outputs/stage1/`.
@@ -146,6 +148,7 @@ Verification run on 2026-06-17:
 - Desktop and mobile-width Safari screenshots were inspected for visible layout overlap and text fit.
 - 2026-06-17 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, and `npm --prefix frontend run build` passed after adding the demo-fixture GUI path.
 - 2026-06-17 follow-up: patched API `/api/demo-fixtures`, `/api/validate`, and `/api/generate` were smoke-tested on isolated verification ports.
+- 2026-06-17 11:18 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, CLI demo validation, 720px still generation, and a small MP4 generation smoke run passed after the fragment reuse and demo fixture patch.
 
 ## Known issues, risks, and limitations
 

@@ -19,7 +19,7 @@ from .paths import display_path
 class Stage1Settings:
     seed: int = 17
     fragment_size: int = 24
-    reuse_limit: int = 64
+    reuse_limit: int = 8
     output_width: int = 720
     max_fragments_per_source: int = 240
     make_video: bool = False
@@ -43,13 +43,13 @@ def _target_canvas(target: Image.Image, output_width: int, fragment_size: int) -
 def _best_fragment(
     descriptor: np.ndarray,
     fragments: list[Fragment],
-    usage: dict[str, int],
+    fragment_usage: dict[str, int],
     reuse_limit: int,
 ) -> Fragment:
     available = [
         fragment
         for fragment in fragments
-        if usage.get(fragment.source_id, 0) < reuse_limit
+        if fragment_usage.get(fragment.fragment_id, 0) < reuse_limit
     ]
     if not available:
         raise ValueError("fragment reuse limit exhausted")
@@ -65,7 +65,7 @@ def assemble_target(
     target_manifest: str | Path,
     fragments: list[Fragment],
     settings: Stage1Settings,
-) -> tuple[Image.Image, dict[str, int]]:
+) -> tuple[Image.Image, dict[str, int], dict[str, int]]:
     target = crop_from_row(load_rgb(row_file_path(target_row, target_manifest)), target_row)
     target = _target_canvas(target, settings.output_width, settings.fragment_size)
     rng = random.Random(settings.seed + sum(ord(char) for char in target_row.id))
@@ -73,24 +73,31 @@ def assemble_target(
     rng.shuffle(shuffled)
 
     output = Image.new("RGB", target.size, (245, 245, 242))
-    usage: dict[str, int] = {}
+    source_usage: dict[str, int] = {}
+    fragment_usage: dict[str, int] = {}
     tile = settings.fragment_size
     tile_count = math.ceil(target.width / tile) * math.ceil(target.height / tile)
-    source_capacity = len({fragment.source_id for fragment in fragments}) * settings.reuse_limit
-    if source_capacity < tile_count:
+    source_count = len({fragment.source_id for fragment in fragments})
+    fragment_capacity = len(fragments) * settings.reuse_limit
+    if fragment_capacity < tile_count:
+        required = math.ceil(tile_count / max(1, len(fragments)))
         raise ValueError(
-            "reuse_limit is too low for the requested output size and source count"
+            "reuse_limit is too low: "
+            f"need at least {required} per extracted fragment for {tile_count} output tiles "
+            f"and {len(fragments)} fragments from {source_count} approved sources; "
+            f"got {settings.reuse_limit}"
         )
 
     for y in range(0, target.height, tile):
         for x in range(0, target.width, tile):
             target_patch = target.crop((x, y, x + tile, y + tile))
             descriptor = descriptor_for(target_patch)
-            fragment = _best_fragment(descriptor, shuffled, usage, settings.reuse_limit)
-            usage[fragment.source_id] = usage.get(fragment.source_id, 0) + 1
+            fragment = _best_fragment(descriptor, shuffled, fragment_usage, settings.reuse_limit)
+            source_usage[fragment.source_id] = source_usage.get(fragment.source_id, 0) + 1
+            fragment_usage[fragment.fragment_id] = fragment_usage.get(fragment.fragment_id, 0) + 1
             output.paste(fragment.image, (x, y))
 
-    return output, usage
+    return output, source_usage, fragment_usage
 
 
 def render_video(
@@ -123,7 +130,6 @@ def render_video(
     for index in range(total):
         progress = index / max(1, total - 1)
         visible = min(1.0, progress * 1.35)
-        noise = rng.integers if hasattr(rng, "integers") else None
         mask = np.random.default_rng(seed + index).random((height, width, 1)) < visible
         base = np.full_like(still_arr, 235, dtype=np.uint8)
         frame = np.where(mask, still_arr, base)
@@ -165,7 +171,7 @@ def run_stage1(
 
     outputs: list[Stage1Output] = []
     for target_row in target_rows:
-        still, usage = assemble_target(target_row, target_manifest, fragments, settings)
+        still, source_usage, fragment_usage = assemble_target(target_row, target_manifest, fragments, settings)
         safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in target_row.id)
         stem = f"{safe_id}_seed{settings.seed}_f{settings.fragment_size}"
         still_path = output_root / f"{stem}.png"
@@ -179,8 +185,11 @@ def run_stage1(
         sidecar = {
             "target": target_row.values,
             "target_id": target_row.id,
-            "source_ids": sorted(usage),
-            "source_usage": usage,
+            "source_ids": sorted(source_usage),
+            "source_usage": source_usage,
+            "fragment_count": len(fragments),
+            "fragment_usage_count": len(fragment_usage),
+            "max_fragment_reuse_observed": max(fragment_usage.values(), default=0),
             "settings": asdict(settings),
             "still_path": display_path(still_path),
             "video_path": display_path(video_path) if video_path else None,

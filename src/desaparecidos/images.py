@@ -12,8 +12,11 @@ from .manifests import ManifestRow, row_file_path
 @dataclass(frozen=True)
 class Fragment:
     source_id: str
+    fragment_id: str
     image: Image.Image
     descriptor: np.ndarray
+    x: int
+    y: int
 
 
 def load_rgb(path: str | Path) -> Image.Image:
@@ -55,6 +58,8 @@ def extract_fragments(
 ) -> list[Fragment]:
     if fragment_size < 8:
         raise ValueError("fragment_size must be at least 8")
+    if max_fragments_per_source < 1:
+        raise ValueError("max_fragments_per_source must be at least 1")
     stride = stride or fragment_size
     fragments: list[Fragment] = []
 
@@ -70,17 +75,29 @@ def extract_fragments(
                 source_fragments.append(
                     Fragment(
                         source_id=row.id,
+                        fragment_id=f"{row.id}:{x}:{y}",
                         image=patch,
                         descriptor=descriptor_for(patch),
+                        x=x,
+                        y=y,
                     )
                 )
         if not source_fragments:
             resized = image.resize((fragment_size, fragment_size), Image.Resampling.LANCZOS)
             source_fragments.append(
-                Fragment(row.id, resized, descriptor_for(resized))
+                Fragment(row.id, f"{row.id}:0:0", resized, descriptor_for(resized), 0, 0)
             )
-        fragments.extend(source_fragments[:max_fragments_per_source])
+        fragments.extend(_sample_fragments(source_fragments, max_fragments_per_source))
 
     if not fragments:
         raise ValueError("no fragments could be extracted from approved sources")
     return fragments
+
+
+def _sample_fragments(source_fragments: list[Fragment], limit: int) -> list[Fragment]:
+    if len(source_fragments) <= limit:
+        return source_fragments
+    if limit == 1:
+        return [source_fragments[len(source_fragments) // 2]]
+    indexes = np.linspace(0, len(source_fragments) - 1, num=limit, dtype=int)
+    return [source_fragments[int(index)] for index in indexes]

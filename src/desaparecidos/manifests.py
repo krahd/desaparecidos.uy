@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from .paths import display_path
+
 ManifestKind = Literal["targets", "places"]
 
 TARGET_FIELDS = [
@@ -92,13 +94,20 @@ class ManifestRow:
     def approved(self) -> bool:
         return self.review_status == APPROVED
 
-    def to_api(self) -> dict[str, Any]:
+    def to_api(self, manifest_path: str | Path | None = None) -> dict[str, Any]:
+        file_path: str | None = None
+        if manifest_path is not None and self.local_path:
+            try:
+                file_path = display_path(row_file_path(self, manifest_path))
+            except Exception:
+                file_path = None
         return {
             "kind": self.kind,
             "line_number": self.line_number,
             "id": self.id,
             "label": self.label,
             "approved": self.approved,
+            "file_path": file_path,
             "values": self.values,
         }
 
@@ -128,7 +137,7 @@ class ManifestValidation:
             "warnings": self.warnings,
             "row_count": len(self.rows),
             "approved_count": self.approved_count,
-            "rows": [row.to_api() for row in self.rows],
+            "rows": [row.to_api(self.path) for row in self.rows],
         }
 
 

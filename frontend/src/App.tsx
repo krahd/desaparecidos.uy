@@ -40,7 +40,7 @@ export function App() {
   const [outputDir, setOutputDir] = useState(defaultPaths.outputDir);
   const [seed, setSeed] = useState(17);
   const [fragmentSize, setFragmentSize] = useState(24);
-  const [reuseLimit, setReuseLimit] = useState(64);
+  const [reuseLimit, setReuseLimit] = useState(8);
   const [outputWidth, setOutputWidth] = useState(720);
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
@@ -392,12 +392,13 @@ function WorkflowItem({
 }
 
 function Preview({ row, compact = false }: { row?: ManifestRow; compact?: boolean }) {
-  if (!row?.values.local_path) {
+  const path = row?.file_path ?? row?.values.local_path;
+  if (!path) {
     return <div className={`preview placeholder ${compact ? 'compact' : ''}`} />;
   }
   return (
     <div className={`preview ${compact ? 'compact' : ''}`}>
-      <img src={fileUrl(row.values.local_path)} alt="" />
+      <img src={fileUrl(path)} alt="" />
     </div>
   );
 }

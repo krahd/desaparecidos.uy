@@ -7,6 +7,7 @@ export type ManifestRow = {
   id: string;
   label: string;
   approved: boolean;
+  file_path?: string | null;
   values: Record<string, string>;
 };
 

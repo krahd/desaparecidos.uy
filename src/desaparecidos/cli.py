@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--output", default="outputs/stage1")
     run.add_argument("--seed", type=int, default=17)
     run.add_argument("--fragment-size", type=int, default=24)
-    run.add_argument("--reuse-limit", type=int, default=64)
+    run.add_argument("--reuse-limit", type=int, default=8)
     run.add_argument("--output-width", type=int, default=720)
     run.add_argument("--target-id")
     run.add_argument("--video", action="store_true")

@@ -34,7 +34,7 @@ class GenerateRequest(BaseModel):
     output_dir: str = "outputs/stage1"
     seed: int = 17
     fragment_size: int = Field(default=24, ge=8, le=128)
-    reuse_limit: int = Field(default=64, ge=1, le=10000)
+    reuse_limit: int = Field(default=8, ge=1, le=10000)
     output_width: int = Field(default=720, ge=120, le=4096)
     make_video: bool = False
     target_id: str | None = None

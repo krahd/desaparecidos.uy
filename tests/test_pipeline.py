@@ -61,7 +61,7 @@ def digest(path: Path) -> str:
 
 def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path)
-    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=20, output_width=96)
+    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=2, output_width=96)
 
     first = run_stage1(targets, places, tmp_path / "out-a", settings)[0]
     second = run_stage1(targets, places, tmp_path / "out-b", settings)[0]
@@ -70,11 +70,29 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     sidecar = json.loads(Path(first.sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["target_id"] == "person-1"
     assert sidecar["settings"]["seed"] == 17
+    assert sidecar["max_fragment_reuse_observed"] <= 2
 
 
 def test_reuse_limit_is_enforced(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
-    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=2, output_width=96)
+    settings = Stage1Settings(
+        seed=17,
+        fragment_size=24,
+        reuse_limit=1,
+        output_width=96,
+        max_fragments_per_source=2,
+    )
 
     with pytest.raises(ValueError, match="reuse_limit"):
         run_stage1(targets, places, tmp_path / "out", settings)
+
+
+def test_reuse_limit_applies_per_fragment_not_per_source(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=1)
+    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96)
+
+    output = run_stage1(targets, places, tmp_path / "out", settings)[0]
+
+    sidecar = json.loads(Path(output.sidecar_path).read_text(encoding="utf-8"))
+    assert sidecar["source_usage"]["source-0"] == 16
+    assert sidecar["max_fragment_reuse_observed"] == 1

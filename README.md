@@ -34,7 +34,7 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 The GUI can validate manifests, download manifest-listed sources, run still/video generation, inspect progress logs, and review output sidecars.
 
-The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them.
+The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
 
 ## Manual Setup
 
@@ -75,6 +75,7 @@ Tracked manifest templates live in `data/manifests/`.
 - Place manifests describe place/surface images and reuse terms.
 - Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
 - Downloads are URL-list processing only. Stage 1 does not crawl websites.
+- `reuse_limit` is enforced per extracted source fragment. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
 
 Downloaded files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. Both directories are ignored.
 

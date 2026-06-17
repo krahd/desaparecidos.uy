@@ -17,6 +17,12 @@ from .images import Fragment, crop_from_row, descriptor_for, extract_fragments, 
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
 
+BACKGROUND = (245, 245, 242)
+INK = (18, 18, 17)
+ACCENT = (109, 47, 38)
+PROCESS_VIDEO_STYLE = "source-fullscreen-fragment-flight"
+MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
+
 
 @dataclass(frozen=True)
 class Stage1Settings:
@@ -34,6 +40,26 @@ class Stage1Output:
     still_path: str
     sidecar_path: str
     video_path: str | None = None
+
+
+@dataclass(frozen=True)
+class TilePlacement:
+    source_id: str
+    fragment_id: str
+    image: Image.Image
+    dest_x: int
+    dest_y: int
+    source_x: int
+    source_y: int
+
+
+@dataclass(frozen=True)
+class AssemblyResult:
+    image: Image.Image
+    target_canvas: Image.Image
+    source_usage: dict[str, int]
+    fragment_usage: dict[str, int]
+    placements: list[TilePlacement]
 
 
 def _target_canvas(target: Image.Image, output_width: int, fragment_size: int) -> Image.Image:
@@ -69,15 +95,26 @@ def assemble_target(
     fragments: list[Fragment],
     settings: Stage1Settings,
 ) -> tuple[Image.Image, dict[str, int], dict[str, int]]:
+    result = assemble_target_with_trace(target_row, target_manifest, fragments, settings)
+    return result.image, result.source_usage, result.fragment_usage
+
+
+def assemble_target_with_trace(
+    target_row: ManifestRow,
+    target_manifest: str | Path,
+    fragments: list[Fragment],
+    settings: Stage1Settings,
+) -> AssemblyResult:
     target = crop_from_row(load_rgb(row_file_path(target_row, target_manifest)), target_row)
     target = _target_canvas(target, settings.output_width, settings.fragment_size)
     rng = random.Random(settings.seed + sum(ord(char) for char in target_row.id))
     shuffled = list(fragments)
     rng.shuffle(shuffled)
 
-    output = Image.new("RGB", target.size, (245, 245, 242))
+    output = Image.new("RGB", target.size, BACKGROUND)
     source_usage: dict[str, int] = {}
     fragment_usage: dict[str, int] = {}
+    placements: list[TilePlacement] = []
     tile = settings.fragment_size
     tile_count = math.ceil(target.width / tile) * math.ceil(target.height / tile)
     source_count = len({fragment.source_id for fragment in fragments})
@@ -99,8 +136,19 @@ def assemble_target(
             source_usage[fragment.source_id] = source_usage.get(fragment.source_id, 0) + 1
             fragment_usage[fragment.fragment_id] = fragment_usage.get(fragment.fragment_id, 0) + 1
             output.paste(fragment.image, (x, y))
+            placements.append(
+                TilePlacement(
+                    source_id=fragment.source_id,
+                    fragment_id=fragment.fragment_id,
+                    image=fragment.image,
+                    dest_x=x,
+                    dest_y=y,
+                    source_x=fragment.x,
+                    source_y=fragment.y,
+                )
+            )
 
-    return output, source_usage, fragment_usage
+    return AssemblyResult(output, target, source_usage, fragment_usage, placements)
 
 
 def render_video(
@@ -109,10 +157,25 @@ def render_video(
     output_path: Path,
     *,
     seed: int,
+    assembly: AssemblyResult | None = None,
+    source_rows: list[ManifestRow] | None = None,
+    source_manifest: str | Path | None = None,
     fps: int = 12,
     seconds: int = 8,
 ) -> str:
-    if _render_video_ffmpeg(still, target_row, output_path, seed=seed, fps=fps, seconds=seconds):
+    if assembly is not None and source_rows is not None and source_manifest is not None:
+        frames = _process_video_frames(
+            target_row,
+            assembly,
+            source_rows,
+            source_manifest,
+            seed=seed,
+            fps=fps,
+        )
+    else:
+        frames = _reveal_video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds)
+
+    if _render_video_ffmpeg(frames, still.size, output_path, fps=fps):
         return "h264"
     raise RuntimeError(
         "Browser-playable MP4 rendering requires ffmpeg with libx264. "
@@ -120,7 +183,7 @@ def render_video(
     )
 
 
-def _video_frames(
+def _reveal_video_frames(
     still: Image.Image,
     target_row: ManifestRow,
     *,
@@ -148,22 +211,251 @@ def _video_frames(
         yield pil_frame
 
 
-def _render_video_ffmpeg(
-    still: Image.Image,
+def _process_video_frames(
     target_row: ManifestRow,
-    output_path: Path,
+    assembly: AssemblyResult,
+    source_rows: list[ManifestRow],
+    source_manifest: str | Path,
     *,
     seed: int,
     fps: int,
-    seconds: int,
+) -> Iterable[Image.Image]:
+    width, height = assembly.image.size
+    tile = assembly.placements[0].image.width if assembly.placements else 24
+    source_rows_by_id = {row.id: row for row in source_rows}
+    placements_by_source = _placements_by_source(assembly.placements)
+    mosaic = Image.new("RGB", assembly.image.size, BACKGROUND)
+    placed_mask = Image.new("L", assembly.image.size, 0)
+    mask_draw = ImageDraw.Draw(placed_mask)
+
+    for source_id, placements in placements_by_source:
+        row = source_rows_by_id.get(source_id)
+        if row is None:
+            continue
+        source_image = load_rgb(row_file_path(row, source_manifest))
+        source_rect = _fit_rect(source_image.size, width, height)
+        source_full = _source_fullscreen_frame(source_image, source_rect, assembly.image.size, row)
+        samples = _sample_placements(placements, MAX_ANIMATED_FRAGMENTS_PER_SOURCE)
+
+        for _ in range(max(1, int(fps * 0.9))):
+            yield source_full.copy()
+
+        highlighted = _source_fullscreen_frame(
+            source_image,
+            source_rect,
+            assembly.image.size,
+            row,
+            highlight_placements=samples,
+            fragment_size=tile,
+        )
+        for _ in range(max(1, int(fps * 0.7))):
+            yield highlighted.copy()
+
+        transition_frames = max(1, int(fps * 1.8))
+        for index in range(transition_frames):
+            progress = _ease(index / max(1, transition_frames - 1))
+            frame = _placed_background(assembly.target_canvas, mosaic, placed_mask)
+            if progress < 1.0:
+                overlay = source_full.copy()
+                alpha = int(round(185 * (1.0 - progress)))
+                frame = Image.blend(frame, overlay, alpha / 255.0)
+            _draw_destination_grid(frame, samples, tile, progress)
+            _draw_flying_fragments(
+                frame,
+                samples,
+                source_rect,
+                source_image.size,
+                tile,
+                progress,
+                seed=seed,
+            )
+            yield frame
+
+        for placement in placements:
+            mosaic.paste(placement.image, (placement.dest_x, placement.dest_y))
+            mask_draw.rectangle(
+                (
+                    placement.dest_x,
+                    placement.dest_y,
+                    placement.dest_x + tile - 1,
+                    placement.dest_y + tile - 1,
+                ),
+                fill=255,
+            )
+        settled = _placed_background(assembly.target_canvas, mosaic, placed_mask)
+        for _ in range(max(1, int(fps * 0.25))):
+            yield settled.copy()
+
+    for _ in range(max(1, int(fps * 2.0))):
+        yield assembly.image.copy()
+
+
+def _placements_by_source(placements: list[TilePlacement]) -> list[tuple[str, list[TilePlacement]]]:
+    groups: dict[str, list[TilePlacement]] = {}
+    order: list[str] = []
+    for placement in placements:
+        if placement.source_id not in groups:
+            groups[placement.source_id] = []
+            order.append(placement.source_id)
+        groups[placement.source_id].append(placement)
+    return [(source_id, groups[source_id]) for source_id in order]
+
+
+def _sample_placements(placements: list[TilePlacement], limit: int) -> list[TilePlacement]:
+    if len(placements) <= limit:
+        return placements
+    indexes = np.linspace(0, len(placements) - 1, num=limit, dtype=int)
+    return [placements[int(index)] for index in indexes]
+
+
+def _fit_rect(source_size: tuple[int, int], width: int, height: int) -> tuple[int, int, int, int]:
+    source_width, source_height = source_size
+    scale = min(width / source_width, height / source_height)
+    fitted_width = max(1, int(round(source_width * scale)))
+    fitted_height = max(1, int(round(source_height * scale)))
+    x = (width - fitted_width) // 2
+    y = (height - fitted_height) // 2
+    return x, y, fitted_width, fitted_height
+
+
+def _source_fullscreen_frame(
+    source_image: Image.Image,
+    rect: tuple[int, int, int, int],
+    size: tuple[int, int],
+    row: ManifestRow,
+    *,
+    highlight_placements: list[TilePlacement] | None = None,
+    fragment_size: int | None = None,
+) -> Image.Image:
+    frame = Image.new("RGB", size, INK)
+    x, y, width, height = rect
+    fitted = source_image.resize((width, height), Image.Resampling.LANCZOS)
+    frame.paste(fitted, (x, y))
+
+    draw = ImageDraw.Draw(frame, "RGBA")
+    if highlight_placements and fragment_size:
+        draw.rectangle((0, 0, size[0], size[1]), fill=(18, 18, 17, 70))
+        scale_x = width / source_image.width
+        scale_y = height / source_image.height
+        for placement in highlight_placements:
+            left = x + placement.source_x * scale_x
+            top = y + placement.source_y * scale_y
+            right = left + fragment_size * scale_x
+            bottom = top + fragment_size * scale_y
+            draw.rectangle((left, top, right, bottom), outline=(255, 253, 248, 220), width=3)
+            draw.rectangle((left + 2, top + 2, right - 2, bottom - 2), outline=(*ACCENT, 230), width=2)
+
+    _draw_source_label(frame, row)
+    return frame
+
+
+def _draw_source_label(frame: Image.Image, row: ManifestRow) -> None:
+    width, height = frame.size
+    draw = ImageDraw.Draw(frame, "RGBA")
+    font = ImageFont.load_default()
+    label = row.values.get("title") or row.values.get("name") or row.id
+    bar_height = 34
+    draw.rectangle((0, height - bar_height, width, height), fill=(18, 18, 17, 190))
+    draw.text((18, height - 24), label, fill=(245, 245, 240, 235), font=font)
+
+
+def _placed_background(target_canvas: Image.Image, mosaic: Image.Image, placed_mask: Image.Image) -> Image.Image:
+    blank = Image.new("RGB", target_canvas.size, BACKGROUND)
+    ghost = target_canvas.convert("L").convert("RGB")
+    frame = Image.blend(blank, ghost, 0.18)
+    frame.paste(mosaic, (0, 0), placed_mask)
+    return frame
+
+
+def _draw_destination_grid(
+    frame: Image.Image,
+    placements: list[TilePlacement],
+    tile: int,
+    progress: float,
+) -> None:
+    draw = ImageDraw.Draw(frame, "RGBA")
+    alpha = int(round(120 * progress))
+    for placement in placements:
+        draw.rectangle(
+            (
+                placement.dest_x,
+                placement.dest_y,
+                placement.dest_x + tile,
+                placement.dest_y + tile,
+            ),
+            outline=(*ACCENT, alpha),
+            width=1,
+        )
+
+
+def _draw_flying_fragments(
+    frame: Image.Image,
+    placements: list[TilePlacement],
+    source_rect: tuple[int, int, int, int],
+    source_size: tuple[int, int],
+    tile: int,
+    progress: float,
+    *,
+    seed: int,
+) -> None:
+    if not placements:
+        return
+    draw = ImageDraw.Draw(frame, "RGBA")
+    source_x, source_y, source_width, source_height = source_rect
+    scale_x = source_width / source_size[0]
+    scale_y = source_height / source_size[1]
+    max_start_size = max(tile * 3, min(frame.size) * 0.18)
+    stagger_span = 0.48
+    motion_span = 1.0 - stagger_span + (stagger_span / max(1, len(placements)))
+
+    for index, placement in enumerate(placements):
+        stagger = (index / max(1, len(placements) - 1)) * stagger_span
+        local = min(1.0, max(0.0, (progress - stagger) / max(0.01, motion_span)))
+        eased = _ease(local)
+        start_cx = source_x + (placement.source_x + tile / 2) * scale_x
+        start_cy = source_y + (placement.source_y + tile / 2) * scale_y
+        end_cx = placement.dest_x + tile / 2
+        end_cy = placement.dest_y + tile / 2
+        cx = start_cx + (end_cx - start_cx) * eased
+        cy = start_cy + (end_cy - start_cy) * eased
+        start_size = min(max_start_size, max(tile * 1.8, tile * max(scale_x, scale_y)))
+        current_size = max(1, int(round(start_size + (tile - start_size) * eased)))
+        angle = _fragment_angle(placement.fragment_id, seed) * (1.0 - eased)
+
+        draw.line((cx, cy, end_cx, end_cy), fill=(*ACCENT, int(80 * (1.0 - eased))), width=1)
+        patch = placement.image.resize((current_size, current_size), Image.Resampling.LANCZOS).convert("RGBA")
+        patch = patch.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True, fillcolor=(0, 0, 0, 0))
+        px = int(round(cx - patch.width / 2))
+        py = int(round(cy - patch.height / 2))
+        frame.paste(patch, (px, py), patch)
+
+
+def _fragment_angle(fragment_id: str, seed: int) -> float:
+    value = seed + sum((index + 1) * ord(char) for index, char in enumerate(fragment_id))
+    return float((value % 25) - 12)
+
+
+def _ease(value: float) -> float:
+    value = min(1.0, max(0.0, value))
+    return value * value * (3.0 - 2.0 * value)
+
+
+def _render_video_ffmpeg(
+    frames: Iterable[Image.Image],
+    size: tuple[int, int],
+    output_path: Path,
+    *,
+    fps: int,
 ) -> bool:
     ffmpeg = _find_ffmpeg()
     if not ffmpeg:
         return False
 
-    width, height = still.size
+    width, height = size
     command = [
         ffmpeg,
+        "-loglevel",
+        "error",
         "-y",
         "-f",
         "rawvideo",
@@ -194,7 +486,11 @@ def _render_video_ffmpeg(
     )
     assert process.stdin is not None
     try:
-        for frame in _video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds):
+        for frame in frames:
+            if frame.size != size:
+                frame = frame.resize(size, Image.Resampling.LANCZOS)
+            if frame.mode != "RGB":
+                frame = frame.convert("RGB")
             process.stdin.write(frame.tobytes())
         process.stdin.close()
         stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""
@@ -247,7 +543,10 @@ def run_stage1(
 
     outputs: list[Stage1Output] = []
     for target_row in target_rows:
-        still, source_usage, fragment_usage = assemble_target(target_row, target_manifest, fragments, settings)
+        assembly = assemble_target_with_trace(target_row, target_manifest, fragments, settings)
+        still = assembly.image
+        source_usage = assembly.source_usage
+        fragment_usage = assembly.fragment_usage
         safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in target_row.id)
         stem = f"{safe_id}_seed{settings.seed}_f{settings.fragment_size}"
         still_path = output_root / f"{stem}.png"
@@ -257,7 +556,24 @@ def run_stage1(
 
         still.save(still_path)
         if video_path is not None:
-            video_codec = render_video(still, target_row, video_path, seed=settings.seed)
+            video_codec = render_video(
+                still,
+                target_row,
+                video_path,
+                seed=settings.seed,
+                assembly=assembly,
+                source_rows=source_rows,
+                source_manifest=source_manifest,
+            )
+
+        source_sequence = [
+            {
+                "source_id": source_id,
+                "tile_count": len(placements),
+                "animated_fragment_count": min(len(placements), MAX_ANIMATED_FRAGMENTS_PER_SOURCE),
+            }
+            for source_id, placements in _placements_by_source(assembly.placements)
+        ]
 
         sidecar = {
             "target": target_row.values,
@@ -267,10 +583,17 @@ def run_stage1(
             "fragment_count": len(fragments),
             "fragment_usage_count": len(fragment_usage),
             "max_fragment_reuse_observed": max(fragment_usage.values(), default=0),
+            "tile_count": len(assembly.placements),
+            "source_sequence": source_sequence,
             "settings": asdict(settings),
             "still_path": display_path(still_path),
             "video_path": display_path(video_path) if video_path else None,
             "video_codec": video_codec,
+            "video_process": {
+                "style": PROCESS_VIDEO_STYLE,
+                "full_screen_source_intro": True,
+                "animated_fragment_limit_per_source": MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
+            } if video_path else None,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "method": "Stage 1 place-fragment reconstruction prototype",
         }

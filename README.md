@@ -18,7 +18,7 @@ The prototype provides:
 - a constrained page-image crawler for explicit user-supplied pages;
 - a preset menu of starting pages for crawler trials;
 - deterministic fragment matching and assembly;
-- still PNG outputs and optional browser-playable H.264 MP4 rendering;
+- still PNG outputs and optional browser-playable H.264 MP4 process videos;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
@@ -36,7 +36,7 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./Start\ desaparecidos.command` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, review output sidecars, and delete selected or all generated outputs.
+The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, review output sidecars, and delete selected or all generated outputs. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, and animate those fragments into their actual positions in the reconstructed portrait so the assembly process remains visible.
 
 The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
 
@@ -86,6 +86,7 @@ Tracked manifest templates live in `data/manifests/`.
 - Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
 - The crawler fetches only page URLs entered or selected in the GUI. It saves discovered images under ignored `data/raw/crawl/`, appends pending rows to ignored `data/manifests/crawled-*.csv`, and never makes crawled media eligible for generation until a row is manually approved.
 - `reuse_limit` is enforced per extracted source fragment. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
+- Video sidecars record the process style, source sequence, tile counts, and per-source animated fragment counts.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 
 Downloaded and crawled files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.

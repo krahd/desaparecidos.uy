@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 16:43 GMT-3
+Last updated: 2026-06-17 17:05 GMT-3
 
 ## Project purpose
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-17 16:43 GMT-3
 
 ## Current implementation state
 
-The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, a constrained page-image crawler for explicit or preset pages, generated-output deletion controls, and browser-playable H.264 video rendering when `ffmpeg` is available.
+The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, a constrained page-image crawler for explicit or preset pages, generated-output deletion controls, and browser-playable H.264 process-video rendering when `ffmpeg` is available.
 
 ## Active focus
 
@@ -16,7 +16,7 @@ Review real target/place manifests and crawler-produced pending rows before intr
 
 ## Architecture overview
 
-The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs constrained one-page image crawling on user-supplied or preset URLs, updates row review status, deletes selected generated outputs on request, and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars.
+The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs constrained one-page image crawling on user-supplied or preset URLs, updates row review status, deletes selected generated outputs on request, and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars. Video generation uses the same assembly trace as still generation: each used source image is introduced full-screen, sampled fragment regions are highlighted, and fragments animate into their actual positions in the reconstructed portrait.
 
 ### Architecture diagram
 
@@ -137,6 +137,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - 2026-06-17 15:40 GMT-3 follow-up: diagnosed GUI `501 Unsupported method ('POST')` responses as requests hitting `python -m http.server` on port `8765` instead of FastAPI. The launcher now selects free backend/frontend ports and passes the selected API URL into Vite.
 - 2026-06-17 16:11 GMT-3 follow-up: made the workflow rail clickable, added GUI review/approve/reject controls, added a large still/video output viewer, selected new outputs after generation, and added a constrained crawler that saves candidates as pending rows.
 - 2026-06-17 16:43 GMT-3 follow-up: added generated-output selection and delete controls, added a backend output deletion endpoint, switched video rendering to H.264 MP4 via `ffmpeg`, set explicit `video/mp4` responses, removed the unused OpenCV dependency, and added crawler starting-page presets for CdF, MUME, Sitios de Memoria, and Wikimedia Commons Montevideo categories.
+- 2026-06-17 17:05 GMT-3 follow-up: replaced the simple random reveal video with a source-first process video. The renderer records tile placements during assembly, shows each used source image full-screen, highlights sampled source fragments, animates fragments into their actual portrait positions, and records source sequence/process metadata in sidecars.
 
 ## Tests and verification status
 
@@ -158,6 +159,7 @@ Verification run on 2026-06-17:
 - 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "Start desaparecidos.command"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
 - 2026-06-17 16:15 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed after adding crawler/review/output-viewer UI and backend routes. A launcher smoke run selected backend `8766` and frontend `5178`; API smoke calls for `/api/demo-fixtures`, `/api/crawl` against a local page, `/api/generate` still, `/api/generate` video, and `/api/outputs` returned successful responses. Browser interaction automation is still unavailable in this environment.
 - 2026-06-17 16:43 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, `zsh -n "Start desaparecidos.command"`, and `git diff --check` passed after adding output deletion controls, crawler presets, and H.264 video rendering. A fresh demo video smoke render to `/private/tmp/desaparecidos-video-smoke-20260617` produced an MP4 whose video stream probed as `codec_name=h264` and `pix_fmt=yuv420p`, with `video_codec: h264` in the sidecar.
+- 2026-06-17 17:05 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed with 23 tests after adding assembly-trace process video rendering. A fresh demo process-video smoke render to `/private/tmp/desaparecidos-process-video-smoke-20260617` produced a 16 second H.264/yuv420p MP4 with 192 frames; extracted frames were visually checked for full-source introduction, fragment motion, and final reconstruction.
 
 ## Known issues, risks, and limitations
 
@@ -203,4 +205,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 16:43 GMT-3
+Last updated: 2026-06-17 17:05 GMT-3

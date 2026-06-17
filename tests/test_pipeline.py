@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import itertools
 import json
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 import pytest
 
-from desaparecidos.pipeline import Stage1Settings, run_stage1
+from desaparecidos.images import extract_fragments
+from desaparecidos.manifests import approved_rows
+from desaparecidos.pipeline import Stage1Settings, assemble_target_with_trace, run_stage1
+from desaparecidos import pipeline as pipeline_module
 
 
 def make_image(path: Path, base: tuple[int, int, int], accent: tuple[int, int, int]) -> None:
@@ -71,6 +75,8 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     assert sidecar["target_id"] == "person-1"
     assert sidecar["settings"]["seed"] == 17
     assert sidecar["max_fragment_reuse_observed"] <= 2
+    assert sidecar["tile_count"] == 16
+    assert sidecar["source_sequence"]
 
 
 def test_reuse_limit_is_enforced(tmp_path: Path) -> None:
@@ -96,3 +102,54 @@ def test_reuse_limit_applies_per_fragment_not_per_source(tmp_path: Path) -> None
     sidecar = json.loads(Path(output.sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["source_usage"]["source-0"] == 16
     assert sidecar["max_fragment_reuse_observed"] == 1
+
+
+def test_assembly_trace_records_fragment_destinations(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=1)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+    )
+
+    assert assembly.image.size == (96, 96)
+    assert assembly.target_canvas.size == (96, 96)
+    assert len(assembly.placements) == 16
+    assert assembly.placements[0].source_id == "source-0"
+    assert assembly.placements[0].dest_x == 0
+    assert assembly.placements[0].dest_y == 0
+
+
+def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=1)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+    )
+
+    frames = list(itertools.islice(
+        pipeline_module._process_video_frames(
+            target_row,
+            assembly,
+            source_rows,
+            places,
+            seed=17,
+            fps=4,
+        ),
+        12,
+    ))
+
+    assert frames
+    assert all(frame.size == assembly.image.size for frame in frames)
+    assert frames[0].tobytes() != assembly.image.tobytes()
+    assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])

@@ -15,6 +15,7 @@ The prototype provides:
 - manifest-driven target and place-source ingestion;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
+- a constrained page-image crawler for explicit user-supplied pages;
 - deterministic fragment matching and assembly;
 - still PNG outputs and optional MP4 rendering;
 - JSON sidecars for generated outputs;
@@ -34,7 +35,7 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./Start\ desaparecidos.command` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, download manifest-listed sources, run still/video generation, inspect progress logs, and review output sidecars.
+The GUI can validate manifests, crawl user-supplied pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, and review output sidecars.
 
 The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
 
@@ -76,10 +77,10 @@ Tracked manifest templates live in `data/manifests/`.
 - Target manifests describe disappeared persons' public images and source provenance.
 - Place manifests describe place/surface images and reuse terms.
 - Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
-- Downloads are URL-list processing only. Stage 1 does not crawl websites.
+- The crawler fetches only page URLs entered in the GUI. It saves discovered images under ignored `data/raw/crawl/`, appends pending rows to ignored `data/manifests/crawled-*.csv`, and never makes crawled media eligible for generation until a row is manually approved.
 - `reuse_limit` is enforced per extracted source fragment. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
 
-Downloaded files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. Both directories are ignored.
+Downloaded and crawled files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.
 
 ## Verification
 

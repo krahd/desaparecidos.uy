@@ -23,6 +23,7 @@ data/raw/
 data/fragments/
 data/demo/
 data/manifests/demo-*.csv
+data/manifests/crawled-*.csv
 outputs/
 
 # Local environment and logs

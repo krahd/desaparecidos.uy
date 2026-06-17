@@ -243,3 +243,47 @@ def row_file_path(row: ManifestRow, manifest_path: str | Path) -> Path:
     if value.is_absolute():
         return value
     return (Path(manifest_path).resolve().parent / value).resolve()
+
+
+def set_review_status(
+    path: str | Path,
+    kind: ManifestKind,
+    row_id: str,
+    review_status: str,
+) -> ManifestValidation:
+    status = review_status.strip().lower()
+    if status not in {APPROVED, "pending", "rejected"}:
+        raise ValueError("review_status must be approved, pending, or rejected")
+
+    manifest_path = Path(path)
+    expected_fields = EXPECTED_FIELDS[kind]
+    if not manifest_path.exists():
+        raise ValueError(f"{manifest_path} does not exist")
+
+    with manifest_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or expected_fields
+        rows = list(reader)
+
+    if "review_status" not in fieldnames:
+        fieldnames = [*fieldnames, "review_status"]
+    for field_name in expected_fields:
+        if field_name not in fieldnames:
+            fieldnames = [*fieldnames, field_name]
+
+    updated = False
+    for row in rows:
+        if (row.get("id") or "").strip() == row_id:
+            row["review_status"] = status
+            updated = True
+
+    if not updated:
+        raise ValueError(f"{manifest_path} has no row with id {row_id!r}")
+
+    with manifest_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+    return validate_manifest(manifest_path, kind, require_files=True)

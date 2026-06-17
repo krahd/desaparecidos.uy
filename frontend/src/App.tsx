@@ -1,12 +1,18 @@
 import {
+  Ban,
+  Check,
   CheckCircle2,
   Download,
+  Eye,
   FileCheck2,
+  Globe2,
   Image as ImageIcon,
   LayoutGrid,
+  Maximize2,
   Play,
   RefreshCw,
   Video,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -14,11 +20,13 @@ import {
   ManifestRow,
   OutputItem,
   ValidateResponse,
+  crawlPages,
   createDemoFixtures,
   downloadManifest,
   fileUrl,
   generateStage1,
   listOutputs,
+  updateReviewStatus,
   validateManifests,
 } from './api';
 
@@ -28,10 +36,19 @@ type LogEntry = {
   tone?: 'ok' | 'error';
 };
 
+type SectionId = 'manifests' | 'review' | 'generate' | 'outputs';
+type ReviewKind = 'targets' | 'places';
+type ReviewStatus = 'approved' | 'pending' | 'rejected';
+
 const defaultPaths = {
   targets: 'data/manifests/targets.csv',
   sources: 'data/manifests/places.csv',
   outputDir: 'outputs/stage1',
+};
+
+const crawlerManifestDefaults: Record<ReviewKind, string> = {
+  targets: 'data/manifests/crawled-targets.csv',
+  places: 'data/manifests/crawled-places.csv',
 };
 
 export function App() {
@@ -47,6 +64,14 @@ export function App() {
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [selectedOutput, setSelectedOutput] = useState<OutputItem | null>(null);
+  const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionId>('manifests');
+  const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
+  const [crawlKind, setCrawlKind] = useState<ReviewKind>('places');
+  const [crawlPagesText, setCrawlPagesText] = useState('');
+  const [crawlManifest, setCrawlManifest] = useState(crawlerManifestDefaults.places);
+  const [crawlMaxImages, setCrawlMaxImages] = useState(12);
+  const [crawlLabelPrefix, setCrawlLabelPrefix] = useState('');
   const [log, setLog] = useState<LogEntry[]>([
     { at: new Date().toLocaleTimeString(), text: 'GUI ready. Backend must be running on localhost.' },
   ]);
@@ -60,6 +85,9 @@ export function App() {
 
   const approvedTargets = validation?.targets.rows.filter((row) => row.approved) ?? [];
   const approvedSources = validation?.sources.rows.filter((row) => row.approved) ?? [];
+  const reviewRows = reviewKind === 'targets'
+    ? validation?.targets.rows ?? []
+    : validation?.sources.rows ?? [];
   const activeTarget = approvedTargets.find((row) => row.id === targetId) ?? approvedTargets[0];
 
   const statusLabel = useMemo(() => {
@@ -68,7 +96,11 @@ export function App() {
     return validation.ok ? 'validated' : 'needs attention';
   }, [busy, validation]);
 
-  async function runAction<T>(label: string, action: () => Promise<T>, success: string) {
+  const runAction = useCallback(async <T,>(
+    label: string,
+    action: () => Promise<T>,
+    success: string,
+  ): Promise<T | null> => {
     setBusy(true);
     appendLog(label);
     try {
@@ -78,11 +110,18 @@ export function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       appendLog(message, 'error');
-      throw error;
+      return null;
     } finally {
       setBusy(false);
     }
-  }
+  }, [appendLog]);
+
+  const selectWorkflow = useCallback((section: SectionId) => {
+    setActiveSection(section);
+    const target = document.getElementById(`section-${section}`)
+      ?? document.getElementById(`controls-${section}`);
+    target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, []);
 
   async function handleValidate(requireFiles = false) {
     const response = await runAction(
@@ -90,11 +129,13 @@ export function App() {
       () => validateManifests({ targets, sources, require_files: requireFiles }),
       'Validation finished.',
     );
+    if (!response) return;
     setValidation(response);
     const firstApproved = response.targets.rows.find((row) => row.approved)?.id ?? '';
     if (firstApproved && !response.targets.rows.some((row) => row.id === targetId)) {
       setTargetId(firstApproved);
     }
+    setActiveSection('manifests');
   }
 
   async function handleCreateDemoFixtures() {
@@ -111,13 +152,16 @@ export function App() {
       },
       'Demo fixtures created and validated.',
     );
+    if (!response) return;
     setTargets(response.fixtures.targets);
     setSources(response.fixtures.sources);
     setValidation(response.checked);
     setTargetId(response.checked.targets.rows.find((row) => row.approved)?.id ?? '');
+    setReviewKind('places');
+    setActiveSection('review');
   }
 
-  async function handleDownload(kind: 'targets' | 'places') {
+  async function handleDownload(kind: ReviewKind) {
     const manifest = kind === 'targets' ? targets : sources;
     await runAction(
       `Downloading ${kind} manifest URLs.`,
@@ -126,14 +170,22 @@ export function App() {
     );
   }
 
-  async function refreshOutputs() {
+  async function refreshOutputs(preferredPath?: string): Promise<OutputItem | null> {
     const response = await runAction(
       'Refreshing outputs.',
       () => listOutputs(outputDir),
       'Outputs refreshed.',
     );
+    if (!response) return null;
     setOutputs(response.items);
-    setSelectedOutput(response.items[0] ?? null);
+    const selected = response.items.find((item) => (
+      item.sidecar_path === preferredPath
+      || item.still_path === preferredPath
+      || item.video_path === preferredPath
+      || item.id === preferredPath
+    )) ?? response.items[0] ?? null;
+    setSelectedOutput(selected);
+    return selected;
   }
 
   async function handleGenerate(makeVideo: boolean) {
@@ -147,13 +199,13 @@ export function App() {
         });
         setValidation(checked);
         const firstApprovedTarget = checked.targets.rows.find((row) => row.approved)?.id ?? '';
-        const selectedTargetId = targetId || firstApprovedTarget;
-        if (firstApprovedTarget && !targetId) {
+        const selectedTargetId = activeTarget?.id || firstApprovedTarget;
+        if (firstApprovedTarget && !activeTarget) {
           setTargetId(firstApprovedTarget);
         }
         if (checked.targets.approved_count === 0 || checked.sources.approved_count === 0) {
           throw new Error(
-            'No approved target/source rows. Add approved rows to the manifests or use Create demo fixtures.',
+            'No approved target/source rows. Approve rows in Review images, or use Create demo fixtures.',
           );
         }
         if (!checked.ok) {
@@ -173,8 +225,87 @@ export function App() {
       },
       makeVideo ? 'Video generation finished.' : 'Still generation finished.',
     );
-    appendLog(JSON.stringify(response), 'ok');
-    await refreshOutputs();
+    if (!response) return;
+    appendLog(`Generated ${response.outputs.length} output${response.outputs.length === 1 ? '' : 's'}.`, 'ok');
+    const selected = await refreshOutputs(response.outputs[0]?.sidecar_path);
+    if (selected) {
+      setViewerOutput(selected);
+    }
+    setActiveSection('outputs');
+  }
+
+  async function handleCrawl() {
+    const pages = crawlPagesText
+      .split(/\r?\n/)
+      .map((page) => page.trim())
+      .filter(Boolean);
+    if (pages.length === 0) {
+      appendLog('Add at least one page URL before crawling.', 'error');
+      return;
+    }
+    const response = await runAction(
+      `Crawling ${pages.length} page${pages.length === 1 ? '' : 's'} for ${crawlKind}.`,
+      () => crawlPages({
+        pages,
+        kind: crawlKind,
+        manifest: crawlManifest,
+        output_root: 'data/raw/crawl',
+        max_images_per_page: crawlMaxImages,
+        label_prefix: crawlLabelPrefix,
+      }),
+      'Crawler finished.',
+    );
+    if (!response) return;
+    if (crawlKind === 'targets') {
+      setTargets(response.manifest);
+    } else {
+      setSources(response.manifest);
+    }
+    setReviewKind(crawlKind);
+    setActiveSection('review');
+    const checked = await validateManifests({
+      targets: crawlKind === 'targets' ? response.manifest : targets,
+      sources: crawlKind === 'places' ? response.manifest : sources,
+      require_files: true,
+    });
+    setValidation(checked);
+    const saved = response.items.filter((item) => item.ok).length;
+    appendLog(`Crawler saved ${saved} image${saved === 1 ? '' : 's'} as pending review.`, saved ? 'ok' : 'error');
+    response.errors.forEach((error) => appendLog(error, 'error'));
+  }
+
+  async function handleReviewStatus(row: ManifestRow, status: ReviewStatus) {
+    const manifest = row.kind === 'targets' ? targets : sources;
+    const response = await runAction(
+      `${status === 'approved' ? 'Approving' : status === 'rejected' ? 'Rejecting' : 'Resetting'} ${row.label}.`,
+      async () => {
+        await updateReviewStatus({
+          manifest,
+          kind: row.kind,
+          row_id: row.id,
+          review_status: status,
+        });
+        return validateManifests({ targets, sources, require_files: true });
+      },
+      'Review status updated.',
+    );
+    if (!response) return;
+    setValidation(response);
+    if (row.kind === 'targets' && status === 'approved') {
+      setTargetId(row.id);
+    }
+  }
+
+  function handleTargetSelect(value: string) {
+    setTargetId(value);
+    const row = approvedTargets.find((target) => target.id === value);
+    appendLog(row ? `Selected target: ${row.label}.` : 'No approved target selected.', row ? 'ok' : undefined);
+  }
+
+  function handleCrawlKindChange(value: ReviewKind) {
+    setCrawlKind(value);
+    setCrawlManifest(crawlerManifestDefaults[value]);
+    setReviewKind(value);
   }
 
   useEffect(() => {
@@ -199,18 +330,46 @@ export function App() {
       </header>
 
       <aside className="workflow">
-        <WorkflowItem icon={<FileCheck2 />} title="Manifests" active detail={`${validation?.targets.row_count ?? 0} targets`} />
-        <WorkflowItem icon={<LayoutGrid />} title="Review images" detail={`${approvedSources.length} approved sources`} />
-        <WorkflowItem icon={<Play />} title="Generate" detail={`seed ${seed}`} />
-        <WorkflowItem icon={<ImageIcon />} title="Outputs" detail={`${outputs.length} sidecars`} />
+        <WorkflowItem
+          icon={<FileCheck2 />}
+          title="Manifests"
+          active={activeSection === 'manifests'}
+          detail={`${validation?.targets.row_count ?? 0} targets`}
+          onSelect={() => selectWorkflow('manifests')}
+        />
+        <WorkflowItem
+          icon={<LayoutGrid />}
+          title="Review images"
+          active={activeSection === 'review'}
+          detail={`${approvedSources.length} approved sources`}
+          onSelect={() => selectWorkflow('review')}
+        />
+        <WorkflowItem
+          icon={<Play />}
+          title="Generate"
+          active={activeSection === 'generate'}
+          detail={`seed ${seed}`}
+          onSelect={() => selectWorkflow('generate')}
+        />
+        <WorkflowItem
+          icon={<ImageIcon />}
+          title="Outputs"
+          active={activeSection === 'outputs'}
+          detail={`${outputs.length} sidecars`}
+          onSelect={() => selectWorkflow('outputs')}
+        />
       </aside>
 
       <main className="workspace">
-        <section className="stage-panel target-panel">
+        <section className="stage-panel target-panel" id="section-generate">
           <div className="panel-title">
             <span>Target portrait</span>
-            <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
-              <option value="">first approved target</option>
+            <select
+              value={activeTarget?.id ?? ''}
+              onChange={(event) => handleTargetSelect(event.target.value)}
+              disabled={approvedTargets.length === 0}
+            >
+              {approvedTargets.length === 0 && <option value="">No approved target</option>}
               {approvedTargets.map((row) => (
                 <option key={row.id} value={row.id}>
                   {row.label}
@@ -225,30 +384,54 @@ export function App() {
           </div>
         </section>
 
-        <section className="stage-panel source-panel">
+        <section className="stage-panel source-panel" id="section-review">
           <div className="panel-title">
-            <span>Approved place fragments</span>
-            <button className="icon-button" onClick={() => void refreshOutputs()} disabled={busy} title="Refresh outputs">
-              <RefreshCw size={16} />
-            </button>
+            <span>Review images</span>
+            <div className="segmented">
+              <button
+                className={reviewKind === 'targets' ? 'selected' : ''}
+                onClick={() => setReviewKind('targets')}
+                disabled={busy}
+              >
+                Targets
+              </button>
+              <button
+                className={reviewKind === 'places' ? 'selected' : ''}
+                onClick={() => setReviewKind('places')}
+                disabled={busy}
+              >
+                Places
+              </button>
+            </div>
           </div>
-          <div className="source-grid">
-            {approvedSources.length === 0 && <EmptyState text="Validate manifests to load approved place rows." />}
-            {approvedSources.slice(0, 12).map((row) => (
-              <div className="source-tile" key={row.id}>
-                <Preview row={row} compact />
-                <span>{row.label}</span>
-              </div>
+          <div className="review-grid">
+            {reviewRows.length === 0 && <EmptyState text="Validate or crawl manifests to review image rows." />}
+            {reviewRows.map((row) => (
+              <ReviewCard
+                key={`${row.kind}-${row.id}`}
+                row={row}
+                busy={busy}
+                onReview={handleReviewStatus}
+              />
             ))}
           </div>
         </section>
 
-        <section className="stage-panel outputs-panel">
+        <section className="stage-panel outputs-panel" id="section-outputs">
           <div className="panel-title">
             <span>Generated outputs</span>
-            <button className="text-button" onClick={() => void refreshOutputs()} disabled={busy}>
-              Refresh
-            </button>
+            <div className="panel-actions">
+              <button
+                className="text-button"
+                onClick={() => selectedOutput && setViewerOutput(selectedOutput)}
+                disabled={busy || !selectedOutput}
+              >
+                <Maximize2 size={14} /> View
+              </button>
+              <button className="icon-button" onClick={() => void refreshOutputs()} disabled={busy} title="Refresh outputs">
+                <RefreshCw size={16} />
+              </button>
+            </div>
           </div>
           <div className="output-list">
             {outputs.length === 0 && <EmptyState text="No generated outputs found." />}
@@ -256,10 +439,13 @@ export function App() {
               <button
                 className={`output-thumb ${selectedOutput?.id === item.id ? 'selected' : ''}`}
                 key={item.id}
-                onClick={() => setSelectedOutput(item)}
+                onClick={() => {
+                  setSelectedOutput(item);
+                  setViewerOutput(item);
+                }}
               >
                 {item.still_path ? <img src={fileUrl(item.still_path)} alt="" /> : <ImageIcon size={24} />}
-                <span>{item.target_id || item.id}</span>
+                <span>{item.video_path ? <Video size={12} /> : <ImageIcon size={12} />}{item.target_id || item.id}</span>
               </button>
             ))}
           </div>
@@ -281,7 +467,7 @@ export function App() {
       </main>
 
       <aside className="inspector">
-        <section>
+        <section id="controls-manifests">
           <h2>Manifests</h2>
           <label>
             Targets
@@ -321,7 +507,50 @@ export function App() {
           </div>
         </section>
 
-        <section>
+        <section className="crawler-box">
+          <h2>Crawler</h2>
+          <label>
+            Kind
+            <select value={crawlKind} onChange={(event) => handleCrawlKindChange(event.target.value as ReviewKind)}>
+              <option value="places">Places</option>
+              <option value="targets">Targets</option>
+            </select>
+          </label>
+          <label>
+            Page URLs
+            <textarea
+              value={crawlPagesText}
+              onChange={(event) => setCrawlPagesText(event.target.value)}
+              rows={4}
+              placeholder="https://..."
+            />
+          </label>
+          <label>
+            Manifest
+            <input value={crawlManifest} onChange={(event) => setCrawlManifest(event.target.value)} />
+          </label>
+          <div className="form-grid">
+            <label>
+              Max images
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={crawlMaxImages}
+                onChange={(event) => setCrawlMaxImages(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Label prefix
+              <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
+            </label>
+          </div>
+          <button onClick={() => void handleCrawl()} disabled={busy}>
+            <Globe2 size={16} /> Crawl pages
+          </button>
+        </section>
+
+        <section id="controls-generate">
           <h2>Generation</h2>
           <label>
             Output directory
@@ -365,6 +594,8 @@ export function App() {
           <pre>{selectedOutput ? JSON.stringify(selectedOutput.sidecar, null, 2) : 'No output selected.'}</pre>
         </section>
       </aside>
+
+      {viewerOutput && <OutputViewer item={viewerOutput} onClose={() => setViewerOutput(null)} />}
     </div>
   );
 }
@@ -374,21 +605,62 @@ function WorkflowItem({
   title,
   detail,
   active,
+  onSelect,
 }: {
   icon: ReactNode;
   title: string;
   detail: string;
   active?: boolean;
+  onSelect: () => void;
 }) {
   return (
-    <div className={`workflow-item ${active ? 'active' : ''}`}>
+    <button type="button" className={`workflow-item ${active ? 'active' : ''}`} onClick={onSelect}>
       <div className="workflow-icon">{icon}</div>
       <div>
         <strong>{title}</strong>
         <span>{detail}</span>
       </div>
-    </div>
+    </button>
   );
+}
+
+function ReviewCard({
+  row,
+  busy,
+  onReview,
+}: {
+  row: ManifestRow;
+  busy: boolean;
+  onReview: (row: ManifestRow, status: ReviewStatus) => void;
+}) {
+  const status = row.values.review_status || 'pending';
+  return (
+    <article className={`review-card ${status}`} key={row.id}>
+      <Preview row={row} compact />
+      <div className="review-card-body">
+        <div>
+          <strong>{row.label}</strong>
+          <span>{row.values.source_page || row.values.source_url}</span>
+        </div>
+        <StatusPill status={status} />
+      </div>
+      <div className="review-actions">
+        <button onClick={() => onReview(row, 'approved')} disabled={busy || row.approved}>
+          <Check size={14} /> Approve
+        </button>
+        <button onClick={() => onReview(row, 'rejected')} disabled={busy || status === 'rejected'}>
+          <Ban size={14} /> Reject
+        </button>
+        <button onClick={() => onReview(row, 'pending')} disabled={busy || status === 'pending'}>
+          <Eye size={14} /> Pending
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  return <span className={`status-pill ${status}`}>{status}</span>;
 }
 
 function Preview({ row, compact = false }: { row?: ManifestRow; compact?: boolean }) {
@@ -399,6 +671,39 @@ function Preview({ row, compact = false }: { row?: ManifestRow; compact?: boolea
   return (
     <div className={`preview ${compact ? 'compact' : ''}`}>
       <img src={fileUrl(path)} alt="" />
+    </div>
+  );
+}
+
+function OutputViewer({ item, onClose }: { item: OutputItem; onClose: () => void }) {
+  const stillUrl = item.still_path ? fileUrl(item.still_path) : null;
+  const videoUrl = item.video_path ? fileUrl(item.video_path) : null;
+  return (
+    <div className="viewer-backdrop" role="dialog" aria-modal="true">
+      <div className="viewer">
+        <div className="viewer-title">
+          <div>
+            <strong>{item.target_id || item.id}</strong>
+            <span>{item.id}</span>
+          </div>
+          <button className="icon-button" onClick={onClose} title="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="viewer-media">
+          {videoUrl ? (
+            <video src={videoUrl} poster={stillUrl ?? undefined} controls />
+          ) : stillUrl ? (
+            <img src={stillUrl} alt="" />
+          ) : (
+            <EmptyState text="No media file found for this output." />
+          )}
+        </div>
+        <div className="viewer-actions">
+          {stillUrl && <a className="link-button" href={stillUrl} target="_blank" rel="noreferrer">Open still</a>}
+          {videoUrl && <a className="link-button" href={videoUrl} target="_blank" rel="noreferrer">Open video</a>}
+        </div>
+      </div>
     </div>
   );
 }

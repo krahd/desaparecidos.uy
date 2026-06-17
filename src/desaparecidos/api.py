@@ -8,9 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .crawl import crawl_pages
 from .demo import create_demo_fixtures
 from .download import download_manifest
-from .manifests import ManifestKind, validate_manifest
+from .manifests import ManifestKind, set_review_status, validate_manifest
 from .outputs import list_outputs
 from .paths import PROJECT_ROOT, safe_project_path
 from .pipeline import Stage1Settings, run_stage1
@@ -38,6 +39,22 @@ class GenerateRequest(BaseModel):
     output_width: int = Field(default=720, ge=120, le=4096)
     make_video: bool = False
     target_id: str | None = None
+
+
+class CrawlRequest(BaseModel):
+    pages: list[str]
+    kind: ManifestKind
+    manifest: str
+    output_root: str = "data/raw/crawl"
+    max_images_per_page: int = Field(default=12, ge=1, le=50)
+    label_prefix: str = ""
+
+
+class ReviewRequest(BaseModel):
+    manifest: str
+    kind: ManifestKind
+    row_id: str
+    review_status: Literal["approved", "pending", "rejected"]
 
 
 def create_app() -> FastAPI:
@@ -88,6 +105,34 @@ def create_app() -> FastAPI:
     @app.post("/api/demo-fixtures")
     def demo_fixtures() -> dict[str, object]:
         return create_demo_fixtures()
+
+    @app.post("/api/crawl")
+    def crawl(request: CrawlRequest) -> dict[str, object]:
+        try:
+            summary = crawl_pages(
+                request.pages,
+                request.kind,
+                safe_project_path(request.manifest),
+                output_root=safe_project_path(request.output_root),
+                max_images_per_page=request.max_images_per_page,
+                label_prefix=request.label_prefix,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return summary.to_api()
+
+    @app.post("/api/review")
+    def review(request: ReviewRequest) -> dict[str, Any]:
+        try:
+            validation = set_review_status(
+                safe_project_path(request.manifest),
+                request.kind,
+                request.row_id,
+                request.review_status,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": validation.ok, "manifest": validation.to_api()}
 
     @app.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:

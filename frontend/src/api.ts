@@ -37,6 +37,33 @@ export type OutputItem = {
   sidecar: Record<string, unknown>;
 };
 
+export type GenerateResponse = {
+  ok: boolean;
+  outputs: Array<{
+    target_id: string;
+    still_path: string;
+    sidecar_path: string;
+    video_path: string | null;
+  }>;
+};
+
+export type CrawlResponse = {
+  ok: boolean;
+  manifest: string;
+  kind: 'targets' | 'places';
+  pages: string[];
+  errors: string[];
+  items: Array<{
+    id: string;
+    page_url: string;
+    image_url: string;
+    local_path: string;
+    ok: boolean;
+    bytes_written: number;
+    error?: string | null;
+  }>;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -112,6 +139,32 @@ export function createDemoFixtures(): Promise<{
   });
 }
 
+export function crawlPages(payload: {
+  pages: string[];
+  kind: 'targets' | 'places';
+  manifest: string;
+  output_root: string;
+  max_images_per_page: number;
+  label_prefix: string;
+}): Promise<CrawlResponse> {
+  return request('/api/crawl', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateReviewStatus(payload: {
+  manifest: string;
+  kind: 'targets' | 'places';
+  row_id: string;
+  review_status: 'approved' | 'pending' | 'rejected';
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateStage1(payload: {
   targets: string;
   sources: string;
@@ -122,7 +175,7 @@ export function generateStage1(payload: {
   output_width: number;
   make_video: boolean;
   target_id?: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<GenerateResponse> {
   return request('/api/generate', {
     method: 'POST',
     body: JSON.stringify(payload),

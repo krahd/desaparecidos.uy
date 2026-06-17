@@ -60,7 +60,8 @@ button.primary {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -68,6 +69,11 @@ select {
   color: var(--ink);
   padding: 8px 9px;
   min-height: 34px;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.35;
 }
 
 label {
@@ -130,13 +136,19 @@ label {
 }
 
 .workflow-item {
+  width: 100%;
+  min-height: 0;
+  border: 1px solid transparent;
+  background: transparent;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  justify-content: stretch;
   padding: 10px 8px;
   border-radius: 6px;
   color: var(--muted);
+  text-align: left;
 }
 
 .workflow-item.active {
@@ -214,6 +226,12 @@ label {
   max-width: 220px;
 }
 
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .target-panel {
   grid-row: 1;
 }
@@ -277,12 +295,17 @@ label {
   white-space: nowrap;
 }
 
-.source-grid {
+.source-grid,
+.review-grid {
   padding: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
   gap: 10px;
   overflow: auto;
+}
+
+.review-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
 }
 
 .source-tile {
@@ -301,6 +324,109 @@ label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+}
+
+.segmented button {
+  min-height: 28px;
+  border: 0;
+  padding: 4px 8px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.segmented button.selected {
+  background: var(--accent-dark);
+  color: #fffdf8;
+}
+
+.review-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fffdf8;
+  display: grid;
+}
+
+.review-card.approved {
+  border-color: rgba(40, 98, 68, 0.55);
+}
+
+.review-card.rejected {
+  opacity: 0.72;
+}
+
+.review-card-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.review-card-body strong,
+.review-card-body span {
+  display: block;
+}
+
+.review-card-body strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-card-body span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-pill {
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  background: var(--panel-strong);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.status-pill.approved {
+  border-color: rgba(40, 98, 68, 0.4);
+  color: var(--ok);
+  background: rgba(40, 98, 68, 0.08);
+}
+
+.status-pill.rejected {
+  border-color: rgba(155, 47, 40, 0.4);
+  color: var(--error);
+  background: rgba(155, 47, 40, 0.08);
+}
+
+.review-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 0 8px 8px;
+}
+
+.review-actions button {
+  min-height: 30px;
+  padding: 5px 4px;
+  gap: 4px;
+  font-size: 11px;
 }
 
 .output-list {
@@ -335,6 +461,9 @@ label {
 
 .output-thumb span {
   align-self: center;
+  display: flex;
+  gap: 4px;
+  align-items: center;
   padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -400,6 +529,10 @@ label {
 
 .button-row.stacked {
   display: grid;
+}
+
+.crawler-box textarea {
+  min-height: 92px;
 }
 
 .form-grid {
@@ -474,6 +607,97 @@ label {
   padding: 18px;
   text-align: center;
   font-size: 12px;
+}
+
+.viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(29, 29, 27, 0.72);
+}
+
+.viewer {
+  width: min(1120px, 96vw);
+  max-height: 94vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.viewer-title {
+  min-height: 52px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.viewer-title strong,
+.viewer-title span {
+  display: block;
+}
+
+.viewer-title strong {
+  font-size: 14px;
+}
+
+.viewer-title span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.viewer-media {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: #151514;
+}
+
+.viewer-media img,
+.viewer-media video {
+  max-width: 100%;
+  max-height: calc(94vh - 112px);
+  display: block;
+}
+
+.viewer-media video {
+  width: 100%;
+  height: 100%;
+  background: #151514;
+}
+
+.viewer-actions {
+  min-height: 50px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.link-button {
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  text-decoration: none;
+  font-size: 13px;
 }
 
 @media (max-width: 1080px) {

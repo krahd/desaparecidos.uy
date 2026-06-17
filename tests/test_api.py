@@ -98,3 +98,55 @@ def test_demo_fixtures_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["targets"] == "data/manifests/demo-targets.csv"
+
+
+def test_review_endpoint_updates_manifest(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review",
+        json={
+            "manifest": str(targets),
+            "kind": "targets",
+            "row_id": "t1",
+            "review_status": "rejected",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["manifest"]["rows"][0]["values"]["review_status"] == "rejected"
+
+
+def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class FakeSummary:
+        def to_api(self) -> dict[str, object]:
+            return {
+                "ok": True,
+                "manifest": "data/manifests/crawled-places.csv",
+                "kind": "places",
+                "pages": ["https://example.test/page"],
+                "items": [],
+                "errors": [],
+            }
+
+    def fake_crawl_pages(*_: object, **__: object) -> FakeSummary:
+        return FakeSummary()
+
+    monkeypatch.setattr(api_module, "crawl_pages", fake_crawl_pages)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/crawl",
+        json={
+            "pages": ["https://example.test/page"],
+            "kind": "places",
+            "manifest": "data/manifests/crawled-places.csv",
+            "output_root": "data/raw/crawl",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True

@@ -12,7 +12,8 @@ def list_outputs(output_dir: str | Path = "outputs/stage1") -> list[dict[str, An
     if not root.exists():
         return []
     items: list[dict[str, Any]] = []
-    for sidecar_path in sorted(root.glob("*.json")):
+    sidecars = sorted(root.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    for sidecar_path in sidecars:
         try:
             sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:

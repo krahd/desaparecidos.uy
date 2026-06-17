@@ -138,6 +138,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `src/desaparecidos/`: Python pipeline, CLI, and local API.
 - `frontend/`: React/Vite localhost GUI.
 - `data/manifests/`: tracked manifest templates and examples only.
+- `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
 - `data/raw/`: ignored downloaded or local source imagery.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
@@ -151,7 +152,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - Keep provenance metadata with every downloaded input and generated output.
 - Treat historical target images respectfully: do not claim enhancement, recovery, or forensic reconstruction.
 - Validate paths stay inside the project root for API file access.
-- Do not add scraping or crawling behaviour to Stage 1; downloads must be manifest-driven URL processing only.
+- Keep crawling constrained to explicit user-supplied pages, localhost-only operation, ignored raw files, pending manifest rows, and manual approval before generation. Do not add recursive or identity-seeking crawlers.
 
 Do not weaken safety invariants without explicit user instruction and documentation.
 

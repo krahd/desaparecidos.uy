@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 10:59 GMT-3
+Last updated: 2026-06-17 16:15 GMT-3
 
 ## Project purpose
 
@@ -8,15 +8,15 @@ Last updated: 2026-06-17 10:59 GMT-3
 
 ## Current implementation state
 
-The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, and a GUI-accessible synthetic demo fixture path.
+The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, and a constrained page-image crawler for explicit user-supplied pages.
 
 ## Active focus
 
-Review real target/place manifests before introducing non-synthetic imagery, while keeping raw imagery and generated outputs out of version control.
+Review real target/place manifests and crawler-produced pending rows before introducing non-synthetic imagery into generation, while keeping raw imagery and generated outputs out of version control.
 
 ## Architecture overview
 
-The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars.
+The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs constrained one-page image crawling on user-supplied URLs, updates row review status, and invokes reusable Python pipeline code. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars.
 
 ### Architecture diagram
 
@@ -108,6 +108,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - No secrets are required.
 - The backend must bind to `127.0.0.1` by default.
 - Raw downloads belong under ignored `data/raw/`.
+- Crawler downloads belong under ignored `data/raw/crawl/`.
 - Generated outputs belong under ignored `outputs/stage1/`.
 
 ## Important files and directories
@@ -119,6 +120,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - `frontend/`: local GUI.
 - `data/manifests/`: tracked manifest templates.
 - `data/manifests/demo-*.csv`: ignored synthetic demo manifests generated on demand.
+- `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
 - `data/demo/`: ignored synthetic demo images generated on demand.
 - `doc/`: long-form project source documents.
 - GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
@@ -132,6 +134,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - 2026-06-17 11:18 GMT-3 follow-up: demo fixtures now use local-only `local://demo/...` provenance identifiers, generate a portrait-like synthetic target plus four synthetic place surfaces, and resolve manifest-relative preview paths in the GUI.
 - Stage 1 reuse accounting now applies `reuse_limit` per extracted fragment rather than per source image. Sidecars report fragment count and maximum observed fragment reuse.
 - 2026-06-17 15:40 GMT-3 follow-up: diagnosed GUI `501 Unsupported method ('POST')` responses as requests hitting `python -m http.server` on port `8765` instead of FastAPI. The launcher now selects free backend/frontend ports and passes the selected API URL into Vite.
+- 2026-06-17 16:11 GMT-3 follow-up: made the workflow rail clickable, added GUI review/approve/reject controls, added a large still/video output viewer, selected new outputs after generation, and added a constrained crawler that saves candidates as pending rows.
 
 ## Tests and verification status
 
@@ -139,7 +142,7 @@ Verification run on 2026-06-17:
 
 - `python3 -m compileall src tests scripts`: passed before dependency installation.
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 11 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
+- `.venv/bin/python -m pytest -q`: passed, 15 tests; one upstream `fastapi.testclient` deprecation warning from Starlette.
 - `npm --prefix frontend run build`: passed.
 - Synthetic fixture generation with `scripts/create_synthetic_fixtures.py`: passed.
 - CLI Stage 1 smoke run against synthetic fixtures: passed and wrote ignored output files under `outputs/stage1/`.
@@ -151,11 +154,12 @@ Verification run on 2026-06-17:
 - 2026-06-17 follow-up: patched API `/api/demo-fixtures`, `/api/validate`, and `/api/generate` were smoke-tested on isolated verification ports.
 - 2026-06-17 11:18 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, CLI demo validation, 720px still generation, and a small MP4 generation smoke run passed after the fragment reuse and demo fixture patch.
 - 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "Start desaparecidos.command"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
+- 2026-06-17 16:15 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed after adding crawler/review/output-viewer UI and backend routes. A launcher smoke run selected backend `8766` and frontend `5178`; API smoke calls for `/api/demo-fixtures`, `/api/crawl` against a local page, `/api/generate` still, `/api/generate` video, and `/api/outputs` returned successful responses. Browser interaction automation is still unavailable in this environment.
 
 ## Known issues, risks, and limitations
 
 - Public release requires provenance, legal, privacy, and historical-source review.
-- Stage 1 download support is manifest-driven only and does not crawl sites.
+- Stage 1 crawler support is intentionally limited to page URLs entered by the local user. It is not recursive, does not identify people, and writes pending rows that require explicit approval before generation.
 - MP4 generation depends on OpenCV runtime support.
 - `npm install` reported two high-severity audit findings in the frontend dependency tree. No forced audit fix was applied because it may introduce breaking dependency changes.
 - Local server binding required sandbox escalation during verification.
@@ -174,7 +178,7 @@ Verification run on 2026-06-17:
 ## Next steps
 
 1. Restart the local launcher if it was running before the demo-fixture patch, so the backend loads `/api/demo-fixtures`.
-2. Review real target/place manifests before adding any non-synthetic imagery.
+2. Review real target/place manifests and crawler-produced pending rows before approving any non-synthetic imagery.
 3. Decide whether to address the frontend npm audit findings before broader use.
 
 ## Longer-term steps
@@ -187,7 +191,7 @@ Verification run on 2026-06-17:
 
 - Stage 1 uses place/surface imagery first because it is visually strong and has lower privacy risk than face-fragment processing.
 - The GUI is localhost-only so the artist/developer can operate the pipeline without exposing data or outputs.
-- Manifests are the boundary for source acquisition; Stage 1 avoids crawling.
+- Manifests remain the boundary for generation; crawler output is only a pending manifest-building aid.
 
 ## Documentation alignment notes
 
@@ -196,4 +200,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 10:59 GMT-3
+Last updated: 2026-06-17 16:15 GMT-3

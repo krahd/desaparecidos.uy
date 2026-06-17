@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 10:31 GMT-3
+Last updated: 2026-06-17 10:34 GMT-3
 
 ## Project purpose
 
@@ -12,7 +12,7 @@ The repository now contains the Stage 1 local software prototype: a Python pipel
 
 ## Active focus
 
-Prepare the initial private GitHub repository push while keeping raw imagery and generated outputs out of version control.
+Review real target/place manifests before introducing non-synthetic imagery, while keeping raw imagery and generated outputs out of version control.
 
 ## Architecture overview
 
@@ -119,10 +119,12 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - `frontend/`: local GUI.
 - `data/manifests/`: tracked manifest templates.
 - `doc/`: long-form project source documents.
+- GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
 
 ## Recent changes
 
-- Initial project documentation, Stage 1 pipeline, and local GUI are being created.
+- Initial project documentation, Stage 1 pipeline, local GUI, manifest templates, tests, and launcher were created.
+- Private GitHub repository `krahd/desaparecidos.uy` was created and `main` was pushed.
 
 ## Tests and verification status
 
@@ -146,7 +148,7 @@ Verification run on 2026-06-17:
 - MP4 generation depends on OpenCV runtime support.
 - `npm install` reported two high-severity audit findings in the frontend dependency tree. No forced audit fix was applied because it may introduce breaking dependency changes.
 - Local server binding required sandbox escalation during verification.
-- The GitHub repository target is `krahd/desaparecidos.uy`; initial push is part of the current task.
+- The GitHub remote is `origin` at `https://github.com/krahd/desaparecidos.uy.git`.
 
 ## Recurring tasks
 
@@ -156,13 +158,13 @@ Verification run on 2026-06-17:
 
 ## Pending tasks
 
-- Initialise git, commit, create the private GitHub repository, and push.
+- No repository setup tasks are pending.
 
 ## Next steps
 
-1. Create the private GitHub repository and push the initial commit.
-2. Review real target/place manifests before adding any non-synthetic imagery.
-3. Review generated output sidecars for provenance completeness.
+1. Review real target/place manifests before adding any non-synthetic imagery.
+2. Review generated output sidecars for provenance completeness.
+3. Decide whether to address the frontend npm audit findings before broader use.
 
 ## Longer-term steps
 
@@ -183,4 +185,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 10:31 GMT-3
+Last updated: 2026-06-17 10:34 GMT-3

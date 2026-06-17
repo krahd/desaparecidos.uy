@@ -14,6 +14,7 @@ import {
   ManifestRow,
   OutputItem,
   ValidateResponse,
+  createDemoFixtures,
   downloadManifest,
   fileUrl,
   generateStage1,
@@ -90,9 +91,30 @@ export function App() {
       'Validation finished.',
     );
     setValidation(response);
-    if (!targetId && response.targets.rows.length) {
-      setTargetId(response.targets.rows[0].id);
+    const firstApproved = response.targets.rows.find((row) => row.approved)?.id ?? '';
+    if (firstApproved && !response.targets.rows.some((row) => row.id === targetId)) {
+      setTargetId(firstApproved);
     }
+  }
+
+  async function handleCreateDemoFixtures() {
+    const response = await runAction(
+      'Creating synthetic demo fixtures.',
+      async () => {
+        const fixtures = await createDemoFixtures();
+        const checked = await validateManifests({
+          targets: fixtures.targets,
+          sources: fixtures.sources,
+          require_files: true,
+        });
+        return { fixtures, checked };
+      },
+      'Demo fixtures created and validated.',
+    );
+    setTargets(response.fixtures.targets);
+    setSources(response.fixtures.sources);
+    setValidation(response.checked);
+    setTargetId(response.checked.targets.rows.find((row) => row.approved)?.id ?? '');
   }
 
   async function handleDownload(kind: 'targets' | 'places') {
@@ -116,9 +138,28 @@ export function App() {
 
   async function handleGenerate(makeVideo: boolean) {
     const response = await runAction(
-      makeVideo ? 'Generating still and video.' : 'Generating still output.',
-      () =>
-        generateStage1({
+      makeVideo ? 'Checking manifests, then generating still and video.' : 'Checking manifests, then generating still output.',
+      async () => {
+        const checked = await validateManifests({
+          targets,
+          sources,
+          require_files: true,
+        });
+        setValidation(checked);
+        const firstApprovedTarget = checked.targets.rows.find((row) => row.approved)?.id ?? '';
+        const selectedTargetId = targetId || firstApprovedTarget;
+        if (firstApprovedTarget && !targetId) {
+          setTargetId(firstApprovedTarget);
+        }
+        if (checked.targets.approved_count === 0 || checked.sources.approved_count === 0) {
+          throw new Error(
+            'No approved target/source rows. Add approved rows to the manifests or use Create demo fixtures.',
+          );
+        }
+        if (!checked.ok) {
+          throw new Error('Manifest validation failed. Review the Validation panel before generating.');
+        }
+        return generateStage1({
           targets,
           sources,
           output_dir: outputDir,
@@ -127,8 +168,9 @@ export function App() {
           reuse_limit: reuseLimit,
           output_width: outputWidth,
           make_video: makeVideo,
-          target_id: targetId || undefined,
-        }),
+          target_id: selectedTargetId || undefined,
+        });
+      },
       makeVideo ? 'Video generation finished.' : 'Still generation finished.',
     );
     appendLog(JSON.stringify(response), 'ok');
@@ -257,6 +299,14 @@ export function App() {
               <CheckCircle2 size={16} /> Check files
             </button>
           </div>
+        </section>
+
+        <section className="demo-box">
+          <h2>Demo workspace</h2>
+          <p>Synthetic local inputs. Ignored by git.</p>
+          <button onClick={() => void handleCreateDemoFixtures()} disabled={busy}>
+            <ImageIcon size={16} /> Create demo fixtures
+          </button>
         </section>
 
         <section>

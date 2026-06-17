@@ -43,6 +43,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.text();
+    let detailMessage: string | null = null;
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      if (typeof parsed.detail === 'string') {
+        detailMessage = parsed.detail;
+      }
+    } catch {
+      detailMessage = null;
+    }
+    if (detailMessage) {
+      throw new Error(detailMessage);
+    }
     throw new Error(body || response.statusText);
   }
   return response.json() as Promise<T>;
@@ -71,6 +83,18 @@ export function downloadManifest(payload: {
   return request('/api/download', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function createDemoFixtures(): Promise<{
+  ok: boolean;
+  targets: string;
+  sources: string;
+  images: string[];
+}> {
+  return request('/api/demo-fixtures', {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

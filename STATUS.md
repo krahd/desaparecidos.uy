@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 10:34 GMT-3
+Last updated: 2026-06-17 10:59 GMT-3
 
 ## Project purpose
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-17 10:34 GMT-3
 
 ## Current implementation state
 
-The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, and a macOS launcher.
+The repository now contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, and a GUI-accessible synthetic demo fixture path.
 
 ## Active focus
 
@@ -118,6 +118,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - `src/desaparecidos/`: Python pipeline and API.
 - `frontend/`: local GUI.
 - `data/manifests/`: tracked manifest templates.
+- `data/manifests/demo-*.csv`: ignored synthetic demo manifests generated on demand.
+- `data/demo/`: ignored synthetic demo images generated on demand.
 - `doc/`: long-form project source documents.
 - GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
 
@@ -125,6 +127,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 
 - Initial project documentation, Stage 1 pipeline, local GUI, manifest templates, tests, and launcher were created.
 - Private GitHub repository `krahd/desaparecidos.uy` was created and `main` was pushed.
+- GUI demo fixtures were added so users can recover from empty template manifests without running CLI commands.
+- Local API CORS was widened to localhost/127.0.0.1 on any port so alternate Vite ports remain usable.
 
 ## Tests and verification status
 
@@ -140,6 +144,8 @@ Verification run on 2026-06-17:
 - Vite GUI load at `http://127.0.0.1:5173`: passed.
 - API validation and generation calls matching the GUI workflow: passed against synthetic manifests.
 - Desktop and mobile-width Safari screenshots were inspected for visible layout overlap and text fit.
+- 2026-06-17 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, and `npm --prefix frontend run build` passed after adding the demo-fixture GUI path.
+- 2026-06-17 follow-up: patched API `/api/demo-fixtures`, `/api/validate`, and `/api/generate` were smoke-tested on isolated verification ports.
 
 ## Known issues, risks, and limitations
 
@@ -162,8 +168,8 @@ Verification run on 2026-06-17:
 
 ## Next steps
 
-1. Review real target/place manifests before adding any non-synthetic imagery.
-2. Review generated output sidecars for provenance completeness.
+1. Restart the local launcher if it was running before the demo-fixture patch, so the backend loads `/api/demo-fixtures`.
+2. Review real target/place manifests before adding any non-synthetic imagery.
 3. Decide whether to address the frontend npm audit findings before broader use.
 
 ## Longer-term steps
@@ -185,4 +191,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 10:34 GMT-3
+Last updated: 2026-06-17 10:59 GMT-3

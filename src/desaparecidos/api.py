@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from .demo import create_demo_fixtures
 from .download import download_manifest
 from .manifests import ManifestKind, validate_manifest
 from .outputs import list_outputs
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:5173",
             "http://localhost:5173",
         ],
+        allow_origin_regex=r"^http://(127\.0\.0\.1|localhost):\d+$",
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -82,6 +84,10 @@ def create_app() -> FastAPI:
             output_root=request.output_root,
         )
         return summary.to_api()
+
+    @app.post("/api/demo-fixtures")
+    def demo_fixtures() -> dict[str, object]:
+        return create_demo_fixtures()
 
     @app.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:

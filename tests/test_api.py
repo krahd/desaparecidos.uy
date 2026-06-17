@@ -5,7 +5,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image
+import pytest
 
+import desaparecidos.api as api_module
 from desaparecidos.api import create_app
 
 
@@ -77,3 +79,21 @@ def test_generate_endpoint(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert (tmp_path / "outputs").exists()
+
+
+def test_demo_fixtures_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_create_demo_fixtures() -> dict[str, object]:
+        return {
+            "ok": True,
+            "targets": "data/manifests/demo-targets.csv",
+            "sources": "data/manifests/demo-places.csv",
+            "images": [],
+        }
+
+    monkeypatch.setattr(api_module, "create_demo_fixtures", fake_create_demo_fixtures)
+    client = TestClient(create_app())
+
+    response = client.post("/api/demo-fixtures")
+
+    assert response.status_code == 200
+    assert response.json()["targets"] == "data/manifests/demo-targets.csv"

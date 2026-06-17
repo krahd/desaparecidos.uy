@@ -34,6 +34,8 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 The GUI can validate manifests, download manifest-listed sources, run still/video generation, inspect progress logs, and review output sidecars.
 
+The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them.
+
 ## Manual Setup
 
 ```bash

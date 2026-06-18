@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650">
+<defs><style>.title{font-family:Arial;font-size:30px;font-weight:700}.label{font-family:Arial;font-size:18px;font-weight:700}.body{font-family:Arial;font-size:14px}.tier{fill:#f8f8f8;stroke:#111;stroke-width:2;rx:14;ry:14}.gate{fill:#fff;stroke:#111;stroke-width:2;stroke-dasharray:7 5;rx:14;ry:14}</style></defs>
+<rect x="24" y="24" width="1152" height="602" fill="white" stroke="#111" stroke-width="2"/>
+<text x="55" y="70" class="title">Layered access and retention model</text>
+<text x="55" y="105" class="body">The archive does not default to publication. Each record is routed according to consent, risk, review state, and purpose.</text>
+<rect x="90" y="155" width="1020" height="62" class="tier"/><text x="125" y="193" class="label">Tier 0: discarded or not retained</text><text x="430" y="193" class="body">conversation stopped, no archival record created</text>
+<rect x="90" y="240" width="1020" height="62" class="tier"/><text x="125" y="278" class="label">Tier 1: private retention</text><text x="430" y="278" class="body">kept for participant or project record; no research access</text>
+<rect x="90" y="325" width="1020" height="62" class="tier"/><text x="125" y="363" class="label">Tier 2: restricted archive</text><text x="430" y="363" class="body">reviewed material; limited team access; identifiable details protected</text>
+<rect x="90" y="410" width="1020" height="62" class="tier"/><text x="125" y="448" class="label">Tier 3: approved research access</text><text x="430" y="448" class="body">protocol-bound scholarly use; redaction and access logs required</text>
+<rect x="90" y="495" width="1020" height="62" class="gate"/><text x="125" y="533" class="label">Tier 4: curated public encounter</text><text x="430" y="533" class="body">excerpts, thematic paths, artworks, or public interfaces only after additional review</text>
+<text x="55" y="600" class="body">Design principle: access is a governed relation, not a binary private/public switch.</text>
+</svg>

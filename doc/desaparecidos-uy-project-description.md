@@ -11,6 +11,8 @@
 
 `desaparecidos.uy` is a series of computational artworks in which the image of each disappeared person is reassembled from fragments of the country that survived them: its people, its places, and its visual infrastructure.
 
+A main guiding artistic goal is to computationally reference the continuing search for the disappeared.
+
 The project proposes a triptych of related works:
 
 1. **Todos somos familiares** — disappeared persons’ public images are reassembled from fragments extracted from publicly available images of people in Uruguay.
@@ -72,6 +74,8 @@ The final images should not become too polished. The face should remain dependen
 **Seguimos buscando** transforms the act of search into the temporal structure of the work.
 
 Where the first two pieces focus on reconstruction from particular classes of visual material—people and places—this third work foregrounds traversal. It imagines the country as an image field to be scanned, crossed, searched, and revisited. The work may use street-level imagery, self-captured footage, archival routes, crowdsourced visual material, or other forms of lawful and ethically reviewed visual traversal. Its central gesture is not the static composition of a portrait, but the process by which a face emerges from movement through the country.
+
+While in the three pieces the searching itself is  an important compontent of the work, it is in **Seguimos buscando** where it is surfaced more explicitly. 
 
 The title avoids naming the search as complete. It also avoids assigning the search only to the state, only to families, or only to institutions. “Seguimos” is deliberately plural. It implies persistence, but also insufficiency. The search continues because the truth remains incomplete.
 
@@ -240,6 +244,8 @@ The working principle for **Todos somos familiares** is:
 > The work may store face-derived visual fragments, but it does not identify, classify, or represent the living persons whose publicly available images may have contributed visual fragments. It treats the web as a dispersed visual field, not as a biometric archive.
 
 This principle should guide the prototype. Before public release, it should be reviewed with university counsel or appropriate legal specialists, especially under Uruguayan personal-data law and any applicable institutional review processes.
+
+During development, images that would not be part of the finished artworks may be stored.
 
 The project should distinguish between three levels of material:
 

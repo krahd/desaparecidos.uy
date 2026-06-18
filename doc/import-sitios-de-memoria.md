@@ -34,11 +34,31 @@ By default, target manifest rows are written with `review_status=candidate`. Add
 python scripts/import_sitios_memoria.py --download-images --process-images --overwrite
 ```
 
+## Portrait overrides
+
+Some Sitios de Memoria person pages include images for related works, publications, posters, or audiovisual material rather than a portrait of the person. Those images must not be used as target portraits.
+
+Explicit corrections live in:
+
+```text
+data/manifests/portrait-overrides.csv
+```
+
+Apply them after the main import:
+
+```bash
+python scripts/apply_portrait_overrides.py --overwrite
+```
+
+This downloads the override image, creates a processed 4:5 derivative, replaces the matching person's `portrait_candidates` entry in the generated JSON, and replaces the corresponding target-manifest row.
+
+The first override is for `abeledo-sotuyo-horacio-adolfo`: Sitios de Memoria exposed a poster for *El tiempo pasa* under `Obras de interés`; the override uses the Parque de la Memoria record instead.
+
 ## Source basis
 
 Primary source: Sitios de Memoria Uruguay.
 
-Secondary verification source for later integration: Secretaría de Derechos Humanos para el Pasado Reciente.
+Secondary verification/source layer for selected corrections: Secretaría de Derechos Humanos para el Pasado Reciente and Parque de la Memoria.
 
 ## Notes
 

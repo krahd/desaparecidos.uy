@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="700" viewBox="0 0 1300 700">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#111"/></marker><style>.title{font-family:Arial;font-size:30px;font-weight:700}.label{font-family:Arial;font-size:18px;font-weight:700}.body{font-family:Arial;font-size:14px}.box{fill:#f8f8f8;stroke:#111;stroke-width:2;rx:14;ry:14}.gate{fill:#fff;stroke:#111;stroke-width:2;stroke-dasharray:7 5;rx:14;ry:14}.line{stroke:#111;stroke-width:2;fill:none;marker-end:url(#arrow)}</style></defs>
+<rect x="24" y="24" width="1252" height="652" fill="white" stroke="#111" stroke-width="2"/>
+<text x="55" y="70" class="title">Conversational memory system: modular architecture</text>
+<rect x="70" y="125" width="1160" height="70" class="box"/><text x="105" y="168" class="label">Interface layer</text><text x="310" y="168" class="body">mobile / web / spoken interaction; clear framing; user control</text>
+<rect x="70" y="225" width="1160" height="70" class="box"/><text x="105" y="268" class="label">Orchestration layer</text><text x="310" y="268" class="body">session state, consent checkpoints, prompt sequence, review transitions</text>
+<rect x="70" y="325" width="1160" height="70" class="box"/><text x="105" y="368" class="label">Conversation layer</text><text x="310" y="368" class="body">model calls, retrieval, safety rules, summaries, uncertainty tags</text>
+<rect x="70" y="425" width="1160" height="70" class="box"/><text x="105" y="468" class="label">Storage layer</text><text x="310" y="468" class="body">session records, transcripts, metadata, embeddings, access logs</text>
+<rect x="70" y="525" width="1160" height="70" class="gate"/><text x="105" y="568" class="label">Governance layer</text><text x="310" y="568" class="body">minimality, reversibility, layered access, provenance, resilience</text>
+<rect x="70" y="625" width="1160" height="40" class="box"/><text x="105" y="650" class="label">Research-access layer</text><text x="350" y="650" class="body">approved workbench, curated public interface, thematic paths, maps</text>
+<line x1="650" y1="195" x2="650" y2="225" class="line"/><line x1="650" y1="295" x2="650" y2="325" class="line"/><line x1="650" y1="395" x2="650" y2="425" class="line"/><line x1="650" y1="495" x2="650" y2="525" class="line"/><line x1="650" y1="595" x2="650" y2="625" class="line"/>
+</svg>

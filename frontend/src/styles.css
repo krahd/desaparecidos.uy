@@ -364,6 +364,11 @@ label {
   flex: 1;
   min-height: 0;
   align-content: start;
+  /* Keep cards at their natural height; without this the constrained-height
+     grid stretches each card into a collapsed row track and overflow:hidden
+     clips the thumbnail to a thin strip. */
+  align-items: start;
+  grid-auto-rows: max-content;
   padding: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));

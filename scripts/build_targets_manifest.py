@@ -14,7 +14,8 @@ Usage:
 
     python scripts/build_targets_manifest.py
     python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos \
-        --output data/manifests/local-targets.csv
+        --output data/manifests/local-targets.csv \
+        --processed-root data/processed/targets
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from pathlib import Path
 
 from desaparecidos.manifests import TARGET_FIELDS
 from desaparecidos.paths import PROJECT_ROOT, display_path
+from desaparecidos.preprocess import parse_aspect, preprocess_file
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 
@@ -79,8 +81,19 @@ def slugify(value: str) -> str:
     return slug or "target"
 
 
-def build_rows(source_dir: Path, manifest_path: Path) -> list[dict[str, str]]:
+def build_rows(
+    source_dir: Path,
+    manifest_path: Path,
+    *,
+    preprocess: bool = True,
+    processed_root: Path | None = None,
+    aspect: float = 3 / 4,
+    use_face: bool = True,
+    max_side: int = 1200,
+) -> list[dict[str, str]]:
     manifest_parent = manifest_path.resolve().parent
+    if preprocess:
+        processed_root = processed_root or PROJECT_ROOT / "data" / "processed" / "targets"
     portraits = sorted(
         (path for path in source_dir.iterdir() if path.is_file() and is_portrait(path)),
         key=lambda path: path.name.lower(),
@@ -98,7 +111,26 @@ def build_rows(source_dir: Path, manifest_path: Path) -> list[dict[str, str]]:
             suffix += 1
         used_ids.add(row_id)
 
-        rel_local = os.path.relpath(path.resolve(), manifest_parent)
+        local_path = path
+        note = _IMPORT_NOTE
+        if preprocess:
+            assert processed_root is not None
+            processed_path = processed_root / f"{row_id}{path.suffix.lower()}"
+            width, height = preprocess_file(
+                path,
+                processed_path,
+                aspect=aspect,
+                use_face=use_face,
+                max_side=max_side,
+            )
+            local_path = processed_path
+            note = (
+                f"{_IMPORT_NOTE} Processed copy auto-trimmed white border/caption margin "
+                f"and cropped to aspect {aspect:.4f} ({width}x{height}); "
+                f"original file: {display_path(path)}."
+            )
+
+        rel_local = os.path.relpath(local_path.resolve(), manifest_parent)
         accessed_at = _dt.date.fromtimestamp(path.stat().st_mtime).isoformat()
 
         row = {field: "" for field in TARGET_FIELDS}
@@ -112,7 +144,7 @@ def build_rows(source_dir: Path, manifest_path: Path) -> list[dict[str, str]]:
                 "accessed_at": accessed_at,
                 "local_path": rel_local,
                 "review_status": "pending",
-                "notes": _IMPORT_NOTE,
+                "notes": note,
             }
         )
         rows.append(row)
@@ -140,6 +172,32 @@ def main() -> None:
         default="data/manifests/local-targets.csv",
         help="Manifest path to write (default: data/manifests/local-targets.csv).",
     )
+    parser.add_argument(
+        "--processed-root",
+        default="data/processed/targets",
+        help="Directory for processed portrait copies (default: data/processed/targets).",
+    )
+    parser.add_argument(
+        "--aspect",
+        default="3:4",
+        help='Target portrait aspect ratio as width:height or decimal (default: "3:4").',
+    )
+    parser.add_argument(
+        "--max-side",
+        type=int,
+        default=1200,
+        help="Resize processed portraits so the longest side is at most this many pixels.",
+    )
+    parser.add_argument(
+        "--no-preprocess",
+        action="store_true",
+        help="Write manifest rows pointing at original files instead of processed copies.",
+    )
+    parser.add_argument(
+        "--no-face-centre",
+        action="store_true",
+        help="Do not use face detection to centre the crop inside the trimmed image.",
+    )
     args = parser.parse_args()
 
     source_dir = Path(args.source)
@@ -152,11 +210,28 @@ def main() -> None:
     if not manifest_path.is_absolute():
         manifest_path = PROJECT_ROOT / manifest_path
 
-    rows = build_rows(source_dir, manifest_path)
+    processed_root = Path(args.processed_root)
+    if not processed_root.is_absolute():
+        processed_root = PROJECT_ROOT / processed_root
+
+    rows = build_rows(
+        source_dir,
+        manifest_path,
+        preprocess=not args.no_preprocess,
+        processed_root=processed_root,
+        aspect=parse_aspect(args.aspect),
+        use_face=not args.no_face_centre,
+        max_side=args.max_side,
+    )
     write_manifest(rows, manifest_path)
+    mode = (
+        f"processed copies in {display_path(processed_root)}"
+        if not args.no_preprocess
+        else "original files"
+    )
     print(
         f"Wrote {len(rows)} pending target row(s) from {display_path(source_dir)} "
-        f"to {display_path(manifest_path)}."
+        f"to {display_path(manifest_path)} using {mode}."
     )
 
 

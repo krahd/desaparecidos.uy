@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  CrawlResponse,
   ManifestRow,
   OutputItem,
   ValidateResponse,
@@ -150,6 +151,7 @@ export function App() {
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [crawling, setCrawling] = useState(false);
   const [selectedOutput, setSelectedOutput] = useState<OutputItem | null>(null);
   const [selectedOutputIds, setSelectedOutputIds] = useState<Set<string>>(new Set());
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
@@ -188,10 +190,11 @@ export function App() {
   const selectedOutputCount = selectedOutputIds.size;
 
   const statusLabel = useMemo(() => {
+    if (crawling) return 'crawling';
     if (busy) return 'running';
     if (!validation) return 'not validated';
     return validation.ok ? 'validated' : 'needs attention';
-  }, [busy, validation]);
+  }, [busy, crawling, validation]);
 
   const runAction = useCallback(async <T,>(
     label: string,
@@ -332,14 +335,20 @@ export function App() {
       appendLog('Add at least one page URL before crawling.', 'error');
       return;
     }
+    if (crawling) {
+      appendLog('A crawl is already running.', 'error');
+      return;
+    }
     appendLog(
       `Crawl queued: ${pages.length} seed page${pages.length === 1 ? '' : 's'} for ${crawlKind} `
       + `· depth ${crawlDepth} · ≤${crawlMaxPages} pages · ≤${crawlMaxTotal} images `
       + `· ${crawlCrossDomain ? 'cross-domain' : 'same-domain'} · CV ${crawlUseCv ? 'on' : 'off'}.`,
     );
-    const response = await runAction(
-      `Crawling ${crawlKind}… following links, fetching and filtering images.`,
-      () => crawlPages({
+    appendLog(`Crawling ${crawlKind}… you can keep reviewing while it runs.`);
+    setCrawling(true);
+    let response: CrawlResponse | null = null;
+    try {
+      response = await crawlPages({
         pages,
         kind: crawlKind,
         manifest: crawlManifest,
@@ -351,9 +360,13 @@ export function App() {
         max_images: crawlMaxTotal,
         cross_domain: crawlCrossDomain,
         use_cv: crawlUseCv,
-      }),
-      'Crawler finished.',
-    );
+      });
+      appendLog('Crawler finished.', 'ok');
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : String(error), 'error');
+    } finally {
+      setCrawling(false);
+    }
     if (!response) return;
     if (crawlKind === 'targets') {
       setTargets(response.manifest);
@@ -362,12 +375,14 @@ export function App() {
     }
     setReviewKind(crawlKind);
     setActiveSection('review');
+    // Re-read from disk so the new rows appear alongside any reviews made while
+    // the crawl was running (disk is the source of truth).
     const checked = await validateManifests({
       targets: crawlKind === 'targets' ? response.manifest : targets,
       sources: crawlKind === 'places' ? response.manifest : sources,
       require_files: true,
-    });
-    setValidation(checked);
+    }).catch(() => null);
+    if (checked) setValidation(checked);
     appendLog(
       `Crawler done: ${response.pages_crawled} page${response.pages_crawled === 1 ? '' : 's'} crawled, `
       + `${response.images_seen} image${response.images_seen === 1 ? '' : 's'} seen, ${response.added} added, `
@@ -573,8 +588,8 @@ export function App() {
           <h1>desaparecidos.uy</h1>
           <p>Stage 1 local workspace: Estan en todas partes</p>
         </div>
-        <div className={`run-status ${busy ? 'busy' : ''} ${validation?.ok ? 'ok' : ''}`}>
-          {busy && <RefreshCw size={13} className="spin" />}
+        <div className={`run-status ${busy || crawling ? 'busy' : ''} ${validation?.ok ? 'ok' : ''}`}>
+          {(busy || crawling) && <RefreshCw size={13} className="spin" />}
           <span>{statusLabel}</span>
         </div>
       </header>
@@ -900,8 +915,8 @@ export function App() {
               CV filter
             </label>
           </div>
-          <button onClick={() => void handleCrawl()} disabled={busy}>
-            {busy ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl pages
+          <button onClick={() => void handleCrawl()} disabled={crawling}>
+            {crawling ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl pages
           </button>
         </section>
 

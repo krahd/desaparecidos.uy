@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-17 23:24 GMT-3
+Last updated: 2026-06-18 00:04 GMT-3
 
 ## Project purpose
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-17 23:24 GMT-3
 
 ## Current implementation state
 
-The repository now contains the Stage 1 local software prototype: a Python pipeline with a vectorised fragment matcher and an optional per-source contribution cap, a FastAPI localhost backend, a React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, a bounded recursive cross-domain page-image crawler with OpenCV computer-vision gating and a persistent SQLite/content-addressed cache, generated-output deletion controls, and browser-playable H.264 process-video rendering when `ffmpeg` is available.
+The repository now contains the Stage 1 local software prototype: a Python pipeline with a vectorised fragment matcher and an optional per-source contribution cap, target-portrait preprocessing for local disappeared-person photos, a FastAPI localhost backend, a React/Vite GUI, manifest templates, tests, a local launcher, a GUI-accessible synthetic demo fixture path, a bounded recursive cross-domain page-image crawler with OpenCV computer-vision gating and a persistent SQLite/content-addressed cache, generated-output deletion controls, and browser-playable H.264 process-video rendering when `ffmpeg` is available.
 
 ## Active focus
 
@@ -16,7 +16,7 @@ Review real target/place manifests and crawler-produced pending rows before intr
 
 ## Architecture overview
 
-The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs bounded recursive image crawling seeded by user-supplied or preset URLs (link-following within depth/page/image caps, cross-domain optional, robots-aware, computer-vision filtered, cached to avoid re-downloads), updates row review status individually or in bulk, deletes individual review rows (keeping the cached file) or selected generated outputs on request, and invokes reusable Python pipeline code. The GUI persists the target/source/crawl manifest paths across sessions and revalidates them on start, so crawled candidates stay reviewable. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars. Video generation uses the same assembly trace as still generation: each used source image is introduced full-screen, sampled fragment regions are highlighted, and fragments animate into their actual positions in the reconstructed portrait. The process video ends with a commemorative sequence that holds the reconstruction and then fades, each step separated by a fade to black, through the person's name and details, the line "TODOS SOMOS FAMILIARES", and the reconstruction again, before fading to black and ending.
+The project is organised as a localhost tool. The frontend calls a local API. The API validates manifests, performs bounded recursive image crawling seeded by user-supplied or preset URLs (link-following within depth/page/image caps, cross-domain optional, robots-aware, computer-vision filtered, cached to avoid re-downloads), updates row review status individually or in bulk, deletes individual review rows (keeping the cached file) or selected generated outputs on request, and invokes reusable Python pipeline code. Crawling has a separate GUI running state from other actions, so review remains usable while a crawl is in progress. The GUI persists the target/source/crawl manifest paths across sessions and revalidates them on start, so crawled candidates stay reviewable. The local targets manifest builder preprocesses disappeared-person portraits into ignored 3:4 copies under `data/processed/targets/`, trimming near-white borders/caption margins and preserving original-file provenance in row notes. The pipeline reads approved local inputs and writes ignored outputs plus JSON sidecars. Video generation uses the same assembly trace as still generation: each used source image is introduced full-screen, sampled fragment regions are highlighted, and fragments animate into their actual positions in the reconstructed portrait. The process video ends with a commemorative sequence that holds the reconstruction and then fades, each step separated by a fade to black, through the person's name and details, the line "TODOS SOMOS FAMILIARES", and the reconstruction again, before fading to black and ending.
 
 ### Architecture diagram
 
@@ -122,7 +122,7 @@ Seed pages are crawled with bounded link-following, computer-vision filtered, ca
 Use the macOS launcher for the GUI:
 
 ```bash
-./Start\ desaparecidos.command
+./start.sh
 ```
 
 Manual setup:
@@ -142,6 +142,7 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - The backend must bind to `127.0.0.1` by default.
 - Raw downloads belong under ignored `data/raw/`.
 - Crawler downloads and cache belong under ignored `data/raw/crawl/` (`store/` content-addressed files plus `cache.sqlite`).
+- Processed target portrait derivatives belong under ignored `data/processed/`.
 - Generated outputs belong under ignored `outputs/stage1/`.
 - `opencv-python-headless` is a runtime dependency for crawler computer-vision gating; it ships the Haar cascade, so no model download is needed.
 - Browser-playable video generation requires `ffmpeg` with H.264/libx264 support.
@@ -160,6 +161,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
 - `data/manifests/local-*.csv`: ignored locally generated manifests (e.g. portraits imported from `doc/fotos-desaparecidos`).
 - `scripts/build_targets_manifest.py`: builds a pending targets manifest from a local directory of portrait images.
+- `src/desaparecidos/preprocess.py`: trims white portrait borders/caption margins and normalises target portraits to a 3:4 frame.
+- `data/processed/targets/`: ignored processed target portrait copies generated from tracked originals.
 - `data/demo/`: ignored synthetic demo images generated on demand.
 - `doc/`: long-form project source documents.
 - GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
@@ -180,7 +183,9 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - 2026-06-17 18:28 GMT-3 follow-up: clarified that `doc/fotos-desaparecidos/` is intentionally tracked curated source material (AGENTS.md 5.2/5.3 updated). Untracked the redundant `doc/fotos-desaparecidos.zip` archive (`git rm --cached`, local file kept) and added a `.gitignore` rule for it; the removal is staged, not committed.
 - 2026-06-17 18:39 GMT-3 follow-up: switched the GUI to a dark theme (black background, white foreground) in `frontend/src/styles.css` via the `:root` palette plus new `--surface`/`--on-accent` variables and `color-scheme: dark`; `npm --prefix frontend run build` passed.
 - 2026-06-17 18:52 GMT-3 follow-up: made all surface backgrounds pure black (`--panel`, `--panel-strong`, `--surface`, preview placeholder, media viewer) so panels no longer read as grey; layout separation relies on `--line` borders. Changed the GUI default Targets manifest path to `data/manifests/local-targets.csv` so the imported portraits load without retyping the path (still requires clicking Validate, and the file must have been generated by `scripts/build_targets_manifest.py`). `npm --prefix frontend run build` passed.
-- 2026-06-17 23:24 GMT-3 follow-up: hardened the review thumbnail layout (pinned `.review-card` `grid-template-rows: 180px auto auto`, scrollable grid) after a stale-build report; verified the actual rendering with headless Chromium against the real CSS (cards show full portraits at correct aspect ratio with all controls), so any remaining squish is a stale dev-server/browser cache — restart the launcher and hard-reload. Added cross-session review persistence: the GUI stores target/source/crawl manifest paths in `localStorage` and revalidates on start; added a per-row Delete control (new `delete_manifest_row`, `POST /api/review/delete`, `deleteReviewRow`) that removes a manifest row but keeps the cached image file. A two-session smoke confirmed crawled rows, the content store, and `cache.sqlite` persist and that approve/reject/delete work on a fresh read.
+- 2026-06-17 23:34 GMT-3 follow-up: found the real cause of the squished review thumbnails (it was not a stale build). In the full nested layout (`app-shell` grid -> `workspace` grid -> `source-panel` flex column with `overflow:hidden` -> `review-grid` flex grid), the grid items default to `align-items: stretch`, and the constrained-height grid collapsed each implicit row track to ~50px; cards stretched into that track and `overflow:hidden` clipped the thumbnail to a thin strip. Fixed by `align-items: start` + `grid-auto-rows: max-content` on `.review-grid`. Reproduced and verified with a faithful full-`app-shell` headless-Chromium harness (computed card height went from 50px to 297px, preview 180px); a simpler isolated harness had not reproduced it.
+- 2026-06-18 00:04 GMT-3 follow-up: made crawling non-blocking for review by giving it its own `crawling` state instead of the global `busy` path; review buttons remain usable while a crawl runs, and the GUI revalidates from disk afterward so rows changed during the crawl are preserved. Added `src/desaparecidos/preprocess.py` and wired `scripts/build_targets_manifest.py` to default to processed 3:4 target portrait copies under ignored `data/processed/targets/`, trimming near-white borders/caption margins while preserving the original source path in row notes. Regenerated ignored `data/manifests/local-targets.csv` and 152 ignored processed target images.
+- 2026-06-17 23:24 GMT-3 follow-up: hardened the review thumbnail layout (pinned `.review-card` `grid-template-rows: 180px auto auto`, scrollable grid). Added cross-session review persistence: the GUI stores target/source/crawl manifest paths in `localStorage` and revalidates on start; added a per-row Delete control (new `delete_manifest_row`, `POST /api/review/delete`, `deleteReviewRow`) that removes a manifest row but keeps the cached image file. A two-session smoke confirmed crawled rows, the content store, and `cache.sqlite` persist and that approve/reject/delete work on a fresh read.
 - 2026-06-17 23:05 GMT-3 follow-up: review thumbnails now sit in a fixed-height box with `object-fit: contain` inside a scrollable grid (`flex:1; min-height:0`), fixing the squished/non-scrolling panel. Added a busy spinner (topbar status pill and Crawl button) and richer crawl progress logging (queued parameters, a CV-rejection breakdown by reason, and image-fetch error counts). Added a process-video ending sequence in `pipeline.py` (`_outro_frames`/`_text_panel`): hold the reconstruction, fade to black, fade in the name + birth/disappearance/place card, fade to black, "TODOS SOMOS FAMILIARES", fade to black, the reconstruction again, then fade to black and end (~20 s at 12 fps).
 - 2026-06-17 20:31 GMT-3 follow-up: large feature/audit pass. (1) Review thumbnails now keep the source aspect ratio (fixed a collapsing `aspect-ratio`/`height:100%` cycle) and clicking a target thumbnail sets the working portrait (place thumbnails open the viewer). (2) Removed the redundant GUI Download section (the `/api/download` endpoint and CLI remain). (3) Added a vectorised nearest-fragment matcher and a `max_contribution_per_source` cap (GUI "Max tiles per source" slider, `0` = unlimited) plumbed through `Stage1Settings`, `/api/generate`, and `generateStage1`; matcher output is unchanged at the default. (4) Rewrote the crawler as a bounded recursive BFS (depth/page/image caps, cross-domain optional, per-host delay, `robots.txt`) with new `cv.py` (OpenCV Haar faces for targets, texture/aspect/resolution heuristics for places) and `cache.py` (SQLite index + content-addressed store) so images are classified/downloaded once; new crawler params on `/api/crawl` and GUI controls (depth, max pages, total images, cross-domain, CV filter); the crawl summary reports pages/seen/added/CV-rejected/from-cache. (5) Added `opencv-python-headless` to dependencies. (6) Relaxed AGENTS.md/CLAUDE.md crawler-persistence wording.
 
@@ -201,9 +206,9 @@ Verification run on 2026-06-17:
 - 2026-06-17 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, and `npm --prefix frontend run build` passed after adding the demo-fixture GUI path.
 - 2026-06-17 follow-up: patched API `/api/demo-fixtures`, `/api/validate`, and `/api/generate` were smoke-tested on isolated verification ports.
 - 2026-06-17 11:18 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, CLI demo validation, 720px still generation, and a small MP4 generation smoke run passed after the fragment reuse and demo fixture patch.
-- 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "Start desaparecidos.command"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
+- 2026-06-17 15:40 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `zsh -n "start.sh"` passed. A launcher smoke run with `python -m http.server` still occupying port `8765` selected backend `8766` and frontend `5177`; POST checks to `/api/demo-fixtures` and `/api/validate` returned `200 OK`.
 - 2026-06-17 16:15 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed after adding crawler/review/output-viewer UI and backend routes. A launcher smoke run selected backend `8766` and frontend `5178`; API smoke calls for `/api/demo-fixtures`, `/api/crawl` against a local page, `/api/generate` still, `/api/generate` video, and `/api/outputs` returned successful responses. Browser interaction automation is still unavailable in this environment.
-- 2026-06-17 16:43 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, `zsh -n "Start desaparecidos.command"`, and `git diff --check` passed after adding output deletion controls, crawler presets, and H.264 video rendering. A fresh demo video smoke render to `/private/tmp/desaparecidos-video-smoke-20260617` produced an MP4 whose video stream probed as `codec_name=h264` and `pix_fmt=yuv420p`, with `video_codec: h264` in the sidecar.
+- 2026-06-17 16:43 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, `zsh -n "start.sh"`, and `git diff --check` passed after adding output deletion controls, crawler presets, and H.264 video rendering. A fresh demo video smoke render to `/private/tmp/desaparecidos-video-smoke-20260617` produced an MP4 whose video stream probed as `codec_name=h264` and `pix_fmt=yuv420p`, with `video_codec: h264` in the sidecar.
 - 2026-06-17 17:05 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q`, `npm --prefix frontend run build`, and `git diff --check` passed with 23 tests after adding assembly-trace process video rendering. A fresh demo process-video smoke render to `/private/tmp/desaparecidos-process-video-smoke-20260617` produced a 16 second H.264/yuv420p MP4 with 192 frames; extracted frames were visually checked for full-source introduction, fragment motion, and final reconstruction.
 - 2026-06-17 17:34 GMT-3 follow-up: `python -m compileall src tests scripts`, `python -m pytest -q` (27 tests, +4 for bulk review), and `npm --prefix frontend run build` passed after adding bulk review and the targets-manifest builder. `scripts/build_targets_manifest.py` wrote 152 pending rows to `data/manifests/local-targets.csv`; `validate_manifest(require_files=True)` reported `ok` with no errors and confirmed `git check-ignore` keeps the manifest untracked. GUI browser interaction was not automated in this environment.
 - 2026-06-17 18:28 GMT-3 follow-up: no code changed (docs/tracking only), so the test/build suite was not re-run. Verified `git ls-files '*.zip'` is now empty, `git ls-files doc/fotos-desaparecidos/` still lists 188 loose files, the local `doc/fotos-desaparecidos.zip` remains on disk, and `git check-ignore` matches the new `.gitignore` rule.
@@ -211,10 +216,12 @@ Verification run on 2026-06-17:
 - 2026-06-17 23:05 GMT-3 follow-up: `.venv/bin/python -m pytest -q` (45 tests, +1 for the video outro), `npm --prefix frontend run build`, and `git diff --check` passed. Rendered the title cards and a full demo MP4 (H.264/yuv420p, 30.25 s): the name/info card and the "TODOS SOMOS FAMILIARES" card render centred with correct accents, the name card is present in the encoded stream, and the final frame is pure black. The thumbnail-scroll fix and busy spinner were verified by build; a live browser pass is still pending in this environment.
 - 2026-06-17 20:31 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q` (44 tests, +17 for matcher cap, crawler recursion/robots/CV/cache, `cv.py`, and `cache.py`), and `npm --prefix frontend run build` passed. CV validated on real data: 6/6 sampled `doc/fotos-desaparecidos` portraits accepted as targets and rejected as places; flat/low-resolution images rejected for places; pure noise yields no faces. Matcher checked deterministic and ~3 ms on a small synthetic case. Crawler cache verified to download a rejected image once across two runs (`from_cache` hit on the second). Live browser screenshot verification of the review thumbnails and click-to-select is still pending in this environment.
 
+- 2026-06-18 00:04 GMT-3 follow-up: `.venv/bin/python -m compileall src tests scripts`, `.venv/bin/python -m pytest -q` (51 tests, +3 for target preprocessing), `npm --prefix frontend run build`, and `git diff --check` passed. `scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4` wrote 152 pending rows and 152 processed portraits; `desaparecidos validate --targets data/manifests/local-targets.csv --sources data/manifests/places.csv --require-files` returned `ok: true`. `git check-ignore` confirms both `data/manifests/local-targets.csv` and `data/processed/targets/` are ignored.
+
 ## Known issues, risks, and limitations
 
 - The `doc/fotos-desaparecidos/` portrait collection (188 tracked files) is intentionally tracked as the curated source material of the work, not transient crawler/download output; it is an explicit exception to the raw-imagery rule (see AGENTS.md 5.3). The redundant `doc/fotos-desaparecidos.zip` archive (~348 MB) was untracked (`git rm --cached`) and added to `.gitignore`; it is no longer in the index or HEAD, while the local file is kept on disk. The lone `195FPMFUDD.psd` (~11 MB) remains tracked and could be revisited later if archive size becomes a concern.
-- `data/manifests/local-targets.csv` contains 152 real disappeared-person names. It is kept untracked via the `data/manifests/local-*.csv` ignore rule and all rows are `pending`; provenance, identity, licence, and naming are unverified and require manual review before approval.
+- `data/manifests/local-targets.csv` contains 152 real disappeared-person names. It is kept untracked via the `data/manifests/local-*.csv` ignore rule and all rows are `pending`; provenance, identity, licence, naming, and preprocessing crops are unverified and require manual review before approval. Its `local_path` values now point to ignored processed copies under `data/processed/targets/`; the tracked originals remain in `doc/fotos-desaparecidos/`.
 - Public release requires provenance, legal, privacy, and historical-source review.
 - The Stage 1 crawler is seeded by user-supplied or preset pages and may follow links recursively (cross-domain optional). It is bounded by depth/page/image caps, a per-host delay, and `robots.txt`, does not identify people, and writes pending rows that require explicit approval before generation. Operators should keep caps modest and respect target sites' terms; cross-domain following can wander, so prefer same-domain for unfamiliar seeds.
 - Crawler computer-vision gating uses an OpenCV Haar frontal-face cascade plus lightweight place heuristics. Haar is fast and offline but not perfect: it can miss profile/occluded faces and occasionally false-positive, and the place heuristics are threshold-based. CV gates which images become pending rows; it never approves them, so manual review remains the authority. A stronger DNN detector is a possible later upgrade.
@@ -227,7 +234,7 @@ Verification run on 2026-06-17:
 ## Recurring tasks
 
 - Keep `STATUS.md` updated after meaningful implementation or verification changes.
-- Keep raw imagery and generated outputs untracked; the crawler cache under `data/raw/crawl/` is intentionally persisted on disk but stays ignored.
+- Keep raw imagery, processed derivatives, and generated outputs untracked; the crawler cache under `data/raw/crawl/` and processed portraits under `data/processed/` are intentionally persisted on disk but stay ignored.
 - Review provenance and `review_status` before generation.
 
 ## Pending tasks
@@ -236,7 +243,7 @@ Verification run on 2026-06-17:
 
 ## Next steps
 
-1. Restart the local launcher so the backend loads the new `/api/crawl`, `/api/review-bulk`, and contribution-cap parameters and the rebuilt frontend. The Targets path already defaults to `data/manifests/local-targets.csv`.
+1. Restart the local launcher so the backend/frontend load the non-blocking crawl state, processed target manifest paths, `/api/crawl`, `/api/review-bulk`, and contribution-cap parameters. The Targets path already defaults to `data/manifests/local-targets.csv`.
 2. Do a live browser pass to confirm the review thumbnails, click-to-set-target, and the "Max tiles per source" slider behave as expected, then run a real bounded crawl and confirm the second run reports cache hits.
 3. Review real target/place manifests and crawler-produced pending rows before approving any non-synthetic imagery. Use "Approve all" only after per-row review, since it approves every row in the active manifest.
 4. Decide whether to address the frontend npm audit findings before broader use.
@@ -257,6 +264,7 @@ Verification run on 2026-06-17:
 - Crawled images are cached on disk (content-addressed + SQLite) so repeated crawls do not re-download; persistence is intentional for now and revisitable.
 - The per-source contribution cap exists so a reconstruction can be spread across many source images (each contributing few tiles), supporting the "everywhere" concept; it defaults to unlimited to preserve prior output.
 - The matcher was vectorised for speed while keeping identical output at the default settings.
+- Local target preprocessing is implemented as ignored derivatives rather than modifying the tracked source portraits, preserving original material while giving generation/review a border-trimmed 3:4 working frame.
 
 ## Documentation alignment notes
 
@@ -265,4 +273,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-17 23:24 GMT-3
+Last updated: 2026-06-18 00:04 GMT-3

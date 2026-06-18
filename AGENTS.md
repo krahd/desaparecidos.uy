@@ -141,15 +141,16 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
 - `data/raw/`: ignored downloaded or local source imagery.
 - `data/raw/crawl/`: ignored crawler cache — content-addressed image store under `store/` plus a SQLite index (`cache.sqlite`).
+- `data/processed/`: ignored processed local derivatives, including 3:4 target portrait copies generated from `doc/fotos-desaparecidos/`.
 - `doc/fotos-desaparecidos/`: curated source portraits of the disappeared, tracked intentionally as foundational material for the work (the redundant `doc/fotos-desaparecidos.zip` archive is ignored).
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
-- `Start desaparecidos.command`: macOS launcher for the local GUI.
+- `start.sh`: launcher script for the local GUI.
 
 ### 5.3:  Safety invariants
 
 - Keep the GUI and API bound to localhost unless the user explicitly requests another deployment mode.
-- Never commit raw source imagery, generated outputs, fragments, downloaded files, or review-sensitive data. This rule targets transient crawler/download outputs (ignored under `data/raw/`). The curated source portraits in `doc/fotos-desaparecidos/` are an intentional, tracked part of the work and are not covered by this rule; do not untrack or remove them. Generated manifests of real people belong on ignored `data/manifests/local-*.csv` paths.
+- Never commit raw source imagery, processed derivatives, generated outputs, fragments, downloaded files, or review-sensitive data. This rule targets transient crawler/download outputs (ignored under `data/raw/`) and local processed copies (ignored under `data/processed/`). The curated source portraits in `doc/fotos-desaparecidos/` are an intentional, tracked part of the work and are not covered by this rule; do not untrack or remove them. Generated manifests of real people belong on ignored `data/manifests/local-*.csv` paths.
 - Require `review_status=approved` before any source image participates in Stage 1 generation.
 - Keep provenance metadata with every downloaded input and generated output.
 - Treat historical target images respectfully: do not claim enhancement, recovery, or forensic reconstruction.

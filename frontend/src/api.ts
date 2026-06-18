@@ -82,7 +82,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new Error(
-      `Cannot reach the local FastAPI backend at ${API_BASE}. Start the app with Start desaparecidos.command.`,
+      `Cannot reach the local FastAPI backend at ${API_BASE}. Start the app with ./start.sh.`,
     );
   }
   if (!response.ok) {
@@ -102,7 +102,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     if (contentType.includes('text/html') || body.trimStart().startsWith('<!DOCTYPE')) {
       throw new Error(
-        `The server at ${API_BASE} is not the desaparecidos FastAPI backend. Restart Start desaparecidos.command; it will choose a free backend port if 8765 is occupied.`,
+        `The server at ${API_BASE} is not the desaparecidos FastAPI backend. Restart ./start.sh; it will choose a free backend port if 8765 is occupied.`,
       );
     }
     throw new Error(body || response.statusText);

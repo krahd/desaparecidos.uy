@@ -13,6 +13,7 @@ Stage 1 implements the place-based prototype. Public target portraits are recons
 The prototype provides:
 
 - manifest-driven target and place-source ingestion;
+- local target-portrait preprocessing that trims white scan borders/caption margins and writes 3:4 processed copies;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
 - a bounded recursive page-image crawler (cross-domain, robots-aware) with a persistent cache so images are not re-downloaded;
@@ -23,21 +24,21 @@ The prototype provides:
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
-Generated outputs and the crawler's cached downloads are intentionally ignored by git. Crawled images persist on disk under `data/raw/crawl/` so the crawler does not re-fetch them. The one tracked image set is the curated portrait collection in `doc/fotos-desaparecidos/`.
+Generated outputs, processed target copies, and the crawler's cached downloads are intentionally ignored by git. Crawled images persist on disk under `data/raw/crawl/` so the crawler does not re-fetch them. The one tracked image set is the curated portrait collection in `doc/fotos-desaparecidos/`; generated local manifests point at ignored processed copies under `data/processed/targets/`.
 
 ## Local GUI
 
 The normal workflow is the local web GUI.
 
 ```bash
-./Start\ desaparecidos.command
+./start.sh
 ```
 
 The launcher creates or reuses a local Python environment, installs Python and frontend dependencies when needed, starts the FastAPI backend, starts the Vite GUI, and opens the browser. It prefers backend port `8765` and frontend port `5173`, but automatically moves to free localhost ports when those are already occupied.
 
-If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./Start\ desaparecidos.command` again. The launcher prints the exact backend and frontend URLs it selected.
+If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./start.sh` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, crawl user-supplied or preset pages for candidate images (with depth, page, image, cross-domain, and CV-filter controls), approve, reject, or delete manifest rows individually (or approve all in bulk), click a target thumbnail to set it as the working portrait, run still/video generation with a per-source contribution cap, inspect progress logs, review output sidecars, and delete selected or all generated outputs. The GUI remembers the target, source, and crawl manifest paths across sessions and reloads them on start, so crawled candidates remain available to review later. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, and animate those fragments into their actual positions in the reconstructed portrait so the assembly process remains visible.
+The GUI can validate manifests, crawl user-supplied or preset pages for candidate images (with depth, page, image, cross-domain, and CV-filter controls), approve, reject, or delete manifest rows individually (or approve all in bulk), click a target thumbnail to set it as the working portrait, run still/video generation with a per-source contribution cap, inspect progress logs, review output sidecars, and delete selected or all generated outputs. Crawling has its own running state, so the review panel remains usable while a crawl is in progress. The GUI remembers the target, source, and crawl manifest paths across sessions and reloads them on start, so crawled candidates remain available to review later. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, and animate those fragments into their actual positions in the reconstructed portrait so the assembly process remains visible.
 
 The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
 
@@ -78,6 +79,7 @@ The CLI remains available for automation and testing.
 python -m desaparecidos validate --targets data/manifests/targets.csv --sources data/manifests/places.csv
 python -m desaparecidos download --manifest data/manifests/places.csv --kind places
 python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17
+python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
 
 ## Manifests and Review
@@ -86,13 +88,14 @@ Tracked manifest templates live in `data/manifests/`.
 
 - Target manifests describe disappeared persons' public images and source provenance.
 - Place manifests describe place/surface images and reuse terms.
+- `scripts/build_targets_manifest.py` builds ignored local target manifests from `doc/fotos-desaparecidos/`. By default it writes processed 3:4 portrait copies under ignored `data/processed/targets/`, trimming near-white borders and caption/text margins while keeping the original filename in provenance notes.
 - Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
 - The crawler is seeded with page URLs entered or selected in the GUI, then follows links recursively within depth/page/image caps (cross-domain optional), honouring a per-host delay and `robots.txt`. A computer-vision filter keeps faces for targets and textured non-face scenes for places. Accepted images are saved to a content-addressed cache under ignored `data/raw/crawl/store/` and recorded in `data/raw/crawl/cache.sqlite` so re-runs do not re-download; pending rows are appended to ignored `data/manifests/crawled-*.csv` and are never eligible for generation until manually approved. Because the rows, cached files, and SQLite index all persist on disk, crawled candidates remain reviewable in later sessions — they can be approved, rejected, or deleted from the manifest (deleting a row keeps the cached file).
 - `reuse_limit` is enforced per extracted source fragment. The optional `max_contribution_per_source` (the GUI "Max tiles per source" slider, `0` = unlimited) caps how many output tiles any single source image fills, so each image appears in only a few parts. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
 - Video sidecars record the process style, source sequence, tile counts, and per-source animated fragment counts.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 
-Downloaded and crawled files (and the crawler cache) are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.
+Downloaded and crawled files (and the crawler cache) are written under `data/raw/`; processed target copies are written under `data/processed/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.
 
 ## Verification
 

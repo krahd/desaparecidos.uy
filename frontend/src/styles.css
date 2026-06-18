@@ -1,16 +1,18 @@
 :root {
-  color-scheme: light;
-  --bg: #e7e5df;
-  --panel: #f7f6f1;
-  --panel-strong: #efede7;
-  --ink: #1d1d1b;
-  --muted: #65645f;
-  --line: #c8c5bc;
-  --line-strong: #9d998f;
-  --accent: #6d2f26;
-  --accent-dark: #3d201b;
-  --ok: #286244;
-  --error: #9b2f28;
+  color-scheme: dark;
+  --bg: #000000;
+  --panel: #000000;
+  --panel-strong: #000000;
+  --surface: #000000;
+  --ink: #ffffff;
+  --on-accent: #ffffff;
+  --muted: #a3a39d;
+  --line: #2c2c2c;
+  --line-strong: #474747;
+  --accent: #b9534a;
+  --accent-dark: #8c352c;
+  --ok: #5cc08a;
+  --error: #e0685e;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -38,7 +40,7 @@ button {
   min-height: 34px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: #fffdf8;
+  background: var(--surface);
   color: var(--ink);
   display: inline-flex;
   align-items: center;
@@ -56,7 +58,7 @@ button:disabled {
 button.primary {
   background: var(--accent-dark);
   border-color: var(--accent-dark);
-  color: #fffdf8;
+  color: var(--on-accent);
 }
 
 input,
@@ -65,7 +67,7 @@ textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fffdf8;
+  background: var(--surface);
   color: var(--ink);
   padding: 8px 9px;
   min-height: 34px;
@@ -74,6 +76,44 @@ textarea {
 textarea {
   resize: vertical;
   line-height: 1.35;
+}
+
+input[type="range"] {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.slider-label span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.toggle-row .checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
 }
 
 label {
@@ -97,7 +137,7 @@ label {
   justify-content: space-between;
   padding: 14px 22px;
   border-bottom: 1px solid var(--line);
-  background: #f1efe9;
+  background: var(--panel);
 }
 
 .topbar h1 {
@@ -119,7 +159,7 @@ label {
   border-radius: 999px;
   padding: 7px 12px;
   color: var(--muted);
-  background: #fffdf8;
+  background: var(--surface);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -132,7 +172,7 @@ label {
 .workflow {
   border-right: 1px solid var(--line);
   padding: 16px 12px;
-  background: #edeae3;
+  background: var(--panel);
 }
 
 .workflow-item {
@@ -152,7 +192,7 @@ label {
 }
 
 .workflow-item.active {
-  background: #fffdf8;
+  background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--line);
 }
@@ -251,8 +291,7 @@ label {
   flex: 1;
   min-height: 180px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(0, 0, 0, 0.035)),
-    repeating-linear-gradient(45deg, #ddd9cf 0, #ddd9cf 8px, #e9e6dd 8px, #e9e6dd 16px);
+    repeating-linear-gradient(45deg, #000000 0, #000000 8px, #0b0b0b 8px, #0b0b0b 16px);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -264,13 +303,12 @@ label {
   max-width: 170px;
   aspect-ratio: 0.72;
   border-radius: 44% 44% 12% 12%;
-  border: 1px solid #bcb8ae;
-  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid #3a3a3a;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .preview.compact {
-  min-height: 0;
-  aspect-ratio: 1;
+  min-height: 120px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -279,6 +317,15 @@ label {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Review thumbnails keep the source's real aspect ratio, capped in size. */
+.preview.compact img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: contain;
 }
 
 .metadata-strip {
@@ -315,7 +362,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  background: #fffdf8;
+  background: var(--surface);
 }
 
 .source-tile span {
@@ -334,7 +381,7 @@ label {
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fffdf8;
+  background: var(--surface);
 }
 
 .segmented button {
@@ -347,7 +394,7 @@ label {
 
 .segmented button.selected {
   background: var(--accent-dark);
-  color: #fffdf8;
+  color: var(--on-accent);
 }
 
 .review-card {
@@ -355,8 +402,24 @@ label {
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  background: #fffdf8;
+  background: var(--surface);
   display: grid;
+}
+
+.review-pick {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.review-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .review-card.approved {
@@ -447,7 +510,7 @@ label {
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: #fffdf8;
+  background: var(--surface);
 }
 
 .output-thumb.selected {
@@ -481,9 +544,9 @@ label {
   height: 28px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(29, 29, 27, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 6px;
-  background: rgba(255, 253, 248, 0.92);
+  background: rgba(15, 15, 15, 0.92);
   color: var(--ink);
   cursor: pointer;
 }
@@ -530,7 +593,7 @@ label {
   grid-template-columns: 74px minmax(0, 1fr);
   gap: 10px;
   padding: 5px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--muted);
 }
 
@@ -544,7 +607,7 @@ label {
 
 .inspector {
   border-left: 1px solid var(--line);
-  background: #edeae3;
+  background: var(--panel);
   padding: 16px 14px;
   overflow: auto;
   display: grid;
@@ -671,7 +734,7 @@ button.danger,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(29, 29, 27, 0.72);
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .viewer {
@@ -714,7 +777,7 @@ button.danger,
   min-height: 0;
   display: grid;
   place-items: center;
-  background: #151514;
+  background: #000000;
 }
 
 .viewer-media img,
@@ -727,7 +790,7 @@ button.danger,
 .viewer-media video {
   width: 100%;
   height: 100%;
-  background: #151514;
+  background: #000000;
 }
 
 .viewer-actions {
@@ -744,7 +807,7 @@ button.danger,
   min-height: 34px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: #fffdf8;
+  background: var(--surface);
   color: var(--ink);
   display: inline-flex;
   align-items: center;

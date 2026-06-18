@@ -251,6 +251,22 @@ def set_review_status(
     row_id: str,
     review_status: str,
 ) -> ManifestValidation:
+    return set_review_status_bulk(path, kind, review_status, row_ids=[row_id])
+
+
+def set_review_status_bulk(
+    path: str | Path,
+    kind: ManifestKind,
+    review_status: str,
+    *,
+    row_ids: list[str] | None = None,
+) -> ManifestValidation:
+    """Set ``review_status`` for selected rows in one rewrite.
+
+    When ``row_ids`` is ``None`` every data row is updated; otherwise only the
+    listed ids are. A missing requested id is an error so callers do not
+    silently approve nothing.
+    """
     status = review_status.strip().lower()
     if status not in {APPROVED, "pending", "rejected"}:
         raise ValueError("review_status must be approved, pending, or rejected")
@@ -271,14 +287,21 @@ def set_review_status(
         if field_name not in fieldnames:
             fieldnames = [*fieldnames, field_name]
 
-    updated = False
+    requested = None if row_ids is None else set(row_ids)
+    present_ids: set[str] = set()
     for row in rows:
-        if (row.get("id") or "").strip() == row_id:
+        row_id = (row.get("id") or "").strip()
+        if not row_id or row_id.startswith("#"):
+            continue
+        present_ids.add(row_id)
+        if requested is None or row_id in requested:
             row["review_status"] = status
-            updated = True
 
-    if not updated:
-        raise ValueError(f"{manifest_path} has no row with id {row_id!r}")
+    if requested is not None:
+        missing = requested - present_ids
+        if missing:
+            ids = ", ".join(repr(value) for value in sorted(missing))
+            raise ValueError(f"{manifest_path} has no row with id {ids}")
 
     with manifest_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")

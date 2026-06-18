@@ -120,6 +120,32 @@ def test_review_endpoint_updates_manifest(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert body["manifest"]["rows"][0]["values"]["review_status"] == "rejected"
 
 
+def test_review_bulk_endpoint_approves_all(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    with targets.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "t2", "Target two", "https://example.invalid/t2.png", "https://example.invalid/t2",
+            "fixture", "2026-06-17", "target.png", "pending", "", "", "", "", "", "", "", ""
+        ])
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review-bulk",
+        json={
+            "manifest": str(targets),
+            "kind": "targets",
+            "review_status": "approved",
+            "all": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["manifest"]["approved_count"] == 2
+
+
 def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class FakeSummary:
         def to_api(self) -> dict[str, object]:

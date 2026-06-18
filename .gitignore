@@ -24,7 +24,11 @@ data/fragments/
 data/demo/
 data/manifests/demo-*.csv
 data/manifests/crawled-*.csv
+data/manifests/local-*.csv
 outputs/
+
+# Redundant local archive of the tracked doc/fotos-desaparecidos portraits
+doc/fotos-desaparecidos.zip
 
 # Local environment and logs
 .env

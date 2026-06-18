@@ -3,7 +3,6 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
-  Download,
   Eye,
   FileCheck2,
   Globe2,
@@ -26,11 +25,11 @@ import {
   crawlPages,
   createDemoFixtures,
   deleteOutputs,
-  downloadManifest,
   fileUrl,
   generateStage1,
   listOutputs,
   updateReviewStatus,
+  updateReviewStatusBulk,
   validateManifests,
 } from './api';
 
@@ -54,7 +53,7 @@ type CrawlPreset = {
 };
 
 const defaultPaths = {
-  targets: 'data/manifests/targets.csv',
+  targets: 'data/manifests/local-targets.csv',
   sources: 'data/manifests/places.csv',
   outputDir: 'outputs/stage1',
 };
@@ -129,6 +128,7 @@ export function App() {
   const [fragmentSize, setFragmentSize] = useState(24);
   const [reuseLimit, setReuseLimit] = useState(8);
   const [outputWidth, setOutputWidth] = useState(720);
+  const [maxContribution, setMaxContribution] = useState(0);
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
@@ -143,6 +143,11 @@ export function App() {
   const [crawlManifest, setCrawlManifest] = useState(crawlerManifestDefaults.places);
   const [crawlMaxImages, setCrawlMaxImages] = useState(12);
   const [crawlLabelPrefix, setCrawlLabelPrefix] = useState('');
+  const [crawlDepth, setCrawlDepth] = useState(2);
+  const [crawlMaxPages, setCrawlMaxPages] = useState(60);
+  const [crawlMaxTotal, setCrawlMaxTotal] = useState(80);
+  const [crawlCrossDomain, setCrawlCrossDomain] = useState(true);
+  const [crawlUseCv, setCrawlUseCv] = useState(true);
   const [log, setLog] = useState<LogEntry[]>([
     { at: new Date().toLocaleTimeString(), text: 'GUI ready. Backend must be running on localhost.' },
   ]);
@@ -154,12 +159,15 @@ export function App() {
     ].slice(0, 80));
   }, []);
 
-  const approvedTargets = validation?.targets.rows.filter((row) => row.approved) ?? [];
+  const allTargets = validation?.targets.rows ?? [];
+  const approvedTargets = allTargets.filter((row) => row.approved);
   const approvedSources = validation?.sources.rows.filter((row) => row.approved) ?? [];
   const reviewRows = reviewKind === 'targets'
-    ? validation?.targets.rows ?? []
+    ? allTargets
     : validation?.sources.rows ?? [];
-  const activeTarget = approvedTargets.find((row) => row.id === targetId) ?? approvedTargets[0];
+  const activeTarget = allTargets.find((row) => row.id === targetId)
+    ?? approvedTargets[0]
+    ?? allTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
 
   const statusLabel = useMemo(() => {
@@ -233,15 +241,6 @@ export function App() {
     setActiveSection('review');
   }
 
-  async function handleDownload(kind: ReviewKind) {
-    const manifest = kind === 'targets' ? targets : sources;
-    await runAction(
-      `Downloading ${kind} manifest URLs.`,
-      () => downloadManifest({ manifest, kind, output_root: 'data/raw' }),
-      `${kind} download pass finished.`,
-    );
-  }
-
   async function refreshOutputs(preferredPath?: string): Promise<OutputItem | null> {
     const response = await runAction(
       'Refreshing outputs.',
@@ -273,10 +272,8 @@ export function App() {
         });
         setValidation(checked);
         const firstApprovedTarget = checked.targets.rows.find((row) => row.approved)?.id ?? '';
-        const selectedTargetId = activeTarget?.id || firstApprovedTarget;
-        if (firstApprovedTarget && !activeTarget) {
-          setTargetId(firstApprovedTarget);
-        }
+        const selectedApproved = checked.targets.rows.find((row) => row.approved && row.id === targetId)?.id ?? '';
+        const selectedTargetId = selectedApproved || firstApprovedTarget;
         if (checked.targets.approved_count === 0 || checked.sources.approved_count === 0) {
           throw new Error(
             'No approved target/source rows. Approve rows in Review images, or use Create demo fixtures.',
@@ -293,6 +290,7 @@ export function App() {
           fragment_size: fragmentSize,
           reuse_limit: reuseLimit,
           output_width: outputWidth,
+          max_contribution_per_source: maxContribution,
           make_video: makeVideo,
           target_id: selectedTargetId || undefined,
         });
@@ -326,6 +324,11 @@ export function App() {
         output_root: 'data/raw/crawl',
         max_images_per_page: crawlMaxImages,
         label_prefix: crawlLabelPrefix,
+        max_depth: crawlDepth,
+        max_pages: crawlMaxPages,
+        max_images: crawlMaxTotal,
+        cross_domain: crawlCrossDomain,
+        use_cv: crawlUseCv,
       }),
       'Crawler finished.',
     );
@@ -343,9 +346,13 @@ export function App() {
       require_files: true,
     });
     setValidation(checked);
-    const saved = response.items.filter((item) => item.ok).length;
-    appendLog(`Crawler saved ${saved} image${saved === 1 ? '' : 's'} as pending review.`, saved ? 'ok' : 'error');
-    response.errors.forEach((error) => appendLog(error, 'error'));
+    appendLog(
+      `Crawler: ${response.pages_crawled} page${response.pages_crawled === 1 ? '' : 's'}, `
+      + `${response.images_seen} seen, ${response.added} added, `
+      + `${response.cv_rejected} CV-rejected, ${response.from_cache} from cache.`,
+      response.added ? 'ok' : undefined,
+    );
+    response.errors.slice(0, 8).forEach((error) => appendLog(error, 'error'));
   }
 
   async function handleReviewStatus(row: ManifestRow, status: ReviewStatus) {
@@ -370,10 +377,50 @@ export function App() {
     }
   }
 
+  async function handleReviewAll(status: ReviewStatus) {
+    const manifest = reviewKind === 'targets' ? targets : sources;
+    const count = reviewRows.length;
+    if (count === 0) {
+      appendLog(`No ${reviewKind} rows to ${status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : 'reset'}.`, 'error');
+      return;
+    }
+    const verb = status === 'approved' ? 'Approving' : status === 'rejected' ? 'Rejecting' : 'Resetting';
+    const response = await runAction(
+      `${verb} all ${count} ${reviewKind} row${count === 1 ? '' : 's'}.`,
+      async () => {
+        await updateReviewStatusBulk({ manifest, kind: reviewKind, review_status: status, all: true });
+        return validateManifests({ targets, sources, require_files: true });
+      },
+      'Review status updated.',
+    );
+    if (!response) return;
+    setValidation(response);
+    if (reviewKind === 'targets' && status === 'approved') {
+      const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
+      if (firstApproved) setTargetId(firstApproved);
+    }
+  }
+
+  function handlePickReview(row: ManifestRow) {
+    if (row.kind === 'targets') {
+      setTargetId(row.id);
+      appendLog(`Target portrait set to ${row.label}${row.approved ? '' : ' (pending)'}.`, 'ok');
+      return;
+    }
+    setViewerOutput({
+      id: row.id,
+      target_id: row.label,
+      still_path: row.file_path ?? row.values.local_path ?? null,
+      video_path: null,
+      sidecar_path: '',
+      sidecar: {},
+    });
+  }
+
   function handleTargetSelect(value: string) {
     setTargetId(value);
-    const row = approvedTargets.find((target) => target.id === value);
-    appendLog(row ? `Selected target: ${row.label}.` : 'No approved target selected.', row ? 'ok' : undefined);
+    const row = allTargets.find((target) => target.id === value);
+    appendLog(row ? `Selected target: ${row.label}.` : 'No target selected.', row ? 'ok' : undefined);
   }
 
   function handleCrawlKindChange(value: ReviewKind) {
@@ -494,19 +541,23 @@ export function App() {
             <select
               value={activeTarget?.id ?? ''}
               onChange={(event) => handleTargetSelect(event.target.value)}
-              disabled={approvedTargets.length === 0}
+              disabled={allTargets.length === 0}
             >
-              {approvedTargets.length === 0 && <option value="">No approved target</option>}
-              {approvedTargets.map((row) => (
+              {allTargets.length === 0 && <option value="">No targets</option>}
+              {allTargets.map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.label}
+                  {row.approved ? row.label : `${row.label} (pending)`}
                 </option>
               ))}
             </select>
           </div>
           <Preview row={activeTarget} />
           <div className="metadata-strip">
-            <span>{activeTarget?.label ?? 'No approved target'}</span>
+            <span>
+              {activeTarget
+                ? `${activeTarget.label}${activeTarget.approved ? '' : ' · pending'}`
+                : 'No target selected'}
+            </span>
             <span>{activeTarget?.values.source_page || 'source page pending'}</span>
           </div>
         </section>
@@ -514,20 +565,30 @@ export function App() {
         <section className="stage-panel source-panel" id="section-review">
           <div className="panel-title">
             <span>Review images</span>
-            <div className="segmented">
+            <div className="panel-actions">
+              <div className="segmented">
+                <button
+                  className={reviewKind === 'targets' ? 'selected' : ''}
+                  onClick={() => setReviewKind('targets')}
+                  disabled={busy}
+                >
+                  Targets
+                </button>
+                <button
+                  className={reviewKind === 'places' ? 'selected' : ''}
+                  onClick={() => setReviewKind('places')}
+                  disabled={busy}
+                >
+                  Places
+                </button>
+              </div>
               <button
-                className={reviewKind === 'targets' ? 'selected' : ''}
-                onClick={() => setReviewKind('targets')}
-                disabled={busy}
+                className="text-button"
+                onClick={() => void handleReviewAll('approved')}
+                disabled={busy || reviewRows.length === 0}
+                title={`Approve all ${reviewKind}`}
               >
-                Targets
-              </button>
-              <button
-                className={reviewKind === 'places' ? 'selected' : ''}
-                onClick={() => setReviewKind('places')}
-                disabled={busy}
-              >
-                Places
+                <CheckCircle2 size={14} /> Approve all
               </button>
             </div>
           </div>
@@ -538,7 +599,9 @@ export function App() {
                 key={`${row.kind}-${row.id}`}
                 row={row}
                 busy={busy}
+                selected={row.kind === 'targets' && row.id === targetId}
                 onReview={handleReviewStatus}
+                onPick={handlePickReview}
               />
             ))}
           </div>
@@ -663,18 +726,6 @@ export function App() {
           </button>
         </section>
 
-        <section>
-          <h2>Download</h2>
-          <div className="button-row">
-            <button onClick={() => void handleDownload('targets')} disabled={busy}>
-              <Download size={16} /> Targets
-            </button>
-            <button onClick={() => void handleDownload('places')} disabled={busy}>
-              <Download size={16} /> Sources
-            </button>
-          </div>
-        </section>
-
         <section className="crawler-box">
           <h2>Crawler</h2>
           <label>
@@ -710,7 +761,7 @@ export function App() {
           </label>
           <div className="form-grid">
             <label>
-              Max images
+              Per page
               <input
                 type="number"
                 min={1}
@@ -720,8 +771,56 @@ export function App() {
               />
             </label>
             <label>
-              Label prefix
-              <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
+              Depth
+              <input
+                type="number"
+                min={0}
+                max={4}
+                value={crawlDepth}
+                onChange={(event) => setCrawlDepth(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Max pages
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={crawlMaxPages}
+                onChange={(event) => setCrawlMaxPages(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Total images
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={crawlMaxTotal}
+                onChange={(event) => setCrawlMaxTotal(Number(event.target.value))}
+              />
+            </label>
+          </div>
+          <label>
+            Label prefix
+            <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
+          </label>
+          <div className="toggle-row">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={crawlCrossDomain}
+                onChange={(event) => setCrawlCrossDomain(event.target.checked)}
+              />
+              Follow other domains
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={crawlUseCv}
+                onChange={(event) => setCrawlUseCv(event.target.checked)}
+              />
+              CV filter
             </label>
           </div>
           <button onClick={() => void handleCrawl()} disabled={busy}>
@@ -753,6 +852,16 @@ export function App() {
               <input type="number" min={120} value={outputWidth} onChange={(event) => setOutputWidth(Number(event.target.value))} />
             </label>
           </div>
+          <label className="slider-label">
+            <span>Max tiles per source: {maxContribution === 0 ? 'unlimited' : maxContribution}</span>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={maxContribution}
+              onChange={(event) => setMaxContribution(Number(event.target.value))}
+            />
+          </label>
           <div className="button-row stacked">
             <button className="primary" onClick={() => void handleGenerate(false)} disabled={busy}>
               <Play size={16} /> Generate still
@@ -806,16 +915,23 @@ function WorkflowItem({
 function ReviewCard({
   row,
   busy,
+  selected,
   onReview,
+  onPick,
 }: {
   row: ManifestRow;
   busy: boolean;
+  selected?: boolean;
   onReview: (row: ManifestRow, status: ReviewStatus) => void;
+  onPick: (row: ManifestRow) => void;
 }) {
   const status = row.values.review_status || 'pending';
+  const pickTitle = row.kind === 'targets' ? 'Use as target portrait' : 'View image';
   return (
-    <article className={`review-card ${status}`} key={row.id}>
-      <Preview row={row} compact />
+    <article className={`review-card ${status} ${selected ? 'selected' : ''}`} key={row.id}>
+      <button type="button" className="review-pick" onClick={() => onPick(row)} title={pickTitle}>
+        <Preview row={row} compact />
+      </button>
       <div className="review-card-body">
         <div>
           <strong>{row.label}</strong>

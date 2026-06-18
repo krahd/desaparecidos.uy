@@ -104,6 +104,37 @@ def test_reuse_limit_applies_per_fragment_not_per_source(tmp_path: Path) -> None
     assert sidecar["max_fragment_reuse_observed"] == 1
 
 
+def test_contribution_cap_limits_tiles_per_source(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=16)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(
+            seed=17, fragment_size=24, reuse_limit=8, output_width=96,
+            max_contribution_per_source=1,
+        ),
+    )
+
+    assert len(assembly.placements) == 16
+    assert max(assembly.source_usage.values()) == 1
+
+
+def test_contribution_cap_infeasible_raises(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=2)
+    settings = Stage1Settings(
+        seed=17, fragment_size=24, reuse_limit=8, output_width=96,
+        max_contribution_per_source=1,
+    )
+
+    with pytest.raises(ValueError, match="max_contribution_per_source"):
+        run_stage1(targets, places, tmp_path / "out", settings)
+
+
 def test_assembly_trace_records_fragment_destinations(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
     target_row = approved_rows(targets, "targets", require_files=True)[0]

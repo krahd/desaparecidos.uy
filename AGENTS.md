@@ -140,6 +140,8 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `data/manifests/`: tracked manifest templates and examples only.
 - `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
 - `data/raw/`: ignored downloaded or local source imagery.
+- `data/raw/crawl/`: ignored crawler cache — content-addressed image store under `store/` plus a SQLite index (`cache.sqlite`).
+- `doc/fotos-desaparecidos/`: curated source portraits of the disappeared, tracked intentionally as foundational material for the work (the redundant `doc/fotos-desaparecidos.zip` archive is ignored).
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
 - `Start desaparecidos.command`: macOS launcher for the local GUI.
@@ -147,12 +149,13 @@ Each repository should keep this section useful. Replace the placeholders below 
 ### 5.3:  Safety invariants
 
 - Keep the GUI and API bound to localhost unless the user explicitly requests another deployment mode.
-- Never commit raw source imagery, generated outputs, fragments, downloaded files, or review-sensitive data.
+- Never commit raw source imagery, generated outputs, fragments, downloaded files, or review-sensitive data. This rule targets transient crawler/download outputs (ignored under `data/raw/`). The curated source portraits in `doc/fotos-desaparecidos/` are an intentional, tracked part of the work and are not covered by this rule; do not untrack or remove them. Generated manifests of real people belong on ignored `data/manifests/local-*.csv` paths.
 - Require `review_status=approved` before any source image participates in Stage 1 generation.
 - Keep provenance metadata with every downloaded input and generated output.
 - Treat historical target images respectfully: do not claim enhancement, recovery, or forensic reconstruction.
 - Validate paths stay inside the project root for API file access.
-- Keep crawling constrained to explicit user-supplied pages, localhost-only operation, ignored raw files, pending manifest rows, and manual approval before generation. Do not add recursive or identity-seeking crawlers.
+- Keep crawling seeded by explicit user-supplied pages, localhost-only operation, ignored raw files, pending manifest rows, and manual approval before generation. The crawler may follow links recursively (cross-domain permitted) but must stay bounded by depth/page/image caps, a per-host politeness delay, and `robots.txt`. Computer-vision gating (faces for targets, textured non-face scenes for places) decides which images become pending rows; it never auto-approves. Do not add identity-seeking behaviour (name/face matching to identify individuals).
+- Crawled images and a SQLite index are persisted on disk under ignored `data/raw/crawl/` so the crawler does not re-download. This local persistence is intentional for now; it is not committed to git, and the persistence policy may be revisited once the workflow is settled.
 
 Do not weaken safety invariants without explicit user instruction and documentation.
 

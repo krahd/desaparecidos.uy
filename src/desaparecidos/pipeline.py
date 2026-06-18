@@ -31,6 +31,7 @@ class Stage1Settings:
     reuse_limit: int = 8
     output_width: int = 720
     max_fragments_per_source: int = 240
+    max_contribution_per_source: int = 0  # 0 means unlimited tiles per source image
     make_video: bool = False
 
 
@@ -69,24 +70,29 @@ def _target_canvas(target: Image.Image, output_width: int, fragment_size: int) -
     return target.resize((width, height), Image.Resampling.LANCZOS)
 
 
-def _best_fragment(
-    descriptor: np.ndarray,
-    fragments: list[Fragment],
-    fragment_usage: dict[str, int],
+def _feasibility_error(
+    tile_count: int,
+    fragments_len: int,
     reuse_limit: int,
-) -> Fragment:
-    available = [
-        fragment
-        for fragment in fragments
-        if fragment_usage.get(fragment.fragment_id, 0) < reuse_limit
-    ]
-    if not available:
-        raise ValueError("fragment reuse limit exhausted")
-    distances = [
-        float(np.linalg.norm(descriptor - fragment.descriptor))
-        for fragment in available
-    ]
-    return available[int(np.argmin(distances))]
+    source_count: int,
+    cap: int,
+) -> str | None:
+    fragment_capacity = fragments_len * reuse_limit
+    if fragment_capacity < tile_count:
+        required = math.ceil(tile_count / max(1, fragments_len))
+        return (
+            "reuse_limit is too low: "
+            f"need at least {required} per extracted fragment for {tile_count} output tiles "
+            f"and {fragments_len} fragments from {source_count} approved sources; "
+            f"got {reuse_limit}"
+        )
+    if cap > 0 and source_count * cap < tile_count:
+        return (
+            "max_contribution_per_source is too low: "
+            f"{source_count} approved sources x cap {cap} = {source_count * cap} tiles "
+            f"but the portrait needs {tile_count}; raise the cap or approve more sources"
+        )
+    return None
 
 
 def assemble_target(
@@ -111,30 +117,50 @@ def assemble_target_with_trace(
     shuffled = list(fragments)
     rng.shuffle(shuffled)
 
-    output = Image.new("RGB", target.size, BACKGROUND)
-    source_usage: dict[str, int] = {}
-    fragment_usage: dict[str, int] = {}
-    placements: list[TilePlacement] = []
     tile = settings.fragment_size
     tile_count = math.ceil(target.width / tile) * math.ceil(target.height / tile)
     source_count = len({fragment.source_id for fragment in fragments})
-    fragment_capacity = len(fragments) * settings.reuse_limit
-    if fragment_capacity < tile_count:
-        required = math.ceil(tile_count / max(1, len(fragments)))
-        raise ValueError(
-            "reuse_limit is too low: "
-            f"need at least {required} per extracted fragment for {tile_count} output tiles "
-            f"and {len(fragments)} fragments from {source_count} approved sources; "
-            f"got {settings.reuse_limit}"
-        )
+    cap = max(0, settings.max_contribution_per_source)
+    error = _feasibility_error(
+        tile_count, len(fragments), settings.reuse_limit, source_count, cap
+    )
+    if error:
+        raise ValueError(error)
+
+    # Vectorised nearest-fragment matcher over the shuffled order: build the
+    # descriptor matrix once, then per tile mask out fragments that have hit the
+    # reuse limit or whose source has hit the contribution cap and take argmin.
+    descriptors = np.stack([fragment.descriptor for fragment in shuffled]).astype(np.float32)
+    source_keys: dict[str, int] = {}
+    source_of = np.empty(len(shuffled), dtype=np.intp)
+    for index, fragment in enumerate(shuffled):
+        source_of[index] = source_keys.setdefault(fragment.source_id, len(source_keys))
+    source_id_by_index = {value: key for key, value in source_keys.items()}
+
+    frag_use = np.zeros(len(shuffled), dtype=np.int64)
+    source_use = np.zeros(len(source_keys), dtype=np.int64)
+    available = np.ones(len(shuffled), dtype=bool)
+
+    output = Image.new("RGB", target.size, BACKGROUND)
+    placements: list[TilePlacement] = []
 
     for y in range(0, target.height, tile):
         for x in range(0, target.width, tile):
             target_patch = target.crop((x, y, x + tile, y + tile))
             descriptor = descriptor_for(target_patch)
-            fragment = _best_fragment(descriptor, shuffled, fragment_usage, settings.reuse_limit)
-            source_usage[fragment.source_id] = source_usage.get(fragment.source_id, 0) + 1
-            fragment_usage[fragment.fragment_id] = fragment_usage.get(fragment.fragment_id, 0) + 1
+            distances = np.linalg.norm(descriptors - descriptor, axis=1)
+            distances[~available] = np.inf
+            idx = int(np.argmin(distances))
+            if not np.isfinite(distances[idx]):
+                raise ValueError("fragment reuse / contribution limits exhausted")
+            fragment = shuffled[idx]
+            frag_use[idx] += 1
+            source_index = int(source_of[idx])
+            source_use[source_index] += 1
+            if frag_use[idx] >= settings.reuse_limit:
+                available[idx] = False
+            if cap > 0 and source_use[source_index] >= cap:
+                available[source_of == source_index] = False
             output.paste(fragment.image, (x, y))
             placements.append(
                 TilePlacement(
@@ -147,6 +173,17 @@ def assemble_target_with_trace(
                     source_y=fragment.y,
                 )
             )
+
+    source_usage = {
+        source_id_by_index[index]: int(count)
+        for index, count in enumerate(source_use)
+        if count > 0
+    }
+    fragment_usage = {
+        shuffled[index].fragment_id: int(count)
+        for index, count in enumerate(frag_use)
+        if count > 0
+    }
 
     return AssemblyResult(output, target, source_usage, fragment_usage, placements)
 

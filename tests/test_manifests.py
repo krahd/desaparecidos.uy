@@ -3,7 +3,13 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from desaparecidos.manifests import validate_manifest
+import pytest
+
+from desaparecidos.manifests import (
+    set_review_status,
+    set_review_status_bulk,
+    validate_manifest,
+)
 
 
 TARGET_HEADER = [
@@ -104,3 +110,46 @@ def test_approved_file_must_exist_when_required(tmp_path: Path) -> None:
 
     assert not result.ok
     assert any("does not exist" in error for error in result.errors)
+
+
+def write_pending_targets(path: Path) -> None:
+    (path.parent / "a.png").write_bytes(b"a")
+    (path.parent / "b.png").write_bytes(b"b")
+    write_csv(
+        path,
+        TARGET_HEADER,
+        [
+            ["p1", "One", "u", "p", "fixture", "2026-06-17", "a.png", "pending",
+             "", "", "", "", "", "", "", ""],
+            ["p2", "Two", "u", "p", "fixture", "2026-06-17", "b.png", "pending",
+             "", "", "", "", "", "", "", ""],
+        ],
+    )
+
+
+def test_bulk_review_updates_all_rows(tmp_path: Path) -> None:
+    path = tmp_path / "targets.csv"
+    write_pending_targets(path)
+
+    result = set_review_status_bulk(path, "targets", "approved")
+
+    assert result.approved_count == 2
+    assert all(row.approved for row in result.rows)
+
+
+def test_bulk_review_updates_selected_rows(tmp_path: Path) -> None:
+    path = tmp_path / "targets.csv"
+    write_pending_targets(path)
+
+    result = set_review_status_bulk(path, "targets", "approved", row_ids=["p2"])
+
+    statuses = {row.id: row.review_status for row in result.rows}
+    assert statuses == {"p1": "pending", "p2": "approved"}
+
+
+def test_single_review_reports_missing_id(tmp_path: Path) -> None:
+    path = tmp_path / "targets.csv"
+    write_pending_targets(path)
+
+    with pytest.raises(ValueError, match="no row with id"):
+        set_review_status(path, "targets", "missing", "approved")

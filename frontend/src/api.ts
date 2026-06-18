@@ -53,6 +53,11 @@ export type CrawlResponse = {
   kind: 'targets' | 'places';
   pages: string[];
   errors: string[];
+  pages_crawled: number;
+  images_seen: number;
+  from_cache: number;
+  cv_rejected: number;
+  added: number;
   items: Array<{
     id: string;
     page_url: string;
@@ -60,6 +65,10 @@ export type CrawlResponse = {
     local_path: string;
     ok: boolean;
     bytes_written: number;
+    from_cache: boolean;
+    cv_label: string;
+    cv_score: number;
+    cv_accept: boolean;
     error?: string | null;
   }>;
 };
@@ -146,6 +155,11 @@ export function crawlPages(payload: {
   output_root: string;
   max_images_per_page: number;
   label_prefix: string;
+  max_depth: number;
+  max_pages: number;
+  max_images: number;
+  cross_domain: boolean;
+  use_cv: boolean;
 }): Promise<CrawlResponse> {
   return request('/api/crawl', {
     method: 'POST',
@@ -165,6 +179,19 @@ export function updateReviewStatus(payload: {
   });
 }
 
+export function updateReviewStatusBulk(payload: {
+  manifest: string;
+  kind: 'targets' | 'places';
+  review_status: 'approved' | 'pending' | 'rejected';
+  row_ids?: string[];
+  all?: boolean;
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review-bulk', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateStage1(payload: {
   targets: string;
   sources: string;
@@ -173,6 +200,7 @@ export function generateStage1(payload: {
   fragment_size: number;
   reuse_limit: number;
   output_width: number;
+  max_contribution_per_source: number;
   make_video: boolean;
   target_id?: string;
 }): Promise<GenerateResponse> {

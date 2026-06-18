@@ -4,7 +4,7 @@
 
 This is a draft for a full Research Paper submission to the AI & SOCIETY special collection on responsible AI in art creation and archival practice. It is designed to be distinct from the Open Forum paper, **Against Restoration**, which focuses on computational memorial imagery and the artwork triptych. This manuscript focuses on the broader archive, conversational memory capture, governance, and methodological framework.
 
-For double-blind review, replace project names, repository paths, authorial self-references, and self-citations with anonymised placeholders. Restore after review where allowed.
+For double-blind review, replace project names, repository paths, authorial self-references, acknowledgements, and self-citations with anonymised placeholders. Restore after review where allowed.
 
 ## Abstract
 
@@ -26,11 +26,7 @@ Artificial intelligence appears to offer new possibilities for this problem. Con
 
 This article examines that question through a practice-based research project concerned with collective memories of detained-disappeared persons connected to Uruguay's civic-military dictatorship. The project proposes a computational, humanistic, and artistic framework for capturing, preserving, governing, and studying memories of the disappeared. Its starting point is the recognition that enforced disappearance is not only a crime located in the past. It is a continuing violence whose effects persist through unresolved absence, incomplete records, legal struggle, family memory, public commemoration, and political denial. An AI system that enters this field does not operate on neutral content. It enters a dense political and ethical infrastructure of truth, justice, trauma, evidence, and memory.
 
-The article argues that responsible AI in this context requires moving from an extractive model of memory capture to a governed model of archival co-production. Memories are not raw materials waiting to be collected. They are produced in discourse, in relation to interlocutors, technologies, expectations, power, trust, and fear. A conversational system does not simply record memory; it helps shape the form in which memory appears. For this reason, the system's prompts, interface, consent sequence, storage model, metadata schema, review process, and access rules are all part of the research contribution.
-
-The contribution of the paper is fourfold. First, it develops a conceptual framework for distinguishing memory capture from archival extraction. Second, it proposes a modular architecture for AI-mediated memory archives, including interface, orchestration, conversational intelligence, storage, governance, and research-access layers. Third, it offers a governance model based on minimality, reversibility, layered access, provenance, adversarial resilience, and the distinction between public knowledge and public raw data. Fourth, it defines an evaluation agenda for politically sensitive AI memory systems, including technical, ethical, humanistic, and public-review criteria.
-
-The paper is deliberately distinct from work on computational memorial imagery. That adjacent strand asks how the disappeared may be made visually perceptible without false restoration. The present article asks how memories surrounding the disappeared may be elicited, protected, studied, and governed without becoming extractable data or synthetic historical closure.
+This manuscript extends, rather than repeats, the author's earlier conference paper on AI-supported memory capture. The previous paper established the project and its preliminary motivation. The present article develops the journal-length contribution: governance architecture, conversational pipeline, access model, evaluation framework, adversarial risk analysis, and a sharper distinction between archival co-production and extractive data capture.
 
 ## 2. Historical and archival problem
 
@@ -50,199 +46,83 @@ Conversational AI makes this problem sharper. Unlike a passive recording device,
 
 For this reason, the project treats AI-mediated memory capture as archival co-production. The system is part of the conditions under which the memory becomes recordable. Its design must therefore be evaluated not only technically but epistemologically and politically. What does it ask? What does it not ask? What forms of hesitation does it allow? What does it do with contradiction? Does it summarise too early? Does it ask for unnecessary personal data? Does it make the participant feel that a single narrative must be completed? Does it preserve the difference between a raw conversational trace, a transcript, a redacted version, metadata, and scholarly interpretation?
 
-A responsible system must avoid two opposite failures. The first is romantic naivety: imagining that any memory offered to the system is automatically authentic, stable, and ethically available. The second is technocratic reductionism: treating memory as data to be normalised, classified, embedded, clustered, and retrieved. The system must instead support situated narration while preserving uncertainty, context, and participant agency.
-
 ## 4. System architecture
 
 The project proposes a modular architecture organised into six layers: interface, orchestration, conversational intelligence, storage, governance, and research access. These layers are conceptually distinct even when implemented within the same software environment.
 
-### 4.1 Interface layer
+![Figure 1. System architecture.](figures/research-paper-fig1-system-architecture.svg)
+
+**Figure 1. System architecture.** Modular architecture for a conversational memory system, separating interface, orchestration, model-mediated conversation, storage, governance, and research access.
 
 The interface layer consists of mobile-first and web-based conversational clients. Text interaction provides a baseline because it is technically robust and easy to review. Voice input and playback should be supported where appropriate because oral-style communication is central to memory work and may be more accessible for participants with limited literacy, limited comfort with formal writing, or stronger familiarity with spoken narration.
 
-The interface must avoid the aesthetics of extraction, bureaucracy, and surveillance. It should communicate clarity, consent, and control. Participants should know what kind of project they are entering, what may happen to their materials, what choices they retain, and how to stop or revise the interaction.
-
-### 4.2 Orchestration layer
-
 The orchestration layer coordinates dialogue flow, session state, consent checkpoints, prompt selection, and transitions between conversational stages. It encodes the methodological logic of the encounter: entry and framing, relational calibration, elicitation, clarification, participant review, processing, and governance routing.
-
-This layer is especially important because responsible memory capture depends on the timing and form of prompts. A system that asks too directly may appear interrogatory. A system that asks too generally may fail to elicit useful detail. A system that summarises prematurely may flatten the participant's voice. A system that never clarifies may produce records that later researchers cannot interpret. Orchestration is therefore a methodological rather than merely technical function.
-
-### 4.3 Conversational intelligence layer
 
 The conversational intelligence layer integrates language models with task-specific prompting strategies, controlled retrieval, safety rules, and post-processing functions such as summarisation, metadata generation, uncertainty tagging, and candidate thematic labels. Its purpose is not to produce fluent conversation for its own sake, but to support careful memory work.
 
-The model must be constrained against leading questions, hallucinated context, premature interpretation, and therapeutic overreach. It should avoid claiming knowledge it does not possess. It should not present itself as a historian, lawyer, psychologist, or family member. It should behave as a structured elicitation instrument whose limits remain visible.
-
-### 4.4 Storage layer
-
-The storage layer separates raw interaction logs, audio files where applicable, transcripts, redacted transcripts, metadata, embeddings, and governance records. This separation is not a technical convenience. It is ethically necessary because different forms of data carry different risks.
-
-Raw conversational traces may contain identifying information, third-party references, emotionally sensitive material, and unreviewed claims. Redacted transcripts may support analysis under controlled conditions. Metadata and embeddings may enable retrieval without exposing full narratives, but they also introduce their own risks of inference, clustering, and decontextualisation. The storage design must therefore preserve distinctions between original material, processed material, derived material, and interpretive material.
-
-### 4.5 Governance layer
+The storage layer separates raw interaction logs, audio files where applicable, transcripts, redacted transcripts, metadata, embeddings, and governance records. This separation is ethically necessary because different forms of data carry different risks.
 
 The governance layer manages identity protection, consent states, participant rights, retention policies, role-based access control, audit logs, and procedures for freezing, revising, reclassifying, or withdrawing records. Governance is implemented both technically and institutionally. It cannot be left as an external policy document detached from the code.
 
-Every record should carry governance metadata: consent status, access tier, redaction status, review state, provenance, restrictions, and conditions for reuse. The system should also preserve the possibility that some materials remain private, embargoed, or unusable for public outputs.
-
-### 4.6 Research-access layer
-
-The research-access layer provides interfaces for approved uses of the archive. These may include controlled researcher workbenches, public-facing visualisations, thematic collections, search tools, timelines, maps, or curated excerpts. Research access should not mean direct access to raw data by default. Instead, access should be tiered and tied to review, purpose, risk, and participant consent.
+The research-access layer provides interfaces for approved uses of the archive. These may include controlled researcher workbenches, public-facing visualisations, thematic collections, search tools, timelines, maps, or curated excerpts. Research access should not mean direct access to raw data by default.
 
 ## 5. Conversational pipeline
 
 The conversational pipeline comprises seven stages.
 
-### 5.1 Entry and framing
+![Figure 2. Conversational pipeline.](figures/research-paper-fig2-conversational-pipeline.svg)
 
-The system introduces the project, explains its purpose, clarifies that participation is voluntary, and describes what kinds of data may be retained. The objective is not only legal compliance but epistemic clarity: participants should understand that they are contributing to a memory project, not speaking to a private diary or an ordinary chatbot.
+**Figure 2. Conversational pipeline.** Seven-stage pipeline from entry and consent framing through review, processing, and governance routing.
 
-### 5.2 Relational calibration
+First, the system introduces the project, explains its purpose, clarifies that participation is voluntary, and describes what kinds of data may be retained. Second, it asks whether the participant prefers a guided or open style, text or voice, shorter or longer responses, and whether they want to share their relation to the topic. Third, it prompts memories using careful questions about people, places, events, atmospheres, routines, silences, rumours, public rituals, fears, absences, and later recollections. Fourth, it asks follow-up questions to clarify references, temporal markers, relationships among actors, place names, and possible ambiguities. Fifth, the participant is offered the option to review, revise, segment, embargo, or delete parts of the interaction before it becomes an archival record. Sixth, the system generates a protected raw record, a working transcript, and a derived set of metadata. Seventh, materials are routed into different retention classes: private, archived but restricted, research-accessible under protocol, publicly excerptable, or artistically reusable only with additional permission.
 
-The system asks whether the participant prefers a guided or open style, text or voice, shorter or longer responses, and whether they want to share their relation to the topic. This stage may include optional contextual information such as generation, region, relation to the dictatorship period, or preferred language register. Such information may improve interpretation, but it should never become mandatory in a way that reproduces bureaucratic distrust.
-
-### 5.3 Elicitation
-
-The system prompts memories using careful, non-leading questions. It may ask about people, places, events, atmospheres, routines, silences, rumours, public rituals, fears, absences, and later recollections. The prompting strategy must avoid implanting content or steering testimony toward simplified templates. It should encourage situated detail while accepting uncertainty.
-
-### 5.4 Clarification
-
-The system asks follow-up questions to clarify references, temporal markers, relationships among actors, place names, and possible ambiguities. Oral memory often contains indexical references that are clear to the speaker but opaque to future researchers. Clarification therefore protects interpretability without forcing artificial coherence.
-
-### 5.5 Participant review
-
-The participant should be offered the option to review, revise, segment, embargo, or delete parts of the interaction before it becomes an archival record. This stage is essential for preserving agency and for preventing the false assumption that a conversational trace automatically constitutes archival consent.
-
-### 5.6 Processing
-
-Once a session is authorised for retention, the system generates a protected raw record, a working transcript, and a derived set of metadata. Automated processes may include transcription, redaction suggestions, topic detection, uncertainty tagging, and vector indexing. No derivative layer should override the primacy of the original testimony.
-
-### 5.7 Governance routing
-
-Depending on the content and consent state, materials are routed into different retention classes: private, archived but restricted, research-accessible under protocol, publicly excerptable, or artistically reusable only with additional permission. Routing prevents a single default publication logic from governing all memories equally.
+The important point is that the pipeline treats consent and interpretation as continuing processes rather than one-time checkboxes. The archival record is not simply collected at the beginning and published at the end. It is formed through staged interactions, review points, and governance decisions.
 
 ## 6. Governance principles
 
-The governance model is based on six principles.
+The governance model is based on six principles: minimality, reversibility, layered access, provenance, adversarial resilience, and interpretive humility.
 
-### 6.1 Minimality
+**Minimality** means that the system should collect only the data necessary for the interaction and for the archival purpose explicitly agreed to by the participant. **Reversibility** means that participants should retain the possibility, within defined limits, of withdrawing, revising, or reclassifying their contributions. **Layered access** means that there should not be a single public archive by default. **Provenance** means that every record should preserve the conditions under which it was produced. **Adversarial resilience** means that the system should anticipate misuse, political harassment, disinformation, scraping, doxxing, and hostile reinterpretation. **Interpretive humility** means that the system should not present its summaries, clusters, or themes as definitive historical interpretation.
 
-The system should collect only the data necessary for the interaction and for the archival purpose explicitly agreed to by the participant. Identity linkage, if any is needed, should be stored separately from narrative content and protected more strongly.
+![Figure 3. Layered access model.](figures/research-paper-fig3-layered-access.svg)
 
-### 6.2 Reversibility
+**Figure 3. Layered access model.** Access is treated as a governed relation rather than a binary choice between private and public records.
 
-Participants should retain the possibility, within defined limits, of withdrawing, revising, or reclassifying their contributions. Total reversibility may not always be possible once derivative publications or artworks exist, but the archival system itself should be designed around continuing agency rather than one-time extraction.
+## 7. Record transformation and provenance
 
-### 6.3 Layered access
+One of the most important design problems is the transformation from a conversational encounter into an archival object. A raw session, audio recording, transcript, redacted version, metadata record, embedding, excerpt, and scholarly interpretation are not the same thing. They carry different risks and different evidentiary status.
 
-Instead of a single public archive, the project proposes access tiers: private retention, collaborative review by the core team, vetted scholarly access under protocol, curated public access through redacted excerpts or visualisations, and fully public materials only when consent, risk, and content profile make such circulation responsible.
+![Figure 4. Record transformation and provenance.](figures/research-paper-fig4-record-transformation.svg)
 
-### 6.4 Provenance
+**Figure 4. Record transformation and provenance.** Transformation from raw interaction to transcript, redaction, metadata, and interpretive output, with governance metadata travelling across layers.
 
-Every transformation of a record should be logged. Researchers should be able to distinguish raw testimony, audio, transcript, redacted transcript, metadata, summary, embedding, clustering output, and curatorial interpretation. Provenance is necessary both for scholarly rigour and for preventing computationally derived views from obscuring the original narrative.
+The system must therefore retain the distinction between original trace and derivative layer. It must allow researchers to understand how a record was produced, what was removed, what was inferred, what was generated automatically, and what was added through human review. It must also distinguish between uncertainty expressed by the participant and uncertainty introduced by transcription, redaction, or metadata generation.
 
-### 6.5 Adversarial resilience
+## 8. Evaluation framework
 
-Because the archive concerns a conflictive historical period, it must anticipate disruptive actors, trolling, coordinated disinformation, strategic mass submissions, and attempts to use the archive as a site of political capture. Governance must include moderation procedures, anomaly detection, provenance checks, rate limiting, human review, and institutional oversight.
+The evaluation framework should be multi-layered. Technical evaluation should test transcription quality, retrieval reliability, metadata consistency, redaction support, access-control enforcement, and auditability. Humanistic evaluation should examine whether the system preserves uncertainty, contradiction, silence, narrative specificity, and the situated voice of participants. Ethical evaluation should examine whether participants understand the project, retain meaningful agency, and can withdraw or reclassify materials. Governance evaluation should test whether different access tiers actually prevent inappropriate circulation. Public evaluation should examine whether curated outputs communicate the limits of the archive rather than presenting computational organisation as historical resolution.
 
-### 6.6 Public knowledge without public raw data
+This evaluation differs from standard chatbot evaluation. The goal is not maximum fluency or user engagement. A system that is too fluent, too consoling, too curious, or too eager to summarise may be harmful in this context. The more relevant question is whether the system supports careful narration without converting memory into extractable content.
 
-The archive should contribute to public knowledge, but this does not imply indiscriminate release of collected materials. In many cases, the ethical path is to make interpretations, visualisations, thematic pathways, and carefully governed research access available while keeping raw records under stronger protection.
+## 9. Discussion
 
-## 7. Search, analysis, and interpretive humility
+The project contributes to the special collection's concern with responsible AI in art creation and archival practice by treating AI responsibility as a matter of institutional form, not only model behaviour. The responsible object is not the language model alone. It is the entire sociotechnical arrangement: interface, prompts, consent, storage, metadata, access, review, public presentation, and institutional accountability.
 
-A memory archive of this kind requires search and analysis tools, but those tools must not be mistaken for neutral interpretation. Memories are temporally unstable, metaphorical, affectively dense, incomplete, and socially indexical. Search must therefore combine structured metadata, full-text retrieval, and semantic retrieval while keeping the limits of each visible.
+The paper also contributes a distinction between incompletion and failure. In conventional information systems, incompletion often appears as a problem to solve. In the context of disappearance, archival incompletion is not a neutral deficit. It is partly the effect of a political crime. A responsible archive should preserve incompletion where it marks uncertainty, violence, or unresolved absence. It should not turn every gap into an invitation for inference.
 
-Structured metadata may include approximate dates, places, relational roles, thematic tags, and governance status. Full-text search supports direct retrieval over transcripts and participant-supplied language. Semantic retrieval can reveal related narratives that do not share identical vocabulary but do share conceptual or affective patterns. Yet semantic retrieval also risks producing relations whose logic is opaque to users. The interface must therefore make computational mediation visible.
+## 10. Conclusion
 
-Above this retrieval layer, the project may develop tools for discourse analysis, network visualisation, chronology reconstruction, thematic clustering, and comparative study. These tools should be presented as analytic aids, not as extracted truths. Summaries, clusters, and timelines must remain contestable and traceable to source materials.
+Conversational AI can support memory work, but only if it is governed against its own extractive tendencies. In the context of the disappeared, the task is not to maximise collection, automate interpretation, or generate a coherent synthetic account. The task is to create conditions in which situated memories can be narrated, protected, reviewed, preserved, and, when appropriate, encountered by others without being stripped of uncertainty and context.
 
-Interpretive humility is the analytic counterpart of archival humility. It means that the archive should enable interpretation without pretending to automate historical understanding. AI may help scholars find, organise, and compare materials, but it cannot resolve political history.
-
-## 8. Methodology
-
-The project combines participatory design, ethnographic sensitivity, computational implementation, archival theory, discourse analysis, and iterative evaluation.
-
-The participatory dimension is indispensable. Memories of traumatic and politically charged periods cannot be responsibly captured through a purely top-down technical design process. Prompts, interaction styles, consent flows, access categories, and review procedures must be developed in dialogue with local researchers, memory organisations, and, when appropriate, participants themselves.
-
-An ethnographic sensibility is equally necessary. The archive must attend to the situated conditions under which memories are narrated: who is speaking, to whom, through what device, in what environment, and with what expectations or anxieties. The archive cannot pretend to store memory independently of the conditions of its elicitation.
-
-The project also relies on iterative prototyping. Conversational prompts, workflow stages, metadata schemas, redaction procedures, and governance rules should be tested, evaluated, and revised across cycles of design and deployment. Failure modes are especially informative: overly directive prompts, unsafe emotional transitions, unusable consent flows, misleading summaries, or redaction systems that erase interpretively important detail all provide evidence necessary to refine the system.
-
-Finally, the archive is itself a humanities research object. The project does not merely use humanities methods to support technology design; it generates a corpus for studying discourse, memory transmission, narrative form, silence, contradiction, and the cultural life of recent history.
-
-## 9. Evaluation plan
-
-Evaluation must be broader than usability. A system may be usable and still ethically or historically inadequate. The project therefore requires five evaluation layers.
-
-### 9.1 Interaction quality
-
-This layer evaluates whether participants understand the project, consent flow, rights, and possible uses of their contribution. It also examines whether prompts are clear, respectful, non-leading, and accessible across different levels of digital literacy.
-
-### 9.2 Narrative integrity
-
-This layer evaluates whether the system preserves the participant's voice, uncertainty, hesitation, and contextual meaning. It examines whether summaries distort the narrative, whether metadata is too reductive, and whether clarification prompts improve rather than flatten the record.
-
-### 9.3 Privacy and safety
-
-This layer evaluates whether identifying information, third-party references, sensitive details, and emotionally difficult content are handled appropriately. It also tests redaction workflows, access tiers, and withdrawal or revision procedures.
-
-### 9.4 Scholarly usefulness
-
-This layer evaluates whether the archive can support serious historical, discursive, and humanistic research. It asks whether records are sufficiently contextualised, whether provenance is clear, whether search and metadata are useful, and whether computational analysis remains traceable to source materials.
-
-### 9.5 Public and institutional responsibility
-
-This layer evaluates whether the archive contributes to public knowledge without competing with, replacing, or undermining existing memory institutions, relatives' organisations, legal processes, or forensic work. It also examines whether public-facing outputs are clearly framed and whether access decisions are legitimate.
-
-## 10. Relation to artistic research
-
-Although this paper focuses on archival and conversational systems, the project is also embedded in artistic research. The archive may eventually support installations, generative visual works, documentary experiments, audiovisual pieces, maps, timelines, and public interfaces. However, artistic reuse must be governed by the same ethical seriousness that guides the rest of the project.
-
-Not every collected memory should become artistic material. Consent for archival retention is not automatically consent for exhibition, publication, performance, or generative transformation. Artistic reuse requires additional review and, in some cases, additional permission. This is especially important when working with trauma, third-party memories, family histories, and politically sensitive testimony.
-
-The artistic dimension is nevertheless important because art can create public encounters with memory that do not depend on scholarly expertise. It can make fragmentation, silence, contradiction, and affect perceptible. It can show that an archive is not a static storehouse but a contested structure of attention, absence, and public responsibility.
-
-## 11. Discussion: against synthetic completion
-
-The most dangerous fantasy surrounding AI in memory work is the fantasy of completion. Because contemporary systems can generate plausible text, fill missing images, interpolate gaps, summarise documents, and produce fluent narratives, they invite the belief that historical incompletion is a technical problem. In the context of enforced disappearance, this is ethically wrong.
-
-The incompletion of the archive is not merely a lack of data. It is the result of political violence. Records were hidden, bodies were concealed, testimony was suppressed, families were denied truth, and public knowledge was contested. A responsible AI system cannot repair that damage by generating a smoother story. At most, it can help preserve, organise, and interpret situated memories while marking the limits of what is known.
-
-For this reason, the system should not aim to produce a single authoritative narrative of the dictatorship or the disappeared. It should preserve multiplicity. It should make contradiction visible. It should keep uncertainty attached to records. It should distinguish witness, memory, hearsay, family story, public document, computational summary, and scholarly interpretation. It should make its own mediation accountable.
-
-This is the paper's central theoretical claim: responsible AI archives of contested memory should not complete the past; they should protect the conditions under which incompletion can be studied, remembered, and publicly confronted.
-
-## 12. Conclusion
-
-This article has proposed a framework for the responsible use of conversational AI in the capture, preservation, and study of collective memories of the disappeared in Uruguay. It has argued that AI-mediated memory work must be understood as archival co-production rather than neutral data collection. The system's interface, prompts, consent flow, storage model, governance rules, metadata, and access procedures are not auxiliary features. They shape what kind of memory becomes possible.
-
-The proposed framework centres minimality, reversibility, layered access, provenance, adversarial resilience, interpretive humility, and the distinction between public knowledge and public raw data. It treats conversational AI as a structured instrument that may support memory work only if embedded within strong ethical, institutional, and political constraints.
-
-The project contributes to responsible AI in art and archival practice by shifting the question from what AI can collect to what kind of archive AI helps produce. In contexts of enforced disappearance, the responsible archive is not the most complete archive, nor the most open archive, nor the most computationally searchable archive. It is the archive that preserves memory without extracting it, enables study without flattening it, supports public knowledge without exposing vulnerable persons, and refuses the fantasy that synthetic continuity can repair political violence.
-
-## Figure placeholders
-
-**Figure 1. Project architecture.** Mobile/web/voice interface, orchestration layer, conversational intelligence layer, protected storage, governance layer, and research-access layer.
-
-**Figure 2. Conversational pipeline.** Entry/framing, relational calibration, elicitation, clarification, participant review, processing, governance routing.
-
-**Figure 3. Layered access model.** Private record, restricted archive copy, research-access copy, curated public excerpts/visualisations, artistic reuse under additional permission.
-
-**Figure 4. Record transformation provenance.** Raw interaction, transcript, redacted transcript, metadata, embeddings, summaries, research interpretation.
+Responsible AI archives of contested memory must therefore be incomplete by design. They should collect carefully, store different layers separately, preserve provenance, maintain access tiers, and resist the fantasy that computation can complete the archive. Their contribution is not to resolve disappearance, but to sustain the fragile social, archival, and political conditions under which memory can continue to be spoken.
 
 ## References
 
 AI & SOCIETY. 2026. "CfP: Collection on Responsible use of AI in Art Creation and Archival Practice." Springer Nature. Accessed 18 June 2026. https://link.springer.com/journal/146/updates/27850936.
 
-Achugar, Mariana. 2016. *Discursive Processes of Intergenerational Transmission of Recent History: (Re)making Our Past*. New York: Palgrave Macmillan.
+Achugar, Mariana. 2008. *What We Remember: The Construction of Memory in Military Discourse*. Amsterdam: John Benjamins.
 
-Azoulay, Ariella. 2008. *The Civil Contract of Photography*. New York: Zone Books.
-
-Caswell, Michelle. 2014. *Archiving the Unspeakable: Silence, Memory, and the Photographic Record in Cambodia*. Madison: University of Wisconsin Press.
-
-Crawford, Kate. 2021. *Atlas of AI: Power, Politics, and the Planetary Costs of Artificial Intelligence*. New Haven: Yale University Press.
+Caswell, Michelle. 2021. *Urgent Archives: Enacting Liberatory Memory Work*. London: Routledge.
 
 Derrida, Jacques. 1996. *Archive Fever: A Freudian Impression*. Translated by Eric Prenowitz. Chicago: University of Chicago Press.
 
@@ -260,7 +140,7 @@ Secretaría de Derechos Humanos para el Pasado Reciente. n.d. "Víctimas." Gobie
 
 Sitios de Memoria Uruguay. n.d. "Desaparición forzada." Accessed 18 June 2026. https://sitiosdememoria.uy/desaparicion-forzada.
 
-Stilgoe, Jack, Richard Owen, and Phil Macnaghten. 2013. "Developing a Framework for Responsible Innovation." *Research Policy* 42 (9): 1568-1580.
+Stilgoe, Jack, Richard Owen, and Phil Macnaghten. 2013. "Developing a Framework for Responsible Innovation." *Research Policy* 42(9): 1568-1580.
 
 Taylor, Diana. 2003. *The Archive and the Repertoire: Performing Cultural Memory in the Americas*. Durham, NC: Duke University Press.
 
@@ -271,5 +151,3 @@ Unidad Reguladora y de Control de Datos Personales. 2020. "Guía de Evaluación 
 ### Author's prior work to cite only if double-blind rules allow, or anonymise as Author
 
 Author. 2024. "Capturing Collective Memories of the Disappeared with Artificial Intelligence." *Advances in Artificial Intelligence - IBERAMIA 2024*, LNCS 15277.
-
-Author. 2026. "Against Restoration: Responsible AI, Disappearance, and Computational Memorial Systems." Draft Open Forum manuscript.

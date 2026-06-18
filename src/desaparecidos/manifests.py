@@ -254,6 +254,36 @@ def set_review_status(
     return set_review_status_bulk(path, kind, review_status, row_ids=[row_id])
 
 
+def delete_manifest_row(
+    path: str | Path,
+    kind: ManifestKind,
+    row_id: str,
+) -> ManifestValidation:
+    """Remove one row from a manifest. The referenced image file is left on
+    disk (it is part of the crawl cache and may be shared by other rows)."""
+    manifest_path = Path(path)
+    expected_fields = EXPECTED_FIELDS[kind]
+    if not manifest_path.exists():
+        raise ValueError(f"{manifest_path} does not exist")
+
+    with manifest_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or expected_fields
+        rows = list(reader)
+
+    kept = [row for row in rows if (row.get("id") or "").strip() != row_id]
+    if len(kept) == len(rows):
+        raise ValueError(f"{manifest_path} has no row with id {row_id!r}")
+
+    with manifest_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in kept:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+    return validate_manifest(manifest_path, kind, require_files=True)
+
+
 def set_review_status_bulk(
     path: str | Path,
     kind: ManifestKind,

@@ -184,3 +184,28 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
     assert all(frame.size == assembly.image.size for frame in frames)
     assert frames[0].tobytes() != assembly.image.tobytes()
     assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])
+
+
+def test_process_video_outro_fades_through_text_and_ends_black(tmp_path: Path) -> None:
+    import numpy as np
+
+    targets, places = write_manifests(tmp_path, source_count=1)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+    )
+
+    frames = list(pipeline_module._process_video_frames(
+        target_row, assembly, source_rows, places, seed=17, fps=4,
+    ))
+
+    assert np.asarray(frames[-1]).max() <= 8  # ends on black
+    # at least one fully black frame appears mid-sequence (the fades)
+    assert any(np.asarray(frame).max() <= 8 for frame in frames[:-1])
+    # a text card (mostly black with bright glyphs) appears after the last source settle
+    assert any(2 < float(np.asarray(frame).mean()) < 60 for frame in frames)

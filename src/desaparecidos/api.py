@@ -13,6 +13,7 @@ from .demo import create_demo_fixtures
 from .download import download_manifest
 from .manifests import (
     ManifestKind,
+    delete_manifest_row,
     set_review_status,
     set_review_status_bulk,
     validate_manifest,
@@ -76,6 +77,12 @@ class ReviewBulkRequest(BaseModel):
     review_status: Literal["approved", "pending", "rejected"]
     row_ids: list[str] = []
     all: bool = False
+
+
+class DeleteRowRequest(BaseModel):
+    manifest: str
+    kind: ManifestKind
+    row_id: str
 
 
 class DeleteOutputsRequest(BaseModel):
@@ -176,6 +183,18 @@ def create_app() -> FastAPI:
                 request.kind,
                 request.review_status,
                 row_ids=None if request.all else request.row_ids,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": validation.ok, "manifest": validation.to_api()}
+
+    @app.post("/api/review/delete")
+    def delete_row(request: DeleteRowRequest) -> dict[str, Any]:
+        try:
+            validation = delete_manifest_row(
+                safe_project_path(request.manifest),
+                request.kind,
+                request.row_id,
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

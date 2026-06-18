@@ -25,6 +25,7 @@ import {
   crawlPages,
   createDemoFixtures,
   deleteOutputs,
+  deleteReviewRow,
   fileUrl,
   generateStage1,
   listOutputs,
@@ -62,6 +63,22 @@ const crawlerManifestDefaults: Record<ReviewKind, string> = {
   targets: 'data/manifests/crawled-targets.csv',
   places: 'data/manifests/crawled-places.csv',
 };
+
+function loadStored(key: string, fallback: string): string {
+  try {
+    return window.localStorage.getItem(`desa.${key}`) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStored(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(`desa.${key}`, value);
+  } catch {
+    /* localStorage unavailable; ignore */
+  }
+}
 
 const crawlPresets: CrawlPreset[] = [
   {
@@ -121,9 +138,9 @@ const crawlPresets: CrawlPreset[] = [
 ];
 
 export function App() {
-  const [targets, setTargets] = useState(defaultPaths.targets);
-  const [sources, setSources] = useState(defaultPaths.sources);
-  const [outputDir, setOutputDir] = useState(defaultPaths.outputDir);
+  const [targets, setTargets] = useState(() => loadStored('targets', defaultPaths.targets));
+  const [sources, setSources] = useState(() => loadStored('sources', defaultPaths.sources));
+  const [outputDir, setOutputDir] = useState(() => loadStored('outputDir', defaultPaths.outputDir));
   const [seed, setSeed] = useState(17);
   const [fragmentSize, setFragmentSize] = useState(24);
   const [reuseLimit, setReuseLimit] = useState(8);
@@ -140,7 +157,7 @@ export function App() {
   const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
   const [crawlKind, setCrawlKind] = useState<ReviewKind>('places');
   const [crawlPagesText, setCrawlPagesText] = useState('');
-  const [crawlManifest, setCrawlManifest] = useState(crawlerManifestDefaults.places);
+  const [crawlManifest, setCrawlManifest] = useState(() => loadStored('crawlManifest', crawlerManifestDefaults.places));
   const [crawlMaxImages, setCrawlMaxImages] = useState(12);
   const [crawlLabelPrefix, setCrawlLabelPrefix] = useState('');
   const [crawlDepth, setCrawlDepth] = useState(2);
@@ -315,8 +332,13 @@ export function App() {
       appendLog('Add at least one page URL before crawling.', 'error');
       return;
     }
+    appendLog(
+      `Crawl queued: ${pages.length} seed page${pages.length === 1 ? '' : 's'} for ${crawlKind} `
+      + `· depth ${crawlDepth} · ≤${crawlMaxPages} pages · ≤${crawlMaxTotal} images `
+      + `· ${crawlCrossDomain ? 'cross-domain' : 'same-domain'} · CV ${crawlUseCv ? 'on' : 'off'}.`,
+    );
     const response = await runAction(
-      `Crawling ${pages.length} page${pages.length === 1 ? '' : 's'} for ${crawlKind}.`,
+      `Crawling ${crawlKind}… following links, fetching and filtering images.`,
       () => crawlPages({
         pages,
         kind: crawlKind,
@@ -347,11 +369,28 @@ export function App() {
     });
     setValidation(checked);
     appendLog(
-      `Crawler: ${response.pages_crawled} page${response.pages_crawled === 1 ? '' : 's'}, `
-      + `${response.images_seen} seen, ${response.added} added, `
+      `Crawler done: ${response.pages_crawled} page${response.pages_crawled === 1 ? '' : 's'} crawled, `
+      + `${response.images_seen} image${response.images_seen === 1 ? '' : 's'} seen, ${response.added} added, `
       + `${response.cv_rejected} CV-rejected, ${response.from_cache} from cache.`,
       response.added ? 'ok' : undefined,
     );
+    const rejected = response.items.filter(
+      (item) => !item.cv_accept && item.cv_label && item.cv_label !== 'cv-off',
+    );
+    if (rejected.length > 0) {
+      const counts = rejected.reduce<Record<string, number>>((acc, item) => {
+        acc[item.cv_label] = (acc[item.cv_label] ?? 0) + 1;
+        return acc;
+      }, {});
+      const breakdown = Object.entries(counts)
+        .map(([label, count]) => `${label} ${count}`)
+        .join(', ');
+      appendLog(`CV rejected: ${breakdown}.`);
+    }
+    const failed = response.items.filter((item) => !item.ok && !item.cv_label);
+    if (failed.length > 0) {
+      appendLog(`${failed.length} image fetch error${failed.length === 1 ? '' : 's'}.`, 'error');
+    }
     response.errors.slice(0, 8).forEach((error) => appendLog(error, 'error'));
   }
 
@@ -398,6 +437,27 @@ export function App() {
     if (reviewKind === 'targets' && status === 'approved') {
       const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
       if (firstApproved) setTargetId(firstApproved);
+    }
+  }
+
+  async function handleDeleteReview(row: ManifestRow) {
+    const manifest = row.kind === 'targets' ? targets : sources;
+    const confirmed = window.confirm(
+      `Delete "${row.label}" from the ${row.kind} manifest? The cached image file is kept on disk.`,
+    );
+    if (!confirmed) return;
+    const response = await runAction(
+      `Deleting ${row.label} from the ${row.kind} manifest.`,
+      async () => {
+        await deleteReviewRow({ manifest, kind: row.kind, row_id: row.id });
+        return validateManifests({ targets, sources, require_files: true });
+      },
+      'Row deleted.',
+    );
+    if (!response) return;
+    setValidation(response);
+    if (row.id === targetId) {
+      setTargetId(response.targets.rows.find((candidate) => candidate.approved)?.id ?? '');
     }
   }
 
@@ -482,13 +542,28 @@ export function App() {
     await refreshOutputs();
   }
 
+  useEffect(() => saveStored('targets', targets), [targets]);
+  useEffect(() => saveStored('sources', sources), [sources]);
+  useEffect(() => saveStored('outputDir', outputDir), [outputDir]);
+  useEffect(() => saveStored('crawlManifest', crawlManifest), [crawlManifest]);
+
   useEffect(() => {
-    listOutputs(defaultPaths.outputDir)
+    listOutputs(outputDir)
       .then((response) => {
         setOutputs(response.items);
         setSelectedOutput(response.items[0] ?? null);
       })
       .catch(() => undefined);
+    // Load whatever manifests were in use last session (e.g. crawled rows) so
+    // they are reviewable immediately without re-validating by hand.
+    validateManifests({ targets, sources, require_files: false })
+      .then((response) => {
+        setValidation(response);
+        const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
+        if (firstApproved) setTargetId(firstApproved);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -498,7 +573,8 @@ export function App() {
           <h1>desaparecidos.uy</h1>
           <p>Stage 1 local workspace: Estan en todas partes</p>
         </div>
-        <div className={`run-status ${validation?.ok ? 'ok' : ''}`}>
+        <div className={`run-status ${busy ? 'busy' : ''} ${validation?.ok ? 'ok' : ''}`}>
+          {busy && <RefreshCw size={13} className="spin" />}
           <span>{statusLabel}</span>
         </div>
       </header>
@@ -602,6 +678,7 @@ export function App() {
                 selected={row.kind === 'targets' && row.id === targetId}
                 onReview={handleReviewStatus}
                 onPick={handlePickReview}
+                onDelete={handleDeleteReview}
               />
             ))}
           </div>
@@ -824,7 +901,7 @@ export function App() {
             </label>
           </div>
           <button onClick={() => void handleCrawl()} disabled={busy}>
-            <Globe2 size={16} /> Crawl pages
+            {busy ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl pages
           </button>
         </section>
 
@@ -918,17 +995,28 @@ function ReviewCard({
   selected,
   onReview,
   onPick,
+  onDelete,
 }: {
   row: ManifestRow;
   busy: boolean;
   selected?: boolean;
   onReview: (row: ManifestRow, status: ReviewStatus) => void;
   onPick: (row: ManifestRow) => void;
+  onDelete: (row: ManifestRow) => void;
 }) {
   const status = row.values.review_status || 'pending';
   const pickTitle = row.kind === 'targets' ? 'Use as target portrait' : 'View image';
   return (
     <article className={`review-card ${status} ${selected ? 'selected' : ''}`} key={row.id}>
+      <button
+        type="button"
+        className="review-delete"
+        onClick={() => onDelete(row)}
+        disabled={busy}
+        title="Delete from manifest"
+      >
+        <Trash2 size={14} />
+      </button>
       <button type="button" className="review-pick" onClick={() => onPick(row)} title={pickTitle}>
         <Preview row={row} compact />
       </button>

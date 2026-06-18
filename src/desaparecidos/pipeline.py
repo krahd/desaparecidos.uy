@@ -323,8 +323,7 @@ def _process_video_frames(
         for _ in range(max(1, int(fps * 0.25))):
             yield settled.copy()
 
-    for _ in range(max(1, int(fps * 2.0))):
-        yield assembly.image.copy()
+    yield from _outro_frames(assembly.image, target_row, fps=fps)
 
 
 def _placements_by_source(placements: list[TilePlacement]) -> list[tuple[str, list[TilePlacement]]]:
@@ -394,6 +393,110 @@ def _draw_source_label(frame: Image.Image, row: ManifestRow) -> None:
     bar_height = 34
     draw.rectangle((0, height - bar_height, width, height), fill=(18, 18, 17, 190))
     draw.text((18, height - 24), label, fill=(245, 245, 240, 235), font=font)
+
+
+def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for path in (
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "DejaVuSans.ttf",
+    ):
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _fit_font(
+    draw: ImageDraw.ImageDraw, text: str, max_width: int, start_size: int, min_size: int = 12
+) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    size = start_size
+    while size > min_size:
+        font = _load_font(size)
+        if draw.textlength(text, font=font) <= max_width:
+            return font
+        size -= 2
+    return _load_font(min_size)
+
+
+def _text_panel(size: tuple[int, int], title: str, subtitles: list[str]) -> Image.Image:
+    width, height = size
+    image = Image.new("RGB", size, (0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    max_width = int(width * 0.86)
+
+    entries = [(title, _fit_font(draw, title, max_width, max(20, width // 14)), (242, 240, 235), int(height * 0.05))]
+    for line in subtitles:
+        entries.append((line, _fit_font(draw, line, max_width, max(14, width // 30)), (180, 176, 166), int(height * 0.018)))
+
+    measured = []
+    total = 0
+    for index, (text, font, color, gap) in enumerate(entries):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        line_height = bbox[3] - bbox[1]
+        applied_gap = gap if index < len(entries) - 1 else 0
+        measured.append((text, font, color, line_height, bbox[1], applied_gap))
+        total += line_height + applied_gap
+
+    y = (height - total) // 2
+    for text, font, color, line_height, top, gap in measured:
+        x = (width - int(draw.textlength(text, font=font))) // 2
+        draw.text((x, y - top), text, font=font, fill=color)
+        y += line_height + gap
+    return image
+
+
+def _outro_frames(
+    final_image: Image.Image, target_row: ManifestRow, *, fps: int
+) -> Iterable[Image.Image]:
+    """End sequence: hold result, then fade through name/info, the solidarity
+    line, and the result again, each separated by a fade to black."""
+    size = final_image.size
+    black = Image.new("RGB", size, (0, 0, 0))
+
+    name = target_row.values.get("name") or target_row.id
+    info: list[str] = []
+    born = target_row.values.get("birth_date", "").strip()
+    disappeared = target_row.values.get("disappearance_date", "").strip()
+    place = target_row.values.get("disappearance_place", "").strip()
+    if born:
+        info.append(f"Nacimiento: {born}")
+    if disappeared:
+        info.append(f"Desaparición: {disappeared}")
+    if place:
+        info.append(place)
+    name_panel = _text_panel(size, name, info)
+    solidarity_panel = _text_panel(size, "TODOS SOMOS FAMILIARES", [])
+
+    def hold(image: Image.Image, seconds: float) -> Iterable[Image.Image]:
+        for _ in range(max(1, int(round(fps * seconds)))):
+            yield image.copy()
+
+    def fade(start: Image.Image, end: Image.Image, seconds: float) -> Iterable[Image.Image]:
+        steps = max(1, int(round(fps * seconds)))
+        for index in range(1, steps + 1):
+            yield Image.blend(start, end, index / steps)
+
+    yield from hold(final_image, 2.5)
+    yield from fade(final_image, black, 1.0)
+    yield from hold(black, 0.4)
+    yield from fade(black, name_panel, 1.0)
+    yield from hold(name_panel, 3.0)
+    yield from fade(name_panel, black, 1.0)
+    yield from hold(black, 0.4)
+    yield from fade(black, solidarity_panel, 1.0)
+    yield from hold(solidarity_panel, 3.0)
+    yield from fade(solidarity_panel, black, 1.0)
+    yield from hold(black, 0.4)
+    yield from fade(black, final_image, 1.0)
+    yield from hold(final_image, 2.5)
+    yield from fade(final_image, black, 1.0)
+    yield from hold(black, 0.5)
 
 
 def _placed_background(target_canvas: Image.Image, mosaic: Image.Image, placed_mask: Image.Image) -> Image.Image:

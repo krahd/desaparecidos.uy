@@ -192,6 +192,17 @@ export function updateReviewStatusBulk(payload: {
   });
 }
 
+export function deleteReviewRow(payload: {
+  manifest: string;
+  kind: 'targets' | 'places';
+  row_id: string;
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateStage1(payload: {
   targets: string;
   sources: string;

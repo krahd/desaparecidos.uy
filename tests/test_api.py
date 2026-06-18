@@ -146,6 +146,21 @@ def test_review_bulk_endpoint_approves_all(monkeypatch: pytest.MonkeyPatch, tmp_
     assert body["manifest"]["approved_count"] == 2
 
 
+def test_review_delete_endpoint_removes_row(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review/delete",
+        json={"manifest": str(targets), "kind": "targets", "row_id": "t1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert all(row["id"] != "t1" for row in body["manifest"]["rows"])
+
+
 def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class FakeSummary:
         def to_api(self) -> dict[str, object]:

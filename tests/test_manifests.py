@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from desaparecidos.manifests import (
+    delete_manifest_row,
     set_review_status,
     set_review_status_bulk,
     validate_manifest,
@@ -153,3 +154,20 @@ def test_single_review_reports_missing_id(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="no row with id"):
         set_review_status(path, "targets", "missing", "approved")
+
+
+def test_delete_manifest_row_removes_one(tmp_path: Path) -> None:
+    path = tmp_path / "targets.csv"
+    write_pending_targets(path)
+
+    result = delete_manifest_row(path, "targets", "p1")
+
+    assert [row.id for row in result.rows] == ["p2"]
+
+
+def test_delete_manifest_row_missing_id(tmp_path: Path) -> None:
+    path = tmp_path / "targets.csv"
+    write_pending_targets(path)
+
+    with pytest.raises(ValueError, match="no row with id"):
+        delete_manifest_row(path, "targets", "nope")

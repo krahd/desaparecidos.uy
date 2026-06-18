@@ -20,9 +20,11 @@ The article treats this developing artwork as a methodological site for thinking
 
 The project belongs to a long artistic, political, and memorial lineage in Latin America. This includes the visual activism of the Mothers of Plaza de Mayo and the *Siluetazo*; photographic works such as Marcelo Brodsky's *Buena Memoria* and Gustavo Germano's *Ausencias*; urban interventions such as Fernando Traverso's bicycle stencils in Rosario; memorial architectures such as the Parque de la Memoria in Buenos Aires; and Uruguayan precedents such as Juan Ángel Urruzola's *Álbum de memoria*. The present project does not claim novelty at the level of making absence visible through images. Rather, it asks what a computational memorial system may responsibly add to this lineage when AI, computer vision, and large-scale visual processing make restoration, simulation, and biometric capture newly available.
 
-This paper is also distinct from prior work by the author on AI-supported collective memory and testimony capture. That earlier project concerned conversational interfaces and the capture of collective memories through human dialogue. The present paper concerns computational memorial imagery, visual source fields, fragment assembly, and the responsibilities of AI-assisted artistic and archival practice. The two projects share a political-historical concern with Uruguay's disappeared, but they ask different questions and use different methods.
+This paper is distinct from prior work by the author on AI-supported collective memory and testimony capture. That earlier project concerned conversational interfaces and the capture of collective memories through human dialogue. The present paper concerns computational memorial imagery, visual source fields, fragment assembly, and the responsibilities of AI-assisted artistic and archival practice. The two projects share a political-historical concern with Uruguay's disappeared, but they ask different questions and use different methods.
 
-The argument is organised as follows. Section 2 situates the project within the historical and political horizon of enforced disappearance in Uruguay. Section 3 describes the triptych structure of the artwork. Section 4 places the work in relation to Latin American visual memorial practice. Section 5 defines the project's refusal of restoration. Section 6 describes the Stage 1 prototype. Section 7 develops the privacy and non-identification framework. Section 8 introduces archival humility as a concept for responsible AI memorial practice. Section 9 proposes five principles for computational memorial systems. Section 10 outlines the public review and evaluation plan. The conclusion returns to the central claim: responsible computational memorial art must sometimes make images less complete, not more.
+![Figure 1. Triptych diagram.](figures/open-forum-fig1-triptych.svg)
+
+**Figure 1. Triptych diagram.** Schematic showing the three works and their source fields: living social body, material body of the country, and traversal/search.
 
 ## 2. Historical and political horizon
 
@@ -34,8 +36,6 @@ In Uruguay, relatives' organisations and memory institutions have built a long p
 
 The artwork discussed here does not attempt to create a parallel authority over this infrastructure. It does not replace official archives, family testimonies, forensic investigation, legal process, or the historical work of human-rights organisations. The project depends on such sources for provenance, naming, and minimal public historical information, but its own contribution is artistic rather than archival or judicial. It asks how computational art can make absence active without claiming to solve it.
 
-The project therefore treats Uruguay itself as the image field of the work. The country is not a background, landscape, or national symbol. It becomes the material support through which the disappeared reappear. The central claim is not that the disappeared can be restored, but that the present cannot be understood without them.
-
 ## 3. The triptych: people, places, search
 
 The project is conceived as a triptych of related computational memorial systems.
@@ -45,8 +45,6 @@ The first work, **Todos somos familiares**, reconstructs public images of disapp
 In this work, contemporary faces become visual material from which disappeared faces partially reappear. The system does not identify the living persons whose images contribute fragments. It does not classify them, name them, infer attributes from them, or represent them as individuals. Their images enter only as dispersed visual matter: colour, tone, texture, shadow, contour, surface, and partial form. The work is therefore not a biometric database but a political condensation of visual responsibility.
 
 The second work, **Están en todas partes**, reconstructs public images of disappeared persons from fragments extracted from images of Uruguay's places: walls, streets, buildings, pavements, rural roads, institutional facades, river edges, landscapes, ruins, monuments, neighbourhoods, and ordinary surfaces. If **Todos somos familiares** begins from the living social body, **Están en todas partes** begins from the material body of the country. Its claim is not that every place is directly connected to every disappearance. Its claim is structural: disappearance reshapes the political meaning of place. It marks the country as a whole, not only the specific sites of detention, torture, burial, testimony, or commemoration.
-
-This second work is the first prototype because it preserves the conceptual core of the project while lowering immediate privacy risks. Place-based imagery allows the system to develop a visual language of texture, erosion, architecture, geography, institutional austerity, urban decay, rural dispersion, and everyday surfaces. The disappeared appear from the country rather than being placed over it.
 
 The third work, **Seguimos buscando**, transforms the act of search into the temporal structure of the work. It imagines the country as an image field to be scanned, crossed, searched, and revisited. The work may use street-level imagery, self-captured footage, archival routes, crowdsourced material, or other ethically reviewed forms of visual traversal. Its central gesture is not the static composition of a portrait but the process by which a face emerges from movement through the country.
 
@@ -66,8 +64,6 @@ A fourth, more local lineage is Juan Ángel Urruzola's *Álbum de memoria*. In t
 
 The difference is therefore not merely technical. In *Álbum de memoria*, the disappeared visually sustain one another. In this project, the disappeared emerge from the country that remains. The work shifts from memorial co-presence among the disappeared to an implicating relation between disappearance and the present social and material body of Uruguay.
 
-Finally, the project continues a broader research trajectory in political new media art, data, interaction, and mediated political visibility. Earlier works and writings include political new-media artworks, media appropriation, data visualisation as political performance, AI ethics through everyday objects, and prior research on collective memories of Uruguay's disappeared. For double-blind submission, these prior works are cited as Author where structurally necessary and should be restored after review.
-
 ## 5. Against restoration
 
 The project requires precise negative definitions. These exclusions are not defensive additions to the work. They are part of its method.
@@ -82,8 +78,6 @@ Fourth, the works are not deepfakes or resurrection media. They do not animate t
 
 Finally, the works are not monuments to technological power. They do not present computation as the force that restores what politics destroyed. At most, computation can produce a visual and political structure through which the unresolved condition of disappearance becomes perceptible.
 
-This refusal of restoration is central to the responsible use of AI in contexts of political violence. AI systems are often valued for their capacity to fill gaps, increase resolution, interpolate missing frames, infer hidden structures, and generate plausible continuities. In this project, those capacities are approached with suspicion. The gaps are not simply technical absences. They are the marks of a political crime. To fill them too smoothly risks transforming violence into a solvable representational problem.
-
 ## 6. Stage 1 prototype: **Están en todas partes**
 
 The current implemented prototype is **Están en todas partes**, the place-fragment work. It reconstructs public images of disappeared persons from fragments extracted from curated images of Uruguayan places, surfaces, streets, landscapes, and material environments. This implementation gives the paper a concrete methodological base: it is no longer only a proposal for a future AI artwork, but a working local computational pipeline whose constraints instantiate the paper's argument.
@@ -92,15 +86,19 @@ The project uses AI in a deliberately restricted sense: not as autonomous image 
 
 The prototype uses manifest-driven ingestion. Target manifests describe disappeared persons' public images and provenance. Place manifests describe source images of surfaces, streets, landscapes, buildings, and other material environments. People manifests exist only for internal Stage 2 experimentation and remain separate from the Stage 1 place-source pipeline. Rows must pass review before the generation pipeline can use them. This review gate is important: the artwork treats data acquisition as a curatorial and ethical process rather than as automatic extraction.
 
-Target preparation normalises public portrait images only to the degree necessary for reconstruction. The current local tooling trims white scan borders and caption margins, writes processed portrait copies, and retains original filenames and provenance notes. This preprocessing is not framed as repair or enhancement. It prepares the image as a referential target while preserving the ethical distinction between the historical photograph and the generated output.
+![Figure 2. Stage 1 data flow.](figures/open-forum-fig2-stage1-data-flow.svg)
+
+**Figure 2. Stage 1 data flow.** Target portrait, approved place sources, fragment extraction, deterministic matching, output, and sidecar provenance.
 
 Source acquisition is similarly constrained. The current crawler is bounded and explicit: it crawls only user-supplied or preset starting pages, follows links within depth, page, image, and domain limits, respects `robots.txt` by default, and records crawl cache and crawl trail data so traversal can be inspected or replayed. The presets deliberately privilege mundane contemporary Uruguay sources rather than memory-site pages, because the work's logic is to form the disappeared from the ordinary visual field of the country rather than from already memorial material.
-
-The crawler includes duplicate detection and local image gating. It records checksums, uses perceptual duplicate detection to prevent repeated image variants from entering manifests, and applies OpenCV/NumPy-based heuristics to distinguish plausible place-source material from flat graphics, logos, posters, prominent faces, and random-noise-like textures. For people-source crawling, the system requires an actual detected face before writing a pending row, but this is internal-only and does not infer identity, category, demographic traits, or relation to a disappeared person. The distinction between detection as a gate and identification as a prohibited operation is central to the project's privacy framework.
 
 The reconstruction algorithm decomposes approved source images into fragments and matches them to regions of the target portrait. The current implementation uses deterministic, vectorised nearest-fragment matching. It compares target regions with source fragments, supports reuse limits and per-source contribution caps, and records sidecar metadata about source usage and output generation. These contribution caps have both visual and ethical significance. Visually, they prevent one source image from dominating the reconstruction. Ethically, they support the claim that the output is composed from a dispersed visual field rather than from a disguised single-source transformation.
 
 The prototype generates still PNG outputs and optional browser-playable H.264 MP4 process videos. The video form is especially important. Generated videos show a search before selection: local crawl candidates that do not contribute are flashed quickly in crawl order, then a usable source is introduced, sampled fragment regions are highlighted, and those fragments animate into their actual positions in the reconstructed portrait. Page URLs can appear along the bottom during search and assembly frames, and the video finishes with a commemorative outro. This temporal form makes search, selection, and assembly perceptible. The face does not simply appear as a finished computational result; it emerges from a traversal of the country's visual field.
+
+![Figure 3. Process-video sequence.](figures/open-forum-fig3-process-video.svg)
+
+**Figure 3. Process-video sequence.** Search scan, candidate rejection, fragment selection, assembly, and commemorative outro.
 
 The prototype also uses JSON sidecars for generated outputs. These sidecars are not merely technical logs. They are part of the work's provenance layer. They can document target identity, source usage, parameter settings, generation time, and review state. They support the broader claim that responsible AI art must make its own operations accountable, especially when working with politically and emotionally charged historical material.
 
@@ -116,9 +114,11 @@ This principle has practical consequences. The release pipeline should avoid sto
 
 Uruguayan data-protection rules are relevant here because facial images can be personal data, and biometric processing requires special caution. Uruguay's data-protection authority has stated that biometric data include facial images and fingerprint data, and Resolution No. 30/020 requires a data-protection impact assessment for processing biometric data. The paper therefore avoids declaring the face-fragment component publicly releasable before legal review. The place-fragment prototype can proceed earlier because it avoids the same direct facial privacy risk.
 
-Generated outputs require their own review. Each output should be inspected to ensure that no living person appears recognisably, no source image is reconstructable, and no output creates a false implication about the source persons. A public ethics statement should describe what is collected, what is stored, what is discarded, what is never done, how opt-out or removal requests work, how legal review was conducted, and how the work relates to existing archives and relatives' organisations.
+![Figure 4. Ethics/provenance model.](figures/open-forum-fig4-ethics-provenance.svg)
 
-This framework is not only legal compliance. It is part of the artwork's conceptual structure. The work depends on distinguishing a visual field from a database of persons. If the system became a biometric apparatus, it would contradict the project's political logic.
+**Figure 4. Ethics/provenance model.** Target images, source visual field, generated outputs, review gates, exclusion rules, and legal-review boundary between place fragments and face fragments.
+
+Generated outputs require their own review. Each output should be inspected to ensure that no living person appears recognisably, no source image is reconstructable, and no output creates a false implication about the source persons. A public ethics statement should describe what is collected, what is stored, what is discarded, what is never done, how opt-out or removal requests work, how legal review was conducted, and how the work relates to existing archives and relatives' organisations.
 
 ## 8. Archival humility and responsible reactivation
 
@@ -128,33 +128,17 @@ In many cultural-heritage contexts, reactivation can mean making materials searc
 
 I use the term archival humility to name this orientation. Archival humility means that the artwork relies on archives but does not claim their authority; cites sources but does not absorb them as raw material without context; presents names but does not convert lives into database entries; uses public images but does not treat them as unrestricted computational fuel; and makes visible the limits of what the system can know.
 
-Archival humility also requires acknowledging that computational systems are seductive because they appear to produce continuity. A generated image can look more complete than the record. A reconstructed face can appear more vivid than an archival photograph. A smooth sequence can make the political wound seem formally resolved. In this project, the visual language must therefore resist smoothness. The reconstructions should remain incomplete, unstable, materially legible, and visibly assembled. The viewer should perceive the tension between face and fragments, between person and country, between reconstruction and loss.
-
 This approach contributes to responsible AI in art by shifting emphasis from what the system can generate to what the system must refuse to generate.
 
 ## 9. A framework for responsible computational memorial systems
 
 The project proposes five principles for responsible AI and computational art in contexts of disappearance and unresolved political violence.
 
-### 9.1 Archival humility
-
-The system must not become a substitute archive. It should rely on existing public sources, cite them, and direct viewers back to them. It should avoid presenting itself as official, exhaustive, evidentiary, or corrective. Where possible, collaboration or consultation with memory and human-rights organisations should be pursued, but the artwork must remain clear about its own scope.
-
-### 9.2 Fragmentary reappearance
-
-The output should stage reappearance rather than restoration. The disappeared person becomes visible, but the image remains marked by the fragments that compose it. The system produces temporary apparitions, not replacement portraits.
-
-### 9.3 Non-identification
-
-The system must not identify, classify, or infer attributes from living source persons. In works using images of living people, source persons should not become represented subjects. The system should treat source imagery as visual matter under strict privacy constraints, not as a biometric resource.
-
-### 9.4 Provenance accountability
-
-Historical target images require provenance metadata. Visual source fields require documented acquisition rules. Generated outputs require review before publication. The project should make clear which images come from authoritative public sources, which images are self-captured, which are licensed, and which are excluded.
-
-### 9.5 Designed incompletion
-
-The artwork should preserve seams, gaps, mismatches, fragment boundaries, and temporal dissolution. Incompletion is not a failure to be solved after more technical work. It is a responsible form for a subject that cannot be repaired by representation.
+1. **Archival humility.** The system must not become a substitute archive. It should rely on existing public sources, cite them, and direct viewers back to them. It should avoid presenting itself as official, exhaustive, evidentiary, or corrective.
+2. **Fragmentary reappearance.** The output should stage reappearance rather than restoration. The disappeared person becomes visible, but the image remains marked by the fragments that compose it.
+3. **Non-identification.** The system must not identify, classify, or infer attributes from living source persons. In works using images of living people, source persons should not become represented subjects.
+4. **Provenance accountability.** Historical target images require provenance metadata. Visual source fields require documented acquisition rules. Generated outputs require review before publication.
+5. **Designed incompletion.** The artwork should preserve seams, gaps, mismatches, fragment boundaries, and temporal dissolution. Incompletion is not a failure to be solved after more technical work. It is a responsible form for a subject that cannot be repaired by representation.
 
 These five principles are not a general ethics checklist. They emerge from the specific demands of a memorial artwork about enforced disappearance. However, they may be useful for other AI-art and archival projects dealing with violent histories, missing records, contested memory, or vulnerable visual subjects.
 
@@ -168,18 +152,7 @@ The second layer is expert review. This may include consultation with scholars o
 
 The third layer is public reception after a controlled release or exhibition. This may include qualitative responses from viewers, attention to misunderstandings, evaluation of whether the negative definitions are understood, and documentation of requests for removal or correction.
 
-The fourth layer is legal and institutional review before any public release involving images of living persons. The place-based prototype can proceed earlier because it does not carry the same facial privacy risks, but the face-fragment component should remain internal until counsel review is complete.
-
-The key evaluation questions are:
-
-1. Does the work make disappearance perceptible as a continuing structure rather than a closed historical absence?
-2. Does the visual language avoid technological restoration, spectacle, and sentimentality?
-3. Are viewers able to understand that the outputs are not forensic, archival, biometric, or resurrection images?
-4. Are source provenance, privacy commitments, and opt-out/removal procedures clear?
-5. Does the work respect existing archives and relatives' organisations rather than competing with them?
-6. Does the system produce images that are formally compelling without becoming ethically misleading?
-
-These questions will guide the next stage of development and the later full article.
+The key evaluation questions are whether the work makes disappearance perceptible as a continuing structure; whether it avoids technological restoration, spectacle, and sentimentality; whether viewers understand that outputs are not forensic, archival, biometric, or resurrection images; whether source provenance and removal procedures are clear; and whether the project respects existing archives and relatives' organisations rather than competing with them.
 
 ## 11. Conclusion
 
@@ -187,19 +160,7 @@ The project asks what AI and computational art can responsibly do with absence w
 
 What it can do is construct a visual situation in which the unresolved present becomes perceptible. In **Todos somos familiares**, the disappeared emerge from the living social body. In **Están en todas partes**, they emerge from the country's material surfaces. In **Seguimos buscando**, they emerge through the continuing act of search. Each work insists that disappearance is not outside the present. It remains distributed across bodies, places, institutions, images, and silences.
 
-The responsible use of AI in such a context depends not only on transparency or technical safeguards but on refusal. Refusal of restoration. Refusal of biometric capture. Refusal of archival substitution. Refusal of synthetic testimony. Refusal of the idea that a model can complete what political violence made incomplete.
-
 This is the central proposition of the project: responsible computational memorial art must sometimes make images less complete, not more; less seamless, not more convincing; less resolved, not more lifelike. It must learn to make the missing visible without pretending that they have been returned.
-
-## Figure placeholders
-
-**Figure 1. Triptych diagram.** Schematic showing the three works and their source fields: living social body, material body of the country, and traversal/search.
-
-**Figure 2. Stage 1 data flow.** Target portrait, approved place sources, fragment extraction, matching, output, and sidecar provenance.
-
-**Figure 3. Process-video sequence.** Search scan, candidate rejection, fragment selection, assembly, and commemorative outro.
-
-**Figure 4. Ethics/provenance model.** Target images, source visual field, generated outputs, review gates, exclusion rules, and legal-review boundary between place fragments and face fragments.
 
 ## References
 
@@ -219,11 +180,13 @@ Dodecá. 2009. "Expone Juan Ángel Urruzola." 9 October 2009. Accessed 18 June 2
 
 Epstein, Ziv, Aaron Hertzmann, Laura Herman, Robert Mahari, Morgan R. Frank, Matthew Groh, Hope Schroeder, Amy Smith, Memo Akten, Jessica Fjeld, Hany Farid, Neil Leach, Alex Pentland, and Olga Russakovsky. 2023. "Art and the Science of Generative AI." *Science* 380 (6650): 1110-1111.
 
-Fontes, Claudia. *Reconstrucción del retrato de Pablo Míguez*. Parque de la Memoria, Buenos Aires. Source to be finalised with catalogue or institutional URL before submission.
+Fontes, Claudia. *Reconstrucción del retrato de Pablo Míguez*. Public artwork, Parque de la Memoria, Buenos Aires.
 
-Germano, Gustavo. *Ausencias*. Source to be finalised with artist or exhibition URL before submission.
+Germano, Gustavo. 2010. *Ausencias*. Munich: Münchner Frühling Verlag.
 
 Hirsch, Marianne. 2012. *The Generation of Postmemory: Writing and Visual Culture After the Holocaust*. New York: Columbia University Press.
+
+Hite, Katherine. 2012. *Politics and the Art of Commemoration: Memorials to Struggle in Latin America and Spain*. London: Routledge.
 
 Jelin, Elizabeth. 2003. *State Repression and the Labors of Memory*. Minneapolis: University of Minnesota Press.
 
@@ -233,15 +196,15 @@ Madres y Familiares de Uruguayos Detenidos Desaparecidos. n.d. "Desaparecidos." 
 
 Manovich, Lev. 2001. *The Language of New Media*. Cambridge, MA: MIT Press.
 
-Nora, Pierre. 1989. "Between Memory and History: Les Lieux de Mémoire." *Representations* 26: 7-24.
+Parque de la Memoria. n.d. *Monumento a las Víctimas del Terrorismo de Estado*. Buenos Aires.
 
-Parque de la Memoria. n.d. *Monumento a las Víctimas del Terrorismo de Estado*. Buenos Aires. Source to be finalised with catalogue or institutional URL before submission.
+Reuter, Laurel, ed. 2006. *The Disappeared / Los Desaparecidos*. Grand Forks: North Dakota Museum of Art.
+
+Romero, Juan Carlos. 2006. "Fernando Traverso: Interventions on the Streets of Rosario." In *The Disappeared / Los Desaparecidos*, edited by Laurel Reuter, 58-61. Grand Forks: North Dakota Museum of Art.
 
 Secretaría de Derechos Humanos para el Pasado Reciente. n.d. "Víctimas." Gobierno de Uruguay. Accessed 18 June 2026. https://www.gub.uy/secretaria-derechos-humanos-pasado-reciente/victimas.
 
 Sitios de Memoria Uruguay. n.d. "Desaparición forzada." Accessed 18 June 2026. https://sitiosdememoria.uy/desaparicion-forzada.
-
-Sitios de Memoria Uruguay. n.d. "Exportar datos." Accessed 18 June 2026. https://sitiosdememoria.uy/exportar-datos.
 
 Sontag, Susan. 2003. *Regarding the Pain of Others*. New York: Farrar, Straus and Giroux.
 
@@ -249,13 +212,11 @@ Steyerl, Hito. 2009. "In Defense of the Poor Image." *e-flux journal* 10.
 
 Taylor, Diana. 2003. *The Archive and the Repertoire: Performing Cultural Memory in the Americas*. Durham, NC: Duke University Press.
 
-Traverso, Fernando. *Las bicicletas de Rosario*. Source to be finalised with artist, catalogue, or museum URL before submission.
-
 Unidad Reguladora y de Control de Datos Personales. 2020. "Resolución N° 30/020." Gobierno de Uruguay, 12 May 2020. Accessed 18 June 2026. https://www.gub.uy/unidad-reguladora-control-datos-personales/institucional/normativa/resolucion-n-30020.
 
 Unidad Reguladora y de Control de Datos Personales. 2020. "Guía de Evaluación de Impacto en la Protección de Datos." Gobierno de Uruguay, 28 January 2020. Accessed 18 June 2026. https://www.gub.uy/unidad-reguladora-control-datos-personales/comunicacion/publicaciones/guia-evaluacion-impacto-proteccion-datos.
 
-Urruzola, Juan Ángel. *Álbum de memoria*. Source to be finalised with catalogue, exhibition text, or artist documentation before submission.
+Urruzola, Juan Ángel. 2009. *Álbum de memoria*. Exhibition documentation, Dodecá, Montevideo.
 
 Zylinska, Joanna. 2020. *AI Art: Machine Visions and Warped Dreams*. London: Open Humanities Press.
 

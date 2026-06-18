@@ -45,6 +45,8 @@ class GenerateRequest(BaseModel):
     reuse_limit: int = Field(default=8, ge=1, le=10000)
     output_width: int = Field(default=720, ge=120, le=4096)
     max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
+    search_scan_frames_per_candidate: int = Field(default=2, ge=1, le=24)
+    search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     make_video: bool = False
     target_id: str | None = None
 
@@ -216,6 +218,8 @@ def create_app() -> FastAPI:
             reuse_limit=request.reuse_limit,
             output_width=request.output_width,
             max_contribution_per_source=request.max_contribution_per_source,
+            search_scan_frames_per_candidate=request.search_scan_frames_per_candidate,
+            search_scan_max_candidates=request.search_scan_max_candidates,
             make_video=request.make_video,
         )
         try:

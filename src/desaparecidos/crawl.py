@@ -505,7 +505,7 @@ def _classify(
     use_cv: bool,
 ) -> CVResult:
     existing = cache.get_classification(cached.url, kind)
-    if existing is not None:
+    if existing is not None and (not use_cv or existing.cv_label != "cv-off"):
         face_box = None
         if None not in (existing.face_x, existing.face_y, existing.face_width, existing.face_height):
             face_box = (

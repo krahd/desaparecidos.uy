@@ -4,11 +4,14 @@ from io import BytesIO
 from pathlib import Path
 
 import numpy as np
+import pytest
 import requests
 from PIL import Image
 
-from desaparecidos.cache import CrawlCache
+import desaparecidos.crawl as crawl_module
+from desaparecidos.cache import CachedClassification, CachedImage, CrawlCache
 from desaparecidos.crawl import _best_srcset_candidate, crawl_pages
+from desaparecidos.cv import CV_POLICY_VERSION, CVResult
 from desaparecidos.manifests import read_manifest, set_review_status
 
 
@@ -94,10 +97,16 @@ def test_crawl_pages_appends_pending_manifest_rows_and_trail(tmp_path: Path) -> 
     assert (manifest.parent / row.local_path).exists()
     with CrawlCache(output_root) as cache:
         trail = cache.page_trail(summary.run_id)
+        events = cache.image_events(summary.run_id)
     assert [entry["url"] for entry in trail] == [page]
+    assert events[0]["decision"] == "accepted"
+    assert events[0]["path"]
+    assert events[0]["row_id"] == row.id
 
 
-def test_review_status_update_allows_people_approval(tmp_path: Path) -> None:
+def test_review_status_update_allows_people_approval(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     page = "https://example.test/page"
     image = "https://example.test/person.png"
     session = FakeSession({
@@ -105,6 +114,11 @@ def test_review_status_update_allows_people_approval(tmp_path: Path) -> None:
         image: image_response(png_bytes()),
     })
     manifest = tmp_path / "data" / "manifests" / "crawled-people.csv"
+    monkeypatch.setattr(
+        crawl_module,
+        "classify_image",
+        lambda _image, _kind: CVResult(True, "face", 0.08, "fixture face", (20, 20, 80, 80)),
+    )
     crawl_pages(
         [page],
         "people",
@@ -156,7 +170,9 @@ def test_perceptual_duplicate_rejects_resized_variant(tmp_path: Path) -> None:
     assert len(read_manifest(manifest, "places").rows) == 1
 
 
-def test_cache_reuses_url_but_classifies_per_kind(tmp_path: Path) -> None:
+def test_cache_reuses_url_but_classifies_per_kind(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     page = "https://example.test/page"
     image = "https://example.test/photo.png"
     session = FakeSession({
@@ -164,6 +180,11 @@ def test_cache_reuses_url_but_classifies_per_kind(tmp_path: Path) -> None:
         image: image_response(png_bytes()),
     })
     output_root = tmp_path / "crawl"
+    monkeypatch.setattr(
+        crawl_module,
+        "classify_image",
+        lambda _image, _kind: CVResult(True, "face", 0.08, "fixture face", (20, 20, 80, 80)),
+    )
 
     first = crawl_pages(
         [page],
@@ -193,6 +214,48 @@ def test_cache_reuses_url_but_classifies_per_kind(tmp_path: Path) -> None:
     with CrawlCache(output_root) as cache:
         assert cache.get_classification(image, "places") is not None
         assert cache.get_classification(image, "people") is not None
+
+
+def test_old_cv_cache_policy_is_recomputed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    image = Image.new("RGB", (220, 220), (120, 130, 140))
+    cached = CachedImage(
+        url="https://example.test/person.png",
+        sha256="sha",
+        path="",
+        bytes=10,
+        width=220,
+        height=220,
+        content_type="image/png",
+        phash="abc",
+    )
+    monkeypatch.setattr(
+        crawl_module,
+        "classify_image",
+        lambda _image, _kind: CVResult(False, "no-face", 0.0, "new policy"),
+    )
+    with CrawlCache(tmp_path / "crawl") as cache:
+        cache.put_classification(
+            CachedClassification(
+                url=cached.url,
+                kind="people",
+                cv_label="face-candidate",
+                cv_score=0.2,
+                cv_accept=True,
+                face_x=1,
+                face_y=1,
+                face_width=80,
+                face_height=80,
+                cv_policy_version=CV_POLICY_VERSION - 1,
+            )
+        )
+
+        result = crawl_module._classify(cache, cached, "people", image, True)
+
+        assert result.accept is False
+        refreshed = cache.get_classification(cached.url, "people")
+        assert refreshed is not None
+        assert refreshed.cv_policy_version == CV_POLICY_VERSION
+        assert refreshed.cv_label == "no-face"
 
 
 def test_crawler_follows_links_to_depth(tmp_path: Path) -> None:

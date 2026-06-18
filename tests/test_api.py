@@ -99,6 +99,8 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
     ) -> list[object]:
         del target_manifest, source_manifest, output_dir, target_id
         captured["cap"] = getattr(settings, "max_contribution_per_source")
+        captured["scan_frames"] = getattr(settings, "search_scan_frames_per_candidate")
+        captured["scan_max"] = getattr(settings, "search_scan_max_candidates")
         return []
 
     monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
@@ -115,12 +117,16 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
             "reuse_limit": 100,
             "output_width": 120,
             "max_contribution_per_source": 7,
+            "search_scan_frames_per_candidate": 3,
+            "search_scan_max_candidates": 45,
             "make_video": False,
         },
     )
 
     assert response.status_code == 200
     assert captured["cap"] == 7
+    assert captured["scan_frames"] == 3
+    assert captured["scan_max"] == 45
 
 
 def test_demo_fixtures_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:

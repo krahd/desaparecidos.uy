@@ -232,6 +232,8 @@ export function generateStage1(payload: {
   reuse_limit: number;
   output_width: number;
   max_contribution_per_source: number;
+  search_scan_frames_per_candidate: number;
+  search_scan_max_candidates: number;
   make_video: boolean;
   target_id?: string;
 }): Promise<GenerateResponse> {

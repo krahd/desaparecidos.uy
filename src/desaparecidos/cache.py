@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .cv import hamming_distance
+from .cv import CV_POLICY_VERSION, hamming_distance
 from .paths import display_path
 
 
@@ -37,6 +37,7 @@ class CachedClassification:
     face_y: int | None = None
     face_width: int | None = None
     face_height: int | None = None
+    cv_policy_version: int = CV_POLICY_VERSION
 
 
 class CrawlCache:
@@ -80,6 +81,7 @@ class CrawlCache:
                 face_y INTEGER,
                 face_width INTEGER,
                 face_height INTEGER,
+                cv_policy_version INTEGER NOT NULL DEFAULT 1,
                 classified_at REAL NOT NULL,
                 PRIMARY KEY (url, kind)
             );
@@ -136,6 +138,7 @@ class CrawlCache:
         self._ensure_column("images", "cv_label", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("images", "cv_score", "REAL NOT NULL DEFAULT 0")
         self._ensure_column("images", "cv_accept", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("image_classifications", "cv_policy_version", "INTEGER NOT NULL DEFAULT 1")
         self.conn.executescript(
             """
             CREATE INDEX IF NOT EXISTS images_sha256 ON images(sha256);
@@ -180,6 +183,7 @@ class CrawlCache:
             face_y=row["face_y"],
             face_width=row["face_width"],
             face_height=row["face_height"],
+            cv_policy_version=int(row["cv_policy_version"]),
         )
 
     def get_image(self, url: str) -> CachedImage | None:
@@ -261,20 +265,31 @@ class CrawlCache:
         )
         self.conn.commit()
 
-    def get_classification(self, url: str, kind: str) -> CachedClassification | None:
+    def get_classification(
+        self,
+        url: str,
+        kind: str,
+        *,
+        cv_policy_version: int | None = CV_POLICY_VERSION,
+    ) -> CachedClassification | None:
         row = self.conn.execute(
             "SELECT * FROM image_classifications WHERE url = ? AND kind = ?",
             (url, kind),
         ).fetchone()
-        return self._row_to_classification(row) if row else None
+        if row is None:
+            return None
+        record = self._row_to_classification(row)
+        if cv_policy_version is not None and record.cv_policy_version != cv_policy_version:
+            return None
+        return record
 
     def put_classification(self, record: CachedClassification) -> None:
         self.conn.execute(
             """
             INSERT INTO image_classifications
                 (url, kind, cv_label, cv_score, cv_accept, face_x, face_y,
-                 face_width, face_height, classified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 face_width, face_height, cv_policy_version, classified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(url, kind) DO UPDATE SET
                 cv_label=excluded.cv_label,
                 cv_score=excluded.cv_score,
@@ -283,6 +298,7 @@ class CrawlCache:
                 face_y=excluded.face_y,
                 face_width=excluded.face_width,
                 face_height=excluded.face_height,
+                cv_policy_version=excluded.cv_policy_version,
                 classified_at=excluded.classified_at
             """,
             (
@@ -295,6 +311,7 @@ class CrawlCache:
                 record.face_y,
                 record.face_width,
                 record.face_height,
+                record.cv_policy_version,
                 time.time(),
             ),
         )
@@ -428,6 +445,19 @@ class CrawlCache:
                 handle.write(json.dumps({"type": "image", **dict(event)}, ensure_ascii=False) + "\n")
         return output
 
+    def image_events(self, run_id: str) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            """
+            SELECT ordinal, page_url, image_url, decision, row_id, sha256, phash,
+                   path, cv_label, error, created_at
+            FROM crawl_image_events
+            WHERE run_id = ?
+            ORDER BY ordinal ASC, id ASC
+            """,
+            (run_id,),
+        ).fetchall()
+        return [{"run_id": run_id, **dict(row)} for row in rows]
+
     def close(self) -> None:
         self.conn.close()
 
@@ -452,6 +482,16 @@ def page_trail_for_runs(root: str | Path, run_ids: list[str]) -> list[dict[str, 
                 seen.add(url)
                 trail.append({"run_id": run_id, **row})
     return trail
+
+
+def image_events_for_runs(root: str | Path, run_ids: list[str]) -> list[dict[str, Any]]:
+    if not (Path(root) / "cache.sqlite").exists():
+        return []
+    events: list[dict[str, Any]] = []
+    with CrawlCache(root) as cache:
+        for run_id in run_ids:
+            events.extend(cache.image_events(run_id))
+    return events
 
 
 def display_optional_path(path: Path | None) -> str | None:

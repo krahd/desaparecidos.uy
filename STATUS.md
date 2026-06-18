@@ -1,10 +1,10 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-18 14:08 GMT-3
+Last updated: 2026-06-18 15:31 GMT-3
 
 ## Project purpose
 
-`desaparecidos.uy` is a local-first computational memorial artwork series about detained-disappeared persons connected to Uruguay. The current implementation focuses on the Stage 1 place-fragment prototype, **Están en todas partes**, which reconstructs target portraits from fragments of contemporary images of Uruguayan places. The system is not an archive, forensic tool, biometric system, deepfake, or identity-matching workflow.
+`desaparecidos.uy` is a local-first computational memorial artwork triptych about detained-disappeared persons connected to Uruguay: **Todos somos familiares**, **Están en todas partes**, and **Seguimos buscando**. The current implementation focuses on the Stage 1 place-fragment prototype, **Están en todas partes**, while keeping internal review-gated ingestion for the later people-fragment work. The system is not an archive, forensic tool, biometric system, deepfake, resurrection medium, or identity-matching workflow.
 
 ## Current implementation state
 
@@ -13,9 +13,9 @@ The repository now combines the current crawler/search-trail work with the newer
 - `people` manifest support for internal Stage 2 contemporary people-source review.
 - crawler run/page/image trail persistence in SQLite plus JSONL run exports;
 - exact SHA-256 and perceptual duplicate rejection;
-- per-kind CV cache classification;
+- versioned per-kind CV cache classification;
 - mundane contemporary Uruguay crawler presets;
-- URL ticker process videos and `search_trail` sidecar metadata;
+- fast search-candidate scan videos, URL ticker process videos, and `search_trail` / `search_candidates` sidecar metadata;
 - Sitios importer, portrait override tooling, ignored crawler/review outputs, and current gitignore protections.
 
 The restored current-state features include:
@@ -26,14 +26,14 @@ The restored current-state features include:
 - non-blocking crawl state;
 - bulk review and row delete for `targets`, `places`, and `people`;
 - target manifest builder and portrait preprocessing;
-- OpenCV-backed CV gating;
+- stricter OpenCV/NumPy CV gating for detected faces and photo-like non-face place scenes;
 - vectorised fragment matching;
 - `max_contribution_per_source` feasibility checks and settings propagation;
 - restored commemorative outro sequence in process videos.
 
 ## Active focus
 
-The active focus is stabilising the combined branch after reconciling `main` with `import-full-disappeared-corpus`. The GUI should present the current workflow directly: validate/crawl/review/generate/output, with synthetic demo fixtures demoted to a Utilities modal and no primary Download panel.
+The active focus is aligning the implementation with the project statement: the crawler should admit only stronger face/place candidates into review, videos should visibly perform the search through fast non-contributing candidate scans, and documentation should preserve the triptych, privacy, and non-identification constraints.
 
 ## Architecture overview
 
@@ -85,11 +85,11 @@ The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls 
 
 ## Execution and data flow
 
-The current data flow makes the search trail visible. Target portraits come from the curated or imported corpus; place and people source candidates come from crawler seeds. Every crawled page and image decision is persisted before review, and generated videos can replay the URL trail in a bottom ticker.
+The current data flow makes both the crawl and the search visible. Target portraits come from the curated or imported corpus; place and people source candidates come from crawler seeds. Every crawled page and image decision is persisted before review. Generated videos can replay page URLs and flash local non-contributing image candidates before showing the selected fragments assemble.
 
-<svg width="1000" height="430" viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
+<svg width="1120" height="470" viewBox="0 0 1120 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">Current corpus, crawler, review, and video flow</title>
-  <desc id="flow-desc">Local/imported target corpus and crawler seeds feed manifests and crawl trails; dedupe and CV create pending rows; approved rows generate stills and URL ticker videos.</desc>
+  <desc id="flow-desc">Target corpus and crawler seeds feed manifests and crawl trails; image candidates pass through dedupe and stricter CV; approved rows generate videos with a fast candidate scan and URL ticker.</desc>
   <defs>
     <marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
@@ -104,32 +104,42 @@ The current data flow makes the search trail visible. Target portraits come from
   <rect x="275" y="112" width="180" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
   <text x="365" y="140" text-anchor="middle" font-size="14" fill="#111">Target manifest</text>
   <text x="365" y="162" text-anchor="middle" font-size="12" fill="#333">review-gated portraits</text>
-  <rect x="35" y="304" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
-  <text x="125" y="332" text-anchor="middle" font-size="14" fill="#111">Crawler seeds</text>
-  <text x="125" y="354" text-anchor="middle" font-size="12" fill="#333">Uruguay now presets</text>
-  <rect x="275" y="284" width="180" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
-  <text x="365" y="316" text-anchor="middle" font-size="14" fill="#111">Page trail</text>
-  <text x="365" y="338" text-anchor="middle" font-size="12" fill="#333">crawl order, parent, status</text>
-  <text x="365" y="360" text-anchor="middle" font-size="12" fill="#333">SQLite plus JSONL</text>
-  <rect x="515" y="284" width="180" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
-  <text x="605" y="316" text-anchor="middle" font-size="14" fill="#111">Dedupe and CV</text>
-  <text x="605" y="338" text-anchor="middle" font-size="12" fill="#333">SHA-256, pHash</text>
-  <text x="605" y="360" text-anchor="middle" font-size="12" fill="#333">places or people gate</text>
-  <rect x="755" y="232" width="180" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="845" y="260" text-anchor="middle" font-size="14" fill="#111">Pending review</text>
-  <text x="845" y="282" text-anchor="middle" font-size="12" fill="#333">targets, places, people</text>
-  <rect x="755" y="92" width="180" height="96" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="845" y="122" text-anchor="middle" font-size="14" fill="#111">Generation</text>
-  <text x="845" y="144" text-anchor="middle" font-size="12" fill="#333">approved targets + places</text>
-  <text x="845" y="166" text-anchor="middle" font-size="12" fill="#333">video URL ticker</text>
+  <rect x="35" y="334" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="125" y="362" text-anchor="middle" font-size="14" fill="#111">Crawler seeds</text>
+  <text x="125" y="384" text-anchor="middle" font-size="12" fill="#333">Uruguay now presets</text>
+  <rect x="275" y="308" width="170" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="360" y="338" text-anchor="middle" font-size="14" fill="#111">Page trail</text>
+  <text x="360" y="360" text-anchor="middle" font-size="12" fill="#333">crawl order, parent</text>
+  <text x="360" y="382" text-anchor="middle" font-size="12" fill="#333">status, JSONL</text>
+  <rect x="505" y="308" width="170" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="590" y="338" text-anchor="middle" font-size="14" fill="#111">Image candidates</text>
+  <text x="590" y="360" text-anchor="middle" font-size="12" fill="#333">local files, events</text>
+  <text x="590" y="382" text-anchor="middle" font-size="12" fill="#333">accepted and rejected</text>
+  <rect x="735" y="308" width="170" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="820" y="338" text-anchor="middle" font-size="14" fill="#111">Dedupe and CV</text>
+  <text x="820" y="360" text-anchor="middle" font-size="12" fill="#333">SHA-256, pHash</text>
+  <text x="820" y="382" text-anchor="middle" font-size="12" fill="#333">faces or place photos</text>
+  <rect x="935" y="250" width="155" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="1012" y="278" text-anchor="middle" font-size="14" fill="#111">Pending review</text>
+  <text x="1012" y="300" text-anchor="middle" font-size="12" fill="#333">places, people</text>
+  <rect x="735" y="102" width="170" height="96" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="820" y="132" text-anchor="middle" font-size="14" fill="#111">Generation</text>
+  <text x="820" y="154" text-anchor="middle" font-size="12" fill="#333">approved target</text>
+  <text x="820" y="176" text-anchor="middle" font-size="12" fill="#333">approved places</text>
+  <rect x="935" y="102" width="155" height="96" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="1012" y="130" text-anchor="middle" font-size="14" fill="#111">Process video</text>
+  <text x="1012" y="152" text-anchor="middle" font-size="12" fill="#333">fast scan, assembly</text>
+  <text x="1012" y="174" text-anchor="middle" font-size="12" fill="#333">URL ticker, outro</text>
   <line x1="215" y1="90" x2="275" y2="132" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
   <line x1="215" y1="210" x2="275" y2="164" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <line x1="215" y1="342" x2="275" y2="332" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <line x1="455" y1="332" x2="515" y2="332" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <line x1="695" y1="332" x2="755" y2="278" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <line x1="845" y1="232" x2="845" y2="188" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <path d="M455 150 C560 150 650 140 755 140" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
-  <path d="M455 300 C570 240 650 190 755 164" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="215" y1="372" x2="275" y2="356" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="445" y1="356" x2="505" y2="356" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="675" y1="356" x2="735" y2="356" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="905" y1="344" x2="935" y2="300" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M1012 250 C1012 215 965 185 905 156" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M455 150 C560 150 640 150 735 150" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="905" y1="150" x2="935" y2="150" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M590 308 C640 250 775 220 935 174" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
 </svg>
 
 ## Setup and run instructions
@@ -199,17 +209,22 @@ git diff --check
 - Record every crawled page URL in crawl order with depth, parent, status, error, and fetch time.
 - Record image candidate decisions, duplicate status, hashes, CV decision, and accepted row id.
 - Avoid duplicate image variants with exact SHA-256 and perceptual hash checks.
-- Classify the same cached URL separately per manifest kind.
+- Classify the same cached URL separately per manifest kind and CV policy version.
 - Store `source_url`, `source_page`, `crawl_run_id`, `content_sha256`, and `perceptual_hash` on crawled rows.
-- Store face-region metadata for accepted `people` rows for manual review only.
+- Store face-region metadata for accepted `people` rows for manual review only; `people` rows now require a detected face and no fallback face box is generated.
+- Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate Stage 1 stills and MP4 process videos from approved targets and approved places.
 - Cap source contribution with `max_contribution_per_source`; `0` means unlimited.
 - Control output block size through the GUI `Block size` slider wired to `fragment_size`.
-- Record settings, source usage, source sequence, search trail URLs/run ids, and video process metadata in sidecars.
-- Keep URL ticker overlays on search/assembly frames and a readable commemorative outro.
+- Record settings, source usage, source sequence, search trail URLs/run ids, search candidate counts/frame references, and video process metadata in sidecars.
+- Keep a fast capped search-candidate scan and URL ticker overlays on search/assembly frames, followed by a readable commemorative outro.
 
 ## Recent changes
 
+- Aligned root and compatibility documentation with `doc/desaparecidos-uy-project-description.md`, including the triptych structure, non-identification/privacy constraints, and search-as-process language. Replaced stale `doc/AGENTS.md` and `doc/STATUS.md` templates with canonical pointers.
+- Tightened crawler CV: `people` crawling requires a detected face with a minimum face box/area; `places` crawling now accepts only conservative `place-photo` candidates and rejects flat graphics, limited-palette graphics, prominent faces, and noise-like textures. Added `CV_POLICY_VERSION=2` so old cached decisions are recomputed.
+- Added fast search-candidate scans to Stage 1 process videos. Videos can flash local crawl candidates that did not contribute, then switch into the existing full-source fragment highlight/assembly sequence when a usable source contributes. Sidecars now record `search_candidates` metadata.
+- Fixed portrait preprocessing so processed target copies no longer keep a white scan border. `content_bbox` now tightens each edge past rows/columns that are still mostly white (`_tighten_white_edges`), correcting cases where thin dark artefacts dragged component detection into the margin. Regenerated the local `doc/fotos-desaparecidos` corpus (142 portraits) accordingly.
 - Finished purging the redundant 348MB `doc/fotos-desaparecidos.zip` from git history (leftover `refs/original` from an earlier `git filter-branch`, reflog expiry, and `gc`); `.git` shrank from 911MB to ~577MB. The zip stays only as ignored `ignore/fotos-desaparecidos.zip`. No live branch or `origin/*` referenced it; no force-push was required.
 - Replaced the review "Approve all" button with checkbox selection: Select all, Select none, Approve selected, Delete selected. Added `delete_manifest_rows` and bulk `row_ids` support to `POST /api/review/delete`.
 - Made the Sitios importer's portrait selection conservative: only the person's `field--name-field-fotografia` image is accepted, otherwise `portrait_status="missing"` (no false poster/work imagery). Fixed field extraction so trailing fields (e.g. `victim_type`) no longer absorb the "Obras de interés"/"Materiales de interés"/footer text.
@@ -228,12 +243,16 @@ git diff --check
 
 ## Tests and verification status
 
-Latest local verification (review controls, importer, sources/provenance, git cleanup):
+Latest local verification (documentation alignment, stricter crawler CV, search-candidate process videos):
 
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 77 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m pytest -q`: passed, 86 tests, 1 upstream Starlette/httpx deprecation warning.
 - `npm --prefix frontend run build`: passed (tsc + vite, no type errors).
+- `zsh -n start.sh`: exited successfully with the known `nice(5)` permission warnings.
 - `git diff --check`: passed.
+
+Earlier verification retained from the current branch reconciliation:
+
 - Importer validated against live Sitios de Memoria pages: the Abeledo page yields no portrait (`portrait_status="missing"`) and a clean `victim_type`; four other persons resolve to their correct `field-fotografia` portraits. Parque de la Memoria override applied for Abeledo (portrait provenance `parque-de-la-memoria`).
 - Git: confirmed the 348MB zip blob is gone from all refs (`git rev-list --objects --all` has no match) and `.git` is ~577MB.
 - Local smoke: backend health on `127.0.0.1:8766` passed; built frontend served from `frontend/dist` on `127.0.0.1:5174` returned HTTP 200; static checks confirmed black CSS background, no primary `Download` panel text in the React app, Utilities modal demo controls, crawler `places/people`, and both generation sliders.
@@ -246,7 +265,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - `zsh -n start.sh` reports `nice(5)` permission warnings even though syntax validation exits successfully.
 - The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
 - People crawling is for internal review-gated source-corpus exploration only. It performs no identity matching and must not be used as a disappeared-person identification workflow.
-- Crawler CV is heuristic and local; manual review remains mandatory.
+- Crawler CV is stricter but still heuristic and local; manual review remains mandatory and false positives/negatives are expected.
 - Process videos require local `ffmpeg` with H.264/libx264 support.
 - Generated imagery, raw crawls, JSONL trails, processed target copies, and review manifests remain ignored local data.
 
@@ -258,13 +277,13 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - Run a full manual GUI smoke in a browser once browser automation is available.
 - Review the merged `doc/DDHH/` archive additions for repository size policy if needed.
 - Keep checking that crawler presets stay mundane and contemporary rather than memory/archive oriented.
-- Continue improving CV thresholds only with manual review evidence.
+- Continue improving CV thresholds only with manual review evidence from real crawl runs.
 
 ## Next steps
 
 - Commit the combined branch once the user confirms or asks for a commit.
 - Use the Utilities modal only for synthetic fixture workflows; keep primary GUI space dedicated to the real artwork workflow.
-- Use crawled page trails in videos as the visible trace of the search process.
+- Use crawled page trails and local image-candidate events in videos as the visible trace of the search process.
 
 ## Longer-term steps
 
@@ -278,14 +297,15 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - `targets` remain only the disappeared-person portrait corpus.
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
 - Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
+- Crawler CV cache entries are versioned; old decisions are recomputed rather than silently reused after policy changes.
 - Download controls are hidden from the primary GUI because they are no longer central to the workflow, but API/CLI support remains for automation.
 - `max_contribution_per_source=0` means unlimited for backwards compatibility and explicitness.
-- URL ticker frames are preserved during the search/assembly sequence; outro cards remain readable and untickered.
+- Fast search-candidate scan frames and URL ticker frames are preserved during the search/assembly sequence; outro cards remain readable and untickered.
 
 ## Documentation alignment notes
 
-- `README.md` describes the current GUI, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, and URL ticker videos.
-- `AGENTS.md` records current safety invariants and the tracked portrait-corpus exception.
-- `CLAUDE.md` remains a short pointer to `AGENTS.md` and `STATUS.md`.
+- `README.md` describes the current GUI, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
+- `AGENTS.md` records current safety invariants, the tracked portrait-corpus exception, strict people/place CV expectations, and non-identification requirements.
+- `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-18 14:08 GMT-3
+Last updated: 2026-06-18 15:31 GMT-3

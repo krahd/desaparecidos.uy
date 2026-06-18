@@ -4,6 +4,12 @@
 
 The project is not an archive, forensic tool, biometric system, deepfake, or resurrection medium. It is an artistic system for making the continuing structure of disappearance perceptible. The created videos aim to metaphorically represent and reenact the continuing search for the disappeared.
 
+The triptych is:
+
+- **Todos somos familiares**: internal face-fragment work using contemporary public images of people without identity matching, classification, or representation of source persons.
+- **Están en todas partes**: the current place-fragment prototype using Uruguay's places, surfaces, streets, landscapes, and material environments.
+- **Seguimos buscando**: traversal/search work where scanning and continuing search become the temporal structure of the piece.
+
 The full draft project statement is in [doc/desaparecidos-uy-project-description.md](doc/desaparecidos-uy-project-description.md).
 
 ## Stage 1: Están en todas partes
@@ -21,8 +27,9 @@ The prototype provides:
 - exact and perceptual duplicate detection so repeated image variants do not enter manifests;
 - Stage 1 place-source crawling and internal Stage 2 people-source crawling;
 - a preset menu of ordinary contemporary Uruguay starting pages;
+- stricter local OpenCV/NumPy crawler gating: `people` rows require a detected face and `places` rows require photo-like non-face scene material;
 - deterministic, vectorised fragment matching and assembly with optional per-source contribution caps;
-- still PNG outputs and optional browser-playable H.264 MP4 process videos with a bottom URL ticker and commemorative outro;
+- still PNG outputs and optional browser-playable H.264 MP4 process videos with a fast search-candidate scan, bottom URL ticker, and commemorative outro;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
@@ -52,7 +59,7 @@ Generation controls include:
 - `Max tiles per source`, wired to `max_contribution_per_source` (`0` means unlimited);
 - `reuse_limit`, `output_width`, seed, still generation, and video generation.
 
-Generated videos introduce each used source image full-screen, highlight sampled fragment regions, animate those fragments into their actual positions in the reconstructed portrait, write crawled page URLs along the bottom during search/assembly frames, and finish with a commemorative outro.
+Generated videos show the search before the selection: local crawl candidates that do not contribute are flashed quickly in crawl order, then a usable source is introduced full-screen, sampled fragment regions are highlighted, and those fragments animate into their actual positions in the reconstructed portrait. Crawler page URLs are written along the bottom during search/assembly frames, and the video finishes with a commemorative outro.
 
 ## Manual Setup
 
@@ -91,7 +98,7 @@ The CLI remains available for automation and testing.
 python -m desaparecidos validate --targets data/manifests/targets.csv --sources data/manifests/places.csv
 python -m desaparecidos download --manifest data/manifests/places.csv --kind places
 python -m desaparecidos download --manifest data/manifests/people.csv --kind people
-python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17
+python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17 --search-scan-frames-per-candidate 2 --search-scan-max-candidates 120
 python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
 
@@ -104,14 +111,17 @@ Tracked manifest templates live in `data/manifests/`.
 - Target manifests describe disappeared persons' public images and source provenance.
 - Place manifests describe place/surface images and reuse terms.
 - People manifests describe contemporary public images of people for internal Stage 2 exploration. They are review-gated source-corpus material, not disappeared-person targets, and no identity matching is performed.
+- Public availability is not treated as blanket permission. Source images of living people are privacy-sensitive; public release requires legal/ethical review, deletion or exclusion procedures, and output review so no living source person appears recognisably.
 - `scripts/build_targets_manifest.py` builds ignored local target manifests from `doc/fotos-desaparecidos/`. By default it writes processed 3:4 portrait copies under ignored `data/processed/targets/`, trimming near-white borders and caption/text margins while keeping the original filename in provenance notes.
 - Rows must use `review_status=approved` before the Stage 1 pipeline can use the corresponding local file.
 - The crawler fetches only page URLs entered or selected in the GUI, follows links within depth/page/image limits, honours `robots.txt` by default, and defaults preset runs to same-domain traversal.
+- `people` crawling now requires an actual detected face before a pending row is written. It stores only the largest face box for review and does not infer identity, category, demographic traits, or relation to a disappeared person.
+- `places` crawling uses conservative local statistics to reject flat graphics, logos/posters, prominent faces, and random-noise-like textures before manual review. This is a heuristic photo gate, not a semantic scene recogniser.
 - The crawler saves discovered images under ignored `data/raw/crawl/store/`, records cache/trail data in ignored `data/raw/crawl/cache.sqlite`, exports each run under ignored `data/raw/crawl/runs/<run_id>.jsonl`, and appends pending rows to ignored `data/manifests/crawled-*.csv`.
 - Crawled rows keep the direct image URL in `source_url`, the page where it was found in `source_page`, and crawl metadata (`crawl_run_id`, `content_sha256`, `perceptual_hash`). People rows also keep the largest accepted face-region box for manual review.
 - Exact SHA-256 and perceptual hashes prevent repeated image variants from being added to manifests. Cache classification is per manifest kind, so one URL can be evaluated separately as a place or people candidate without re-downloading.
 - `reuse_limit` is enforced per extracted source fragment. `max_contribution_per_source` caps how many output tiles any single source image fills, and infeasible caps fail before generation.
-- Video sidecars record settings, source usage, source sequence, tile counts, per-source animated fragment counts, video process metadata, and the search-trail URLs/run ids used by the bottom ticker.
+- Video sidecars record settings, source usage, source sequence, tile counts, per-source animated fragment counts, video process metadata, search-trail URLs/run ids, and displayed search-candidate frame references used by the fast scan and bottom ticker.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 
 Downloaded and crawled files are written under `data/raw/`; processed target copies are written under `data/processed/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.

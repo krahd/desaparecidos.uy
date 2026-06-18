@@ -189,6 +189,114 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
     assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])
 
 
+def test_process_video_frames_scan_non_contributing_candidates(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=1)
+    candidate_path = tmp_path / "candidate.png"
+    make_image(candidate_path, (40, 80, 130), (210, 180, 130))
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+    )
+    displayed: list[dict[str, object]] = []
+    candidates = [
+        pipeline_module.SearchCandidate(
+            run_id="run-1",
+            row_id="rejected-1",
+            source_id=None,
+            page_url="https://example.invalid/page",
+            image_url="https://example.invalid/rejected.png",
+            decision="cv-rejected",
+            path=str(candidate_path),
+            cv_label="noise",
+        )
+    ]
+
+    frames = list(itertools.islice(
+        pipeline_module._process_video_frames(
+            target_row,
+            assembly,
+            source_rows,
+            places,
+            seed=17,
+            fps=4,
+            search_candidates=candidates,
+            search_scan_frames_per_candidate=2,
+            search_candidate_display=displayed,
+        ),
+        4,
+    ))
+
+    assert len(frames) == 4
+    assert displayed[0]["role"] == "scan"
+    assert displayed[0]["decision"] == "cv-rejected"
+    assert displayed[0]["frame_start"] == 0
+    assert displayed[0]["frame_end"] == 2
+    assert frames[0].tobytes() == frames[1].tobytes()
+    assert frames[2].tobytes() != frames[0].tobytes()
+
+
+def test_search_candidate_sidecar_records_crawl_events_and_cap(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    targets, places = write_manifests(tmp_path, source_count=2)
+    candidate_a = tmp_path / "candidate-a.png"
+    candidate_b = tmp_path / "candidate-b.png"
+    make_image(candidate_a, (30, 70, 120), (180, 160, 120))
+    make_image(candidate_b, (130, 70, 50), (200, 190, 160))
+
+    monkeypatch.setattr(
+        pipeline_module,
+        "image_events_for_runs",
+        lambda _root, run_ids: [
+            {
+                "run_id": run_ids[0],
+                "ordinal": 1,
+                "page_url": "https://example.invalid/page-a",
+                "image_url": "https://example.invalid/a.png",
+                "decision": "cv-rejected",
+                "row_id": "reject-a",
+                "path": str(candidate_a),
+                "cv_label": "noise",
+            },
+            {
+                "run_id": run_ids[0],
+                "ordinal": 2,
+                "page_url": "https://example.invalid/page-b",
+                "image_url": "https://example.invalid/source-0.png",
+                "decision": "accepted",
+                "row_id": "source-0",
+                "path": str(candidate_b),
+                "cv_label": "place-photo",
+            },
+        ],
+    )
+
+    output = run_stage1(
+        targets,
+        places,
+        tmp_path / "out",
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=4,
+            output_width=96,
+            search_scan_max_candidates=1,
+        ),
+    )[0]
+
+    sidecar = json.loads(Path(output.sidecar_path).read_text(encoding="utf-8"))
+    assert sidecar["search_candidates"]["source"] == "crawl-events"
+    assert sidecar["search_candidates"]["available_count"] == 2
+    assert sidecar["search_candidates"]["local_count"] == 2
+    assert sidecar["search_candidates"]["selected_count"] == 1
+    assert sidecar["search_candidates"]["omitted_count"] == 1
+
+
 def test_url_ticker_draws_bottom_url() -> None:
     frame = Image.new("RGB", (240, 120), (240, 240, 240))
     rendered = pipeline_module._with_url_ticker(

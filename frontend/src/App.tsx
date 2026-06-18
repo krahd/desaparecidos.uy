@@ -333,6 +333,8 @@ export function App() {
           reuse_limit: reuseLimit,
           output_width: outputWidth,
           max_contribution_per_source: maxContribution,
+          search_scan_frames_per_candidate: 2,
+          search_scan_max_candidates: 120,
           make_video: makeVideo,
           target_id: selectedTargetId || undefined,
         });

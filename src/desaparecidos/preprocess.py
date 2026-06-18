@@ -49,14 +49,52 @@ def content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     height, width = gray.shape
     component_box = _component_content_bbox(gray)
     if component_box is not None:
-        return component_box
+        return _tighten_white_edges(gray, component_box)
 
     white = gray >= WHITE_THRESHOLD
     top, bottom = _scan_bounds(white.mean(axis=1))
     left, right = _scan_bounds(white.mean(axis=0))
     if right <= left or bottom <= top:
         return 0, 0, width, height
-    return left, top, right, bottom
+    return _tighten_white_edges(gray, (left, top, right, bottom))
+
+
+def _tighten_white_edges(
+    gray: np.ndarray, box: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
+    """Pull each edge of ``box`` inward past rows/columns that are still mostly
+    white. Component detection can be dragged into the white scan margin by thin
+    dark artefacts (stray marks, hair strands, edge noise); this removes the
+    near-white border those protrusions leave behind without touching real content.
+    """
+    left, top, right, bottom = box
+    sub = gray[top:bottom, left:right]
+    if sub.size == 0:
+        return box
+    height, width = sub.shape
+    white = sub >= WHITE_THRESHOLD
+    row_white = white.mean(axis=1)
+    col_white = white.mean(axis=0)
+
+    def lead(values: np.ndarray, limit: int) -> int:
+        index = 0
+        while index < limit and values[index] >= BORDER_WHITE_FRACTION:
+            index += 1
+        return index
+
+    row_limit = int(height * MAX_TRIM_FRACTION)
+    col_limit = int(width * MAX_TRIM_FRACTION)
+    new_top = top + lead(row_white, row_limit)
+    new_bottom = bottom - lead(row_white[::-1], row_limit)
+    new_left = left + lead(col_white, col_limit)
+    new_right = right - lead(col_white[::-1], col_limit)
+
+    if (
+        new_right - new_left < width * MIN_KEEP_FRACTION
+        or new_bottom - new_top < height * MIN_KEEP_FRACTION
+    ):
+        return box
+    return new_left, new_top, new_right, new_bottom
 
 
 def _component_content_bbox(gray: np.ndarray) -> tuple[int, int, int, int] | None:

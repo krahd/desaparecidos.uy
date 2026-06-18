@@ -121,7 +121,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 
 ### 5.1:  Project shape
 
-- Purpose: `desaparecidos.uy` is a computational memorial artwork series about detained-disappeared persons connected to Uruguay, beginning with the Stage 1 place-fragment prototype **Están en todas partes**.
+- Purpose: `desaparecidos.uy` is a computational memorial artwork triptych about detained-disappeared persons connected to Uruguay: **Todos somos familiares** (internal face-fragment work), **Están en todas partes** (current place-fragment prototype), and **Seguimos buscando** (search/traversal work).
 - Main runtime surfaces: localhost-only web GUI, FastAPI backend, reusable Python pipeline, and CLI entry points.
 - Primary languages/frameworks: Python, FastAPI, Pillow, NumPy, OpenCV for optional MP4 writing, React, Vite, and TypeScript.
 - Supported platforms: local development on macOS first; the Python pipeline should remain portable where practical.
@@ -163,8 +163,9 @@ Each repository should keep this section useful. Replace the placeholders below 
 - Preserve exact and perceptual dedupe so repeated image variants do not become repeated manifest rows.
 - Keep `targets` for disappeared-person portraits only. Contemporary public images of people belong in `people` manifests for internal Stage 2 review and must not be treated as disappeared-person targets.
 - Do not add identity-seeking behaviour, face/name matching, or biometric identification for contemporary people images.
-- Computer-vision gating may accept face candidates for `targets` and `people` and textured non-face scenes for `places`; it never auto-approves rows and never identifies people.
-- Crawled images, a SQLite index, and JSONL page-trail exports are persisted on disk under ignored `data/raw/crawl/` so the crawler does not re-download and videos can replay the search trail. This local persistence is intentional for now; it is not committed to git, and the persistence policy may be revisited once the workflow is settled.
+- Treat public availability as insufficient consent for arbitrary processing. For contemporary people imagery, exclude minors, private contexts, and sensitive contexts such as schools, hospitals, prisons, shelters, protests, funerals, religious ceremonies, political meetings, health, criminal justice, and education unless explicit permission exists.
+- Computer-vision gating must require real detected faces for `targets` and `people`; do not use fallback face boxes. `places` gating must prefer photo-like non-face scene material and reject obvious graphics, logos/posters, prominent faces, and noise-like textures. CV never auto-approves rows and never identifies people.
+- Crawled images, a SQLite index, image-event trails, and JSONL page-trail exports are persisted on disk under ignored `data/raw/crawl/` so the crawler does not re-download and videos can replay the search trail and fast non-contributing candidate scan. This local persistence is intentional for now; it is not committed to git, and the persistence policy may be revisited once the workflow is settled.
 
 Do not weaken safety invariants without explicit user instruction and documentation.
 

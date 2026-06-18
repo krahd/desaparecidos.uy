@@ -40,6 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fragment-size", type=int, default=24)
     run.add_argument("--reuse-limit", type=int, default=8)
     run.add_argument("--output-width", type=int, default=720)
+    run.add_argument("--max-contribution-per-source", type=int, default=0)
+    run.add_argument("--search-scan-frames-per-candidate", type=int, default=2)
+    run.add_argument("--search-scan-max-candidates", type=int, default=120)
     run.add_argument("--target-id")
     run.add_argument("--video", action="store_true")
 
@@ -80,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
             fragment_size=args.fragment_size,
             reuse_limit=args.reuse_limit,
             output_width=args.output_width,
+            max_contribution_per_source=args.max_contribution_per_source,
+            search_scan_frames_per_candidate=args.search_scan_frames_per_candidate,
+            search_scan_max_candidates=args.search_scan_max_candidates,
             make_video=args.video,
         )
         outputs = run_stage1(

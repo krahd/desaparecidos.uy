@@ -40,6 +40,8 @@ BASE_URL = "https://sitiosdememoria.uy"
 LIST_URL = f"{BASE_URL}/desaparicion-forzada"
 EXPORT_PAGE_URL = f"{BASE_URL}/exportar-datos"
 USER_AGENT = "desaparecidos.uy importer; research/art archival use; contact via repository owner"
+# Source id (see data/sources.json) for every field this Sitios-specific importer fills.
+SITIOS_SOURCE_ID = "sitios-de-memoria"
 
 FIELD_ALIASES = {
     "Nombre": "given_names",
@@ -100,7 +102,9 @@ class PersonRecord:
     fields: dict[str, object] = field(default_factory=dict)
     short_bio: str | None = None
     portrait_candidates: list[ImageCandidate] = field(default_factory=list)
+    portrait_status: str = "missing"
     sources: list[str] = field(default_factory=list)
+    field_sources: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -109,9 +113,12 @@ class PersonRecord:
             "source_page": self.source_page,
             "sources": self.sources,
         }
+        if self.field_sources:
+            data["field_sources"] = self.field_sources
         if self.short_bio:
             data["short_bio"] = self.short_bio
         data.update(self.fields)
+        data["portrait_status"] = self.portrait_status
         data["portrait_candidates"] = [candidate.__dict__ for candidate in self.portrait_candidates]
         return data
 
@@ -143,18 +150,39 @@ class LinkParser(HTMLParser):
             self._text = []
 
 
-class ImageParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.images: list[str] = []
+# The person portrait on a Sitios de Memoria page lives in a single Drupal
+# field container. Anchoring to it is far more reliable than scanning every
+# image: works posters, materials, judicial scans, and supporter logos live in
+# other containers and must never be treated as the person's face.
+PORTRAIT_FIELD_MARKER = "field--name-field-fotografia"
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() != "img":
-            return
-        attr = dict(attrs)
-        src = attr.get("src") or attr.get("data-src") or attr.get("data-original")
-        if src:
-            self.images.append(src)
+# Field-extraction stops at these heading prefixes so trailing fields (e.g.
+# "Víctima de") do not slurp the works/materials/footer text that follows.
+FIELD_STOP_PREFIXES = (
+    "Obras de interés",
+    "Materiales de interés",
+    "Causas judiciales",
+    "Trayecto de detención",
+)
+FIELD_STOP_LINES = {"PARTICIPAMOS DE:", "APOYAN:", "PARTICIPAMOS DE", "APOYAN"}
+
+# Non-portrait images that can still appear inside or near the portrait field:
+# site logos, licence badges, supporter strips, inline link icons, and the
+# "access archive" button.
+PORTRAIT_SKIP_TOKENS = (
+    "logo",
+    "licencia",
+    "creative-commons",
+    "cc-by",
+    "participamos",
+    "apoyan",
+    "inline-images",
+    "accederenlace",
+    "verarchivo",
+)
+
+_IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+_IMG_SRC = re.compile(r"""(?:src|data-src|data-original)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 
 
 def normalise_space(value: str) -> str:
@@ -280,7 +308,12 @@ def extract_fields(page_html: str) -> tuple[dict[str, object], str | None]:
         if line in labels:
             values: list[str] = []
             for candidate in lines[i + 1 :]:
-                if candidate in labels or candidate.startswith("####") or candidate in {"Trayecto de detención", "Materiales de interés"}:
+                if (
+                    candidate in labels
+                    or candidate.startswith("####")
+                    or candidate in FIELD_STOP_LINES
+                    or any(candidate.startswith(prefix) for prefix in FIELD_STOP_PREFIXES)
+                ):
                     break
                 if candidate not in {"Documento", "Image"}:
                     values.append(candidate)
@@ -296,20 +329,45 @@ def extract_fields(page_html: str) -> tuple[dict[str, object], str | None]:
     return fields, bio
 
 
-def image_urls(page_html: str, page_url: str) -> list[str]:
-    parser = ImageParser()
-    parser.feed(page_html)
-    urls: list[str] = []
-    for src in parser.images:
-        url = urljoin(page_url, html.unescape(src))
-        lower = url.lower()
-        if any(skip in lower for skip in ("logo", "licencia", "creative-commons", "cc-by", "participamos", "apoyan")):
+def _portrait_field_region(page_html: str) -> str | None:
+    """Return the HTML of the person's ``field-fotografia`` container, or None.
+
+    The region runs from the portrait field marker to the start of the next
+    Drupal field block, so image scanning cannot wander into the biography,
+    works, or materials content that follows.
+    """
+    start = page_html.find(PORTRAIT_FIELD_MARKER)
+    if start == -1:
+        return None
+    region = page_html[start : start + 6000]
+    nxt = region.find("field--name-", len(PORTRAIT_FIELD_MARKER))
+    return region[:nxt] if nxt != -1 else region
+
+
+def select_portrait_urls(page_html: str, page_url: str) -> list[str]:
+    """Return at most the single portrait from the person's ``field-fotografia``.
+
+    Images outside that field (works posters, materials, judicial scans,
+    supporter logos, inline link icons) are never considered. When the field is
+    absent or empty the result is empty and the caller records
+    ``portrait_status="missing"`` rather than importing a poster or document as
+    the person's face.
+    """
+    region = _portrait_field_region(page_html)
+    if region is None:
+        return []
+    for match in _IMG_TAG.finditer(region):
+        src = _IMG_SRC.search(match.group(0))
+        if not src:
             continue
+        url = urljoin(page_url, html.unescape(src.group(1)))
+        lower = url.lower()
         if "/sites/default/files/" not in lower:
             continue
-        if url not in urls:
-            urls.append(url)
-    return urls
+        if any(token in lower for token in PORTRAIT_SKIP_TOKENS):
+            continue
+        return [url]
+    return []
 
 
 def safe_suffix(url: str) -> str:
@@ -396,23 +454,30 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
     if fields.get("given_names") and fields.get("family_names"):
         full_name = f"{fields['given_names']} {fields['family_names']}"
     record = PersonRecord(slug=slug, full_name=full_name, source_page=page_url, fields=fields, short_bio=bio, sources=[page_url, LIST_URL])
-    if args.download_images or args.process_images:
-        urls = image_urls(page_html, page_url)
-        for idx, url in enumerate(urls, start=1):
-            candidate = ImageCandidate(source_url=url)
-            try:
-                raw_path, digest = download_portrait(url, args.raw_dir / slug, f"{idx:02d}", args.overwrite)
-                candidate.raw_path = str(raw_path.relative_to(args.repo_root))
-                candidate.sha256 = digest
-                if args.process_images:
-                    processed_path = args.processed_dir / f"{slug}.png"
-                    width, height = process_portrait(raw_path, processed_path, args.size, args.overwrite)
-                    candidate.processed_path = str(processed_path.relative_to(args.repo_root))
-                    candidate.width = width
-                    candidate.height = height
-            except Exception as exc:  # record failure without aborting whole import
-                candidate.status = f"failed: {exc}"
-            record.portrait_candidates.append(candidate)
+    # Provenance: every metadata field imported here comes from Sitios de Memoria.
+    record.field_sources = {key: SITIOS_SOURCE_ID for key in fields}
+    # Conservative portrait selection: at most the single header-block portrait,
+    # or none at all when the page only carries works/materials imagery.
+    portrait_urls = select_portrait_urls(page_html, page_url)
+    record.portrait_status = "ok" if portrait_urls else "missing"
+    if portrait_urls:
+        record.field_sources["portrait"] = SITIOS_SOURCE_ID
+    if portrait_urls and (args.download_images or args.process_images):
+        url = portrait_urls[0]
+        candidate = ImageCandidate(source_url=url)
+        try:
+            raw_path, digest = download_portrait(url, args.raw_dir / slug, "01", args.overwrite)
+            candidate.raw_path = str(raw_path.relative_to(args.repo_root))
+            candidate.sha256 = digest
+            if args.process_images:
+                processed_path = args.processed_dir / f"{slug}.png"
+                width, height = process_portrait(raw_path, processed_path, args.size, args.overwrite)
+                candidate.processed_path = str(processed_path.relative_to(args.repo_root))
+                candidate.width = width
+                candidate.height = height
+        except Exception as exc:  # record failure without aborting whole import
+            candidate.status = f"failed: {exc}"
+        record.portrait_candidates.append(candidate)
     return record
 
 

@@ -31,7 +31,20 @@ data/manifests/targets-sitios-de-memoria.csv
 assets/
 outputs/
 
+/assets/targets/disappeared/raw/
+/assets/targets/disappeared/processed/
+/data/persons/disappeared-sitios-de-memoria.*
+/data/manifests/targets-sitios-de-memoria.csv
+
+
+# Redundant local archive of the tracked doc/fotos-desaparecidos portraits
+doc/fotos-desaparecidos.zip
+
 # Local environment and logs
 .env
 .env.*
 *.log
+
+# Large local source archives
+/doc/fotos-desaparecidos.zip
+*.zip

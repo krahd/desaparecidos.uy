@@ -1,0 +1,41 @@
+{
+  "description": "Authoritative sources for disappeared-person records and portraits. Each person record in data/persons/*.json carries a 'field_sources' map whose values are the 'id' fields below, recording which source is authoritative for each field (including 'portrait'). Curate this list as better sources are confirmed.",
+  "sources": [
+    {
+      "id": "sitios-de-memoria",
+      "name": "Sitios de Memoria Uruguay",
+      "url": "https://sitiosdememoria.uy",
+      "kind": "metadata+portrait",
+      "licence": "CC BY-SA 4.0 (verify per item before public release)",
+      "trust": { "metadata": "high", "portrait": "medium" },
+      "notes": "Primary structured metadata source (open dataset + per-person pages). Portraits only when present in the 'field-fotografia' container; person pages also carry work posters and materials that must not be used as portraits."
+    },
+    {
+      "id": "madres-familiares",
+      "name": "Madres y Familiares de Uruguayos Detenidos Desaparecidos",
+      "url": "https://desaparecidos.org.uy",
+      "kind": "portrait+metadata",
+      "licence": "Verify reuse terms before public release",
+      "trust": { "metadata": "high", "portrait": "high" },
+      "notes": "Foundational Uruguayan organisation (since 1983). Published photo + personal data per disappeared person from the mid-1980s; maintains a galeria de imagenes. Strong authoritative portrait source for Uruguayan victims."
+    },
+    {
+      "id": "parque-de-la-memoria",
+      "name": "Parque de la Memoria (Argentina)",
+      "url": "https://basededatos.parquedelamemoria.org.ar",
+      "kind": "portrait+metadata",
+      "licence": "Verify reuse terms before public release",
+      "trust": { "metadata": "high", "portrait": "high" },
+      "notes": "Argentine state memorial database. Best portrait source for victims detained/disappeared in or linked to Argentina (e.g. Cóndor cases)."
+    },
+    {
+      "id": "investigacion-historica",
+      "name": "Investigación Histórica sobre Detenidos Desaparecidos (Presidencia)",
+      "url": "https://archivo.presidencia.gub.uy",
+      "kind": "metadata+portrait",
+      "licence": "Public official report; verify reuse before public release",
+      "trust": { "metadata": "high", "portrait": "medium" },
+      "notes": "Official government investigation with per-person fichas (photo, personal data, detention and disappearance data). The bound tomos are mirrored locally under doc/."
+    }
+  ]
+}

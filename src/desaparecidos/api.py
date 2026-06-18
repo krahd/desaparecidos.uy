@@ -11,7 +11,13 @@ from pydantic import BaseModel, Field
 from .crawl import crawl_pages
 from .demo import create_demo_fixtures
 from .download import download_manifest
-from .manifests import ManifestKind, set_review_status, validate_manifest
+from .manifests import (
+    ManifestKind,
+    delete_manifest_rows,
+    set_review_status,
+    set_review_status_bulk,
+    validate_manifest,
+)
 from .outputs import delete_outputs, list_outputs
 from .paths import PROJECT_ROOT, safe_project_path
 from .pipeline import Stage1Settings, run_stage1
@@ -38,6 +44,7 @@ class GenerateRequest(BaseModel):
     fragment_size: int = Field(default=24, ge=8, le=128)
     reuse_limit: int = Field(default=8, ge=1, le=10000)
     output_width: int = Field(default=720, ge=120, le=4096)
+    max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
     make_video: bool = False
     target_id: str | None = None
 
@@ -63,6 +70,21 @@ class ReviewRequest(BaseModel):
     kind: ManifestKind
     row_id: str
     review_status: Literal["approved", "pending", "rejected"]
+
+
+class ReviewBulkRequest(BaseModel):
+    manifest: str
+    kind: ManifestKind
+    review_status: Literal["approved", "pending", "rejected"]
+    row_ids: list[str] = []
+    all: bool = False
+
+
+class DeleteRowRequest(BaseModel):
+    manifest: str
+    kind: ManifestKind
+    row_id: str | None = None
+    row_ids: list[str] = []
 
 
 class DeleteOutputsRequest(BaseModel):
@@ -158,6 +180,34 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"ok": validation.ok, "manifest": validation.to_api()}
 
+    @app.post("/api/review-bulk")
+    def review_bulk(request: ReviewBulkRequest) -> dict[str, Any]:
+        try:
+            validation = set_review_status_bulk(
+                safe_project_path(request.manifest),
+                request.kind,
+                request.review_status,
+                row_ids=None if request.all else request.row_ids,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": validation.ok, "manifest": validation.to_api()}
+
+    @app.post("/api/review/delete")
+    def delete_row(request: DeleteRowRequest) -> dict[str, Any]:
+        row_ids = list(request.row_ids)
+        if request.row_id:
+            row_ids.append(request.row_id)
+        try:
+            validation = delete_manifest_rows(
+                safe_project_path(request.manifest),
+                request.kind,
+                row_ids,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": validation.ok, "manifest": validation.to_api()}
+
     @app.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:
         settings = Stage1Settings(
@@ -165,6 +215,7 @@ def create_app() -> FastAPI:
             fragment_size=request.fragment_size,
             reuse_limit=request.reuse_limit,
             output_width=request.output_width,
+            max_contribution_per_source=request.max_contribution_per_source,
             make_video=request.make_video,
         )
         try:

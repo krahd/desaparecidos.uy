@@ -15,12 +15,15 @@ from .paths import display_path
 class CachedImage:
     url: str
     sha256: str
-    phash: str
     path: str
     bytes: int
     width: int
     height: int
     content_type: str
+    phash: str = ""
+    cv_label: str = ""
+    cv_score: float = 0.0
+    cv_accept: bool = False
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,9 @@ class CrawlCache:
                 width INTEGER NOT NULL,
                 height INTEGER NOT NULL,
                 content_type TEXT NOT NULL,
+                cv_label TEXT NOT NULL DEFAULT '',
+                cv_score REAL NOT NULL DEFAULT 0,
+                cv_accept INTEGER NOT NULL DEFAULT 0,
                 first_seen REAL NOT NULL,
                 last_seen REAL NOT NULL
             );
@@ -117,9 +123,19 @@ class CrawlCache:
                 error TEXT,
                 created_at REAL NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS pages (
+                url TEXT PRIMARY KEY,
+                depth INTEGER,
+                status INTEGER,
+                fetched_at REAL
+            );
             """
         )
         self._ensure_column("images", "phash", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("images", "cv_label", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("images", "cv_score", "REAL NOT NULL DEFAULT 0")
+        self._ensure_column("images", "cv_accept", "INTEGER NOT NULL DEFAULT 0")
         self.conn.executescript(
             """
             CREATE INDEX IF NOT EXISTS images_sha256 ON images(sha256);
@@ -141,12 +157,15 @@ class CrawlCache:
         return CachedImage(
             url=row["url"],
             sha256=row["sha256"],
-            phash=row["phash"],
             path=row["path"],
             bytes=int(row["bytes"]),
             width=int(row["width"]),
             height=int(row["height"]),
             content_type=row["content_type"],
+            phash=row["phash"],
+            cv_label=row["cv_label"],
+            cv_score=float(row["cv_score"]),
+            cv_accept=bool(row["cv_accept"]),
         )
 
     @staticmethod
@@ -190,8 +209,9 @@ class CrawlCache:
         self.conn.execute(
             """
             INSERT INTO images (url, sha256, phash, path, bytes, width, height,
-                                content_type, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                content_type, cv_label, cv_score, cv_accept,
+                                first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(url) DO UPDATE SET
                 sha256=excluded.sha256,
                 phash=excluded.phash,
@@ -200,6 +220,9 @@ class CrawlCache:
                 width=excluded.width,
                 height=excluded.height,
                 content_type=excluded.content_type,
+                cv_label=excluded.cv_label,
+                cv_score=excluded.cv_score,
+                cv_accept=excluded.cv_accept,
                 last_seen=excluded.last_seen
             """,
             (
@@ -211,9 +234,30 @@ class CrawlCache:
                 record.width,
                 record.height,
                 record.content_type,
+                record.cv_label,
+                record.cv_score,
+                int(record.cv_accept),
                 now,
                 now,
             ),
+        )
+        self.conn.commit()
+
+    def page_depth(self, url: str) -> int | None:
+        row = self.conn.execute("SELECT depth FROM pages WHERE url = ?", (url,)).fetchone()
+        return int(row["depth"]) if row else None
+
+    def put_page(self, url: str, depth: int, status: int) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO pages (url, depth, status, fetched_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                depth=min(pages.depth, excluded.depth),
+                status=excluded.status,
+                fetched_at=excluded.fetched_at
+            """,
+            (url, depth, status, time.time()),
         )
         self.conn.commit()
 

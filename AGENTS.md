@@ -121,7 +121,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 
 ### 5.1:  Project shape
 
-- Purpose: `desaparecidos.uy` is a computational memorial artwork series about detained-disappeared persons connected to Uruguay, beginning with the Stage 1 place-fragment prototype **Estan en todas partes**.
+- Purpose: `desaparecidos.uy` is a computational memorial artwork series about detained-disappeared persons connected to Uruguay, beginning with the Stage 1 place-fragment prototype **Están en todas partes**.
 - Main runtime surfaces: localhost-only web GUI, FastAPI backend, reusable Python pipeline, and CLI entry points.
 - Primary languages/frameworks: Python, FastAPI, Pillow, NumPy, OpenCV for optional MP4 writing, React, Vite, and TypeScript.
 - Supported platforms: local development on macOS first; the Python pipeline should remain portable where practical.
@@ -141,23 +141,30 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `data/manifests/people.csv`: tracked empty template for internal Stage 2 contemporary people-source review.
 - `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests, including `crawled-places.csv` and `crawled-people.csv`.
 - `data/raw/`: ignored downloaded or local source imagery.
-- `data/raw/crawl/`: ignored crawler cache, content-addressed image store, SQLite crawl index, and JSONL crawl-trail exports.
+- `data/raw/crawl/`: ignored crawler cache — content-addressed image store under `store/` plus a SQLite index (`cache.sqlite`).
+- `data/processed/`: ignored processed local derivatives, including 3:4 target portrait copies generated from `doc/fotos-desaparecidos/`.
+- `doc/fotos-desaparecidos/`: curated source portraits of the disappeared, tracked intentionally as foundational material for the work (the redundant `doc/fotos-desaparecidos.zip` archive is ignored).
+- `data/raw/crawl/runs/`: ignored JSONL crawl-trail exports used by generated process videos.
+- `data/persons/`, `assets/`, and `data/manifests/targets-sitios-de-memoria.csv`: ignored local importer outputs.
+- `data/sources.json`: tracked registry of authoritative sources; person records reference its ids in their `field_sources` provenance map.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
-- `start.sh`: launcher for the local GUI.
+- `start.sh`: launcher script for the local GUI.
 
 ### 5.3:  Safety invariants
 
 - Keep the GUI and API bound to localhost unless the user explicitly requests another deployment mode.
-- Never commit raw source imagery, generated outputs, fragments, downloaded files, crawler cache databases, crawl-trail exports, or review-sensitive data.
+- Ask before committing raw source imagery, processed derivatives, generated outputs, fragments, downloaded files, or review-sensitive data. This rule targets transient crawler/download outputs (ignored under `data/raw/`) and local processed copies (ignored under `data/processed/`). The curated source portraits in `doc/fotos-desaparecidos/` are an intentional, tracked part of the work and are not covered by this rule; do not untrack or remove them. By default, generated manifests of real people belong on ignored `data/manifests/local-*.csv` paths.
 - Require `review_status=approved` before any source image participates in Stage 1 generation.
 - Keep provenance metadata with every downloaded input and generated output.
 - Treat historical target images respectfully: do not claim enhancement, recovery, or forensic reconstruction.
 - Validate paths stay inside the project root for API file access.
-- Keep crawling seeded by explicit user-supplied or approved preset pages, localhost-only operation, ignored raw files, pending manifest rows, depth/page/image caps, same-domain preset defaults, `robots.txt` by default, and manual approval before generation.
+- Keep crawling seeded by explicit user-supplied or approved preset pages, localhost-only operation, ignored raw files, pending manifest rows, depth/page/image caps, same-domain preset defaults, a per-host politeness delay, `robots.txt` by default, and manual approval before generation.
 - Preserve exact and perceptual dedupe so repeated image variants do not become repeated manifest rows.
 - Keep `targets` for disappeared-person portraits only. Contemporary public images of people belong in `people` manifests for internal Stage 2 review and must not be treated as disappeared-person targets.
 - Do not add identity-seeking behaviour, face/name matching, or biometric identification for contemporary people images.
+- Computer-vision gating may accept face candidates for `targets` and `people` and textured non-face scenes for `places`; it never auto-approves rows and never identifies people.
+- Crawled images, a SQLite index, and JSONL page-trail exports are persisted on disk under ignored `data/raw/crawl/` so the crawler does not re-download and videos can replay the search trail. This local persistence is intentional for now; it is not committed to git, and the persistence policy may be revisited once the workflow is settled.
 
 Do not weaken safety invariants without explicit user instruction and documentation.
 

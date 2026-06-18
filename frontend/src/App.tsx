@@ -3,7 +3,6 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
-  Download,
   Eye,
   FileCheck2,
   Globe2,
@@ -12,6 +11,7 @@ import {
   Maximize2,
   Play,
   RefreshCw,
+  Settings,
   Square,
   Trash2,
   Video,
@@ -20,17 +20,20 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  CrawlResponse,
   ManifestRow,
   OutputItem,
   ValidateResponse,
   crawlPages,
   createDemoFixtures,
   deleteOutputs,
-  downloadManifest,
+  deleteReviewRow,
+  deleteReviewRows,
   fileUrl,
   generateStage1,
   listOutputs,
   updateReviewStatus,
+  updateReviewStatusBulk,
   validateManifests,
 } from './api';
 
@@ -55,7 +58,7 @@ type CrawlPreset = {
 };
 
 const defaultPaths = {
-  targets: 'data/manifests/targets.csv',
+  targets: 'data/manifests/local-targets.csv',
   sources: 'data/manifests/places.csv',
   people: 'data/manifests/people.csv',
   outputDir: 'outputs/stage1',
@@ -132,27 +135,55 @@ const crawlPresets: CrawlPreset[] = [
   },
 ];
 
+function loadStored(key: string, fallback: string): string {
+  try {
+    return window.localStorage.getItem(`desa.${key}`) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStored(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(`desa.${key}`, value);
+  } catch {
+    /* localStorage unavailable; ignore */
+  }
+}
+
+function manifestForKind(kind: ReviewKind, paths: { targets: string; sources: string; people: string }): string {
+  if (kind === 'targets') return paths.targets;
+  if (kind === 'places') return paths.sources;
+  return paths.people;
+}
+
 export function App() {
-  const [targets, setTargets] = useState(defaultPaths.targets);
-  const [sources, setSources] = useState(defaultPaths.sources);
-  const [people, setPeople] = useState(defaultPaths.people);
-  const [outputDir, setOutputDir] = useState(defaultPaths.outputDir);
+  const [targets, setTargets] = useState(() => loadStored('targets', defaultPaths.targets));
+  const [sources, setSources] = useState(() => loadStored('sources', defaultPaths.sources));
+  const [people, setPeople] = useState(() => loadStored('people', defaultPaths.people));
+  const [outputDir, setOutputDir] = useState(() => loadStored('outputDir', defaultPaths.outputDir));
   const [seed, setSeed] = useState(17);
   const [fragmentSize, setFragmentSize] = useState(24);
   const [reuseLimit, setReuseLimit] = useState(8);
   const [outputWidth, setOutputWidth] = useState(720);
+  const [maxContribution, setMaxContribution] = useState(0);
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [crawling, setCrawling] = useState(false);
   const [selectedOutput, setSelectedOutput] = useState<OutputItem | null>(null);
   const [selectedOutputIds, setSelectedOutputIds] = useState<Set<string>>(new Set());
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
+  const [showUtilities, setShowUtilities] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionId>('manifests');
   const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
+  const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
   const [crawlKind, setCrawlKind] = useState<CrawlKind>('places');
   const [crawlPagesText, setCrawlPagesText] = useState('');
-  const [crawlManifest, setCrawlManifest] = useState(crawlerManifestDefaults.places);
+  const [crawlManifest, setCrawlManifest] = useState(() => (
+    loadStored('crawlManifest', crawlerManifestDefaults.places)
+  ));
   const [crawlMaxImages, setCrawlMaxImages] = useState(12);
   const [crawlDepth, setCrawlDepth] = useState(2);
   const [crawlMaxPages, setCrawlMaxPages] = useState(60);
@@ -171,21 +202,26 @@ export function App() {
     ].slice(0, 80));
   }, []);
 
-  const approvedTargets = validation?.targets.rows.filter((row) => row.approved) ?? [];
+  const allTargets = validation?.targets.rows ?? [];
+  const approvedTargets = allTargets.filter((row) => row.approved);
   const approvedSources = validation?.sources.rows.filter((row) => row.approved) ?? [];
   const reviewRows = reviewKind === 'targets'
-    ? validation?.targets.rows ?? []
+    ? allTargets
     : reviewKind === 'places'
       ? validation?.sources.rows ?? []
       : validation?.people.rows ?? [];
-  const activeTarget = approvedTargets.find((row) => row.id === targetId) ?? approvedTargets[0];
+  const activeTarget = allTargets.find((row) => row.id === targetId)
+    ?? approvedTargets[0]
+    ?? allTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
+  const selectedReviewCount = selectedReviewIds.size;
 
   const statusLabel = useMemo(() => {
+    if (crawling) return 'crawling';
     if (busy) return 'running';
     if (!validation) return 'not validated';
     return validation.ok ? 'validated' : 'needs attention';
-  }, [busy, validation]);
+  }, [busy, crawling, validation]);
 
   const runAction = useCallback(async <T,>(
     label: string,
@@ -199,8 +235,7 @@ export function App() {
       appendLog(success, 'ok');
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      appendLog(message, 'error');
+      appendLog(error instanceof Error ? error.message : String(error), 'error');
       return null;
     } finally {
       setBusy(false);
@@ -251,15 +286,7 @@ export function App() {
     setTargetId(response.checked.targets.rows.find((row) => row.approved)?.id ?? '');
     setReviewKind('places');
     setActiveSection('review');
-  }
-
-  async function handleDownload(kind: ReviewKind) {
-    const manifest = kind === 'targets' ? targets : kind === 'places' ? sources : people;
-    await runAction(
-      `Downloading ${kind} manifest URLs.`,
-      () => downloadManifest({ manifest, kind, output_root: 'data/raw' }),
-      `${kind} download pass finished.`,
-    );
+    setShowUtilities(false);
   }
 
   async function refreshOutputs(preferredPath?: string): Promise<OutputItem | null> {
@@ -286,22 +313,13 @@ export function App() {
     const response = await runAction(
       makeVideo ? 'Checking manifests, then generating still and video.' : 'Checking manifests, then generating still output.',
       async () => {
-        const checked = await validateManifests({
-          targets,
-          sources,
-          people,
-          require_files: true,
-        });
+        const checked = await validateManifests({ targets, sources, people, require_files: true });
         setValidation(checked);
         const firstApprovedTarget = checked.targets.rows.find((row) => row.approved)?.id ?? '';
-        const selectedTargetId = activeTarget?.id || firstApprovedTarget;
-        if (firstApprovedTarget && !activeTarget) {
-          setTargetId(firstApprovedTarget);
-        }
+        const selectedApproved = checked.targets.rows.find((row) => row.approved && row.id === targetId)?.id ?? '';
+        const selectedTargetId = selectedApproved || firstApprovedTarget;
         if (checked.targets.approved_count === 0 || checked.sources.approved_count === 0) {
-          throw new Error(
-            'No approved target/source rows. Approve rows in Review images, or use Create demo fixtures.',
-          );
+          throw new Error('No approved target/source rows. Approve rows in Review images, or use utilities to create demo fixtures.');
         }
         if (!checked.ok) {
           throw new Error('Manifest validation failed. Review the Validation panel before generating.');
@@ -314,6 +332,7 @@ export function App() {
           fragment_size: fragmentSize,
           reuse_limit: reuseLimit,
           output_width: outputWidth,
+          max_contribution_per_source: maxContribution,
           make_video: makeVideo,
           target_id: selectedTargetId || undefined,
         });
@@ -338,9 +357,21 @@ export function App() {
       appendLog('Add at least one page URL before crawling.', 'error');
       return;
     }
-    const response = await runAction(
-      `Crawling ${pages.length} page${pages.length === 1 ? '' : 's'} for ${crawlKind}.`,
-      () => crawlPages({
+    if (crawling) {
+      appendLog('A crawl is already running.', 'error');
+      return;
+    }
+
+    appendLog(
+      `Crawl queued: ${pages.length} seed page${pages.length === 1 ? '' : 's'} for ${crawlKind}; `
+      + `depth ${crawlDepth}; max ${crawlMaxPages} pages; max ${crawlMaxTotal} images; `
+      + `${crawlCrossDomain ? 'cross-domain' : 'same-domain'}; CV ${crawlUseCv ? 'on' : 'off'}.`,
+    );
+    appendLog(`Crawling ${crawlKind}; review remains available.`);
+    setCrawling(true);
+    let response: CrawlResponse | null = null;
+    try {
+      response = await crawlPages({
         pages,
         kind: crawlKind,
         manifest: crawlManifest,
@@ -352,10 +383,15 @@ export function App() {
         max_images: crawlMaxTotal,
         cross_domain: crawlCrossDomain,
         use_cv: crawlUseCv,
-      }),
-      'Crawler finished.',
-    );
+      });
+      appendLog('Crawler finished.', 'ok');
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : String(error), 'error');
+    } finally {
+      setCrawling(false);
+    }
     if (!response) return;
+
     if (crawlKind === 'places') {
       setSources(response.manifest);
     } else {
@@ -363,24 +399,39 @@ export function App() {
     }
     setReviewKind(crawlKind);
     setActiveSection('review');
+
     const checked = await validateManifests({
       targets,
       sources: crawlKind === 'places' ? response.manifest : sources,
       people: crawlKind === 'people' ? response.manifest : people,
       require_files: true,
-    });
-    setValidation(checked);
-    const saved = response.items.filter((item) => item.ok).length;
+    }).catch(() => null);
+    if (checked) setValidation(checked);
+
     appendLog(
       `Crawler run ${response.run_id}: ${response.pages_crawled} pages, ${response.images_seen} images, `
-      + `${response.added} added, ${response.duplicates} duplicates, ${response.cv_rejected} CV-rejected.`,
-      saved ? 'ok' : 'error',
+      + `${response.added} added, ${response.duplicates} duplicates, ${response.cv_rejected} CV-rejected, `
+      + `${response.from_cache} from cache.`,
+      response.added ? 'ok' : undefined,
     );
-    response.errors.forEach((error) => appendLog(error, 'error'));
+    const rejected = response.items.filter(
+      (item) => !item.cv_accept && item.cv_label && item.cv_label !== 'cv-off',
+    );
+    if (rejected.length > 0) {
+      const counts = rejected.reduce<Record<string, number>>((acc, item) => {
+        acc[item.cv_label] = (acc[item.cv_label] ?? 0) + 1;
+        return acc;
+      }, {});
+      const breakdown = Object.entries(counts)
+        .map(([label, count]) => `${label} ${count}`)
+        .join(', ');
+      appendLog(`CV rejected: ${breakdown}.`);
+    }
+    response.errors.slice(0, 8).forEach((error) => appendLog(error, 'error'));
   }
 
   async function handleReviewStatus(row: ManifestRow, status: ReviewStatus) {
-    const manifest = row.kind === 'targets' ? targets : row.kind === 'places' ? sources : people;
+    const manifest = manifestForKind(row.kind, { targets, sources, people });
     const response = await runAction(
       `${status === 'approved' ? 'Approving' : status === 'rejected' ? 'Rejecting' : 'Resetting'} ${row.label}.`,
       async () => {
@@ -401,10 +452,109 @@ export function App() {
     }
   }
 
+  async function handleDeleteReview(row: ManifestRow) {
+    const manifest = manifestForKind(row.kind, { targets, sources, people });
+    const confirmed = window.confirm(
+      `Delete "${row.label}" from the ${row.kind} manifest? The cached image file is kept on disk.`,
+    );
+    if (!confirmed) return;
+    const response = await runAction(
+      `Deleting ${row.label} from the ${row.kind} manifest.`,
+      async () => {
+        await deleteReviewRow({ manifest, kind: row.kind, row_id: row.id });
+        return validateManifests({ targets, sources, people, require_files: true });
+      },
+      'Row deleted.',
+    );
+    if (!response) return;
+    setValidation(response);
+    if (row.id === targetId) {
+      setTargetId(response.targets.rows.find((candidate) => candidate.approved)?.id ?? '');
+    }
+  }
+
+  function toggleReviewSelection(id: string) {
+    setSelectedReviewIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function handleApproveSelected() {
+    const manifest = manifestForKind(reviewKind, { targets, sources, people });
+    const ids = Array.from(selectedReviewIds);
+    if (ids.length === 0) {
+      appendLog('Select one or more rows to approve.', 'error');
+      return;
+    }
+    const response = await runAction(
+      `Approving ${ids.length} selected ${reviewKind} row${ids.length === 1 ? '' : 's'}.`,
+      async () => {
+        await updateReviewStatusBulk({ manifest, kind: reviewKind, review_status: 'approved', row_ids: ids });
+        return validateManifests({ targets, sources, people, require_files: true });
+      },
+      'Review status updated.',
+    );
+    if (!response) return;
+    setValidation(response);
+    if (reviewKind === 'targets') {
+      const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
+      if (firstApproved) setTargetId(firstApproved);
+    }
+  }
+
+  async function handleDeleteSelected() {
+    const manifest = manifestForKind(reviewKind, { targets, sources, people });
+    const ids = Array.from(selectedReviewIds);
+    if (ids.length === 0) {
+      appendLog('Select one or more rows to delete.', 'error');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete ${ids.length} selected row${ids.length === 1 ? '' : 's'} from the ${reviewKind} manifest? Cached image files are kept on disk.`,
+    );
+    if (!confirmed) return;
+    const response = await runAction(
+      `Deleting ${ids.length} selected ${reviewKind} row${ids.length === 1 ? '' : 's'}.`,
+      async () => {
+        await deleteReviewRows({ manifest, kind: reviewKind, row_ids: ids });
+        return validateManifests({ targets, sources, people, require_files: true });
+      },
+      'Rows deleted.',
+    );
+    if (!response) return;
+    setValidation(response);
+    setSelectedReviewIds(new Set());
+    if (reviewKind === 'targets' && ids.includes(targetId)) {
+      setTargetId(response.targets.rows.find((candidate) => candidate.approved)?.id ?? '');
+    }
+  }
+
+  function handlePickReview(row: ManifestRow) {
+    if (row.kind === 'targets') {
+      setTargetId(row.id);
+      appendLog(`Target portrait set to ${row.label}${row.approved ? '' : ' (pending)'}.`, 'ok');
+      return;
+    }
+    setViewerOutput({
+      id: row.id,
+      target_id: row.label,
+      still_path: row.file_path ?? row.values.local_path ?? null,
+      video_path: null,
+      sidecar_path: '',
+      sidecar: {},
+    });
+  }
+
   function handleTargetSelect(value: string) {
     setTargetId(value);
-    const row = approvedTargets.find((target) => target.id === value);
-    appendLog(row ? `Selected target: ${row.label}.` : 'No approved target selected.', row ? 'ok' : undefined);
+    const row = allTargets.find((target) => target.id === value);
+    appendLog(row ? `Selected target: ${row.label}.` : 'No target selected.', row ? 'ok' : undefined);
   }
 
   function handleCrawlKindChange(value: CrawlKind) {
@@ -466,13 +616,30 @@ export function App() {
     await refreshOutputs();
   }
 
+  useEffect(() => saveStored('targets', targets), [targets]);
+  useEffect(() => saveStored('sources', sources), [sources]);
+  useEffect(() => saveStored('people', people), [people]);
+  useEffect(() => saveStored('outputDir', outputDir), [outputDir]);
+  useEffect(() => saveStored('crawlManifest', crawlManifest), [crawlManifest]);
+
+  // The review grid shows a different row set per kind; drop any stale selection.
+  useEffect(() => setSelectedReviewIds(new Set()), [reviewKind]);
+
   useEffect(() => {
-    listOutputs(defaultPaths.outputDir)
+    listOutputs(outputDir)
       .then((response) => {
         setOutputs(response.items);
         setSelectedOutput(response.items[0] ?? null);
       })
       .catch(() => undefined);
+    validateManifests({ targets, sources, people, require_files: false })
+      .then((response) => {
+        setValidation(response);
+        const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
+        if (firstApproved) setTargetId(firstApproved);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -480,10 +647,16 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>desaparecidos.uy</h1>
-          <p>Stage 1 local workspace: Estan en todas partes</p>
+          <p>Stage 1 local workspace: Están en todas partes</p>
         </div>
-        <div className={`run-status ${validation?.ok ? 'ok' : ''}`}>
-          <span>{statusLabel}</span>
+        <div className="topbar-actions">
+          <button className="icon-button" onClick={() => setShowUtilities(true)} title="Utilities">
+            <Settings size={16} />
+          </button>
+          <div className={`run-status ${busy || crawling ? 'busy' : ''} ${validation?.ok ? 'ok' : ''}`}>
+            {(busy || crawling) && <RefreshCw size={13} className="spin" />}
+            <span>{statusLabel}</span>
+          </div>
         </div>
       </header>
 
@@ -506,7 +679,7 @@ export function App() {
           icon={<Play />}
           title="Generate"
           active={activeSection === 'generate'}
-          detail={`seed ${seed}`}
+          detail={`block ${fragmentSize}px`}
           onSelect={() => selectWorkflow('generate')}
         />
         <WorkflowItem
@@ -525,19 +698,23 @@ export function App() {
             <select
               value={activeTarget?.id ?? ''}
               onChange={(event) => handleTargetSelect(event.target.value)}
-              disabled={approvedTargets.length === 0}
+              disabled={allTargets.length === 0}
             >
-              {approvedTargets.length === 0 && <option value="">No approved target</option>}
-              {approvedTargets.map((row) => (
+              {allTargets.length === 0 && <option value="">No targets</option>}
+              {allTargets.map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.label}
+                  {row.approved ? row.label : `${row.label} (pending)`}
                 </option>
               ))}
             </select>
           </div>
           <Preview row={activeTarget} />
           <div className="metadata-strip">
-            <span>{activeTarget?.label ?? 'No approved target'}</span>
+            <span>
+              {activeTarget
+                ? `${activeTarget.label}${activeTarget.approved ? '' : ' pending'}`
+                : 'No target selected'}
+            </span>
             <span>{activeTarget?.values.source_page || 'source page pending'}</span>
           </div>
         </section>
@@ -545,27 +722,61 @@ export function App() {
         <section className="stage-panel source-panel" id="section-review">
           <div className="panel-title">
             <span>Review images</span>
-            <div className="segmented">
+            <div className="panel-actions">
+              <div className="segmented">
+                <button
+                  className={reviewKind === 'targets' ? 'selected' : ''}
+                  onClick={() => setReviewKind('targets')}
+                  disabled={busy}
+                >
+                  Targets
+                </button>
+                <button
+                  className={reviewKind === 'places' ? 'selected' : ''}
+                  onClick={() => setReviewKind('places')}
+                  disabled={busy}
+                >
+                  Places
+                </button>
+                <button
+                  className={reviewKind === 'people' ? 'selected' : ''}
+                  onClick={() => setReviewKind('people')}
+                  disabled={busy}
+                >
+                  People
+                </button>
+              </div>
               <button
-                className={reviewKind === 'targets' ? 'selected' : ''}
-                onClick={() => setReviewKind('targets')}
-                disabled={busy}
+                className="text-button"
+                onClick={() => setSelectedReviewIds(new Set(reviewRows.map((row) => row.id)))}
+                disabled={busy || reviewRows.length === 0}
+                title={`Select all ${reviewKind}`}
               >
-                Targets
+                <CheckSquare size={14} /> Select all
               </button>
               <button
-                className={reviewKind === 'places' ? 'selected' : ''}
-                onClick={() => setReviewKind('places')}
-                disabled={busy}
+                className="text-button"
+                onClick={() => setSelectedReviewIds(new Set())}
+                disabled={busy || selectedReviewCount === 0}
+                title="Clear selection"
               >
-                Places
+                <Square size={14} /> Select none
               </button>
               <button
-                className={reviewKind === 'people' ? 'selected' : ''}
-                onClick={() => setReviewKind('people')}
-                disabled={busy}
+                className="text-button"
+                onClick={() => void handleApproveSelected()}
+                disabled={busy || selectedReviewCount === 0}
+                title="Approve selected rows"
               >
-                People
+                <CheckCircle2 size={14} /> Approve selected
+              </button>
+              <button
+                className="text-button danger"
+                onClick={() => void handleDeleteSelected()}
+                disabled={busy || selectedReviewCount === 0}
+                title="Delete selected rows"
+              >
+                <Trash2 size={14} /> Delete selected
               </button>
             </div>
           </div>
@@ -576,7 +787,12 @@ export function App() {
                 key={`${row.kind}-${row.id}`}
                 row={row}
                 busy={busy}
+                selected={row.kind === 'targets' && row.id === targetId}
+                checked={selectedReviewIds.has(row.id)}
+                onToggleSelect={toggleReviewSelection}
                 onReview={handleReviewStatus}
+                onPick={handlePickReview}
+                onDelete={handleDeleteReview}
               />
             ))}
           </div>
@@ -674,7 +890,12 @@ export function App() {
 
       <aside className="inspector">
         <section id="controls-manifests">
-          <h2>Manifests</h2>
+          <div className="section-heading-row">
+            <h2>Manifests</h2>
+            <button className="icon-button" onClick={() => setShowUtilities(true)} title="Utilities">
+              <Settings size={15} />
+            </button>
+          </div>
           <label>
             Targets
             <input value={targets} onChange={(event) => setTargets(event.target.value)} />
@@ -693,29 +914,6 @@ export function App() {
             </button>
             <button onClick={() => void handleValidate(true)} disabled={busy}>
               <CheckCircle2 size={16} /> Check files
-            </button>
-          </div>
-        </section>
-
-        <section className="demo-box">
-          <h2>Demo workspace</h2>
-          <p>Synthetic local inputs. Ignored by git.</p>
-          <button onClick={() => void handleCreateDemoFixtures()} disabled={busy}>
-            <ImageIcon size={16} /> Create demo fixtures
-          </button>
-        </section>
-
-        <section>
-          <h2>Download</h2>
-          <div className="button-row">
-            <button onClick={() => void handleDownload('targets')} disabled={busy}>
-              <Download size={16} /> Targets
-            </button>
-            <button onClick={() => void handleDownload('places')} disabled={busy}>
-              <Download size={16} /> Sources
-            </button>
-            <button onClick={() => void handleDownload('people')} disabled={busy}>
-              <Download size={16} /> People
             </button>
           </div>
         </section>
@@ -794,11 +992,11 @@ export function App() {
                 onChange={(event) => setCrawlMaxTotal(Number(event.target.value))}
               />
             </label>
-            <label>
-              Label prefix
-              <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
-            </label>
           </div>
+          <label>
+            Label prefix
+            <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
+          </label>
           <div className="toggle-row">
             <label className="checkbox">
               <input
@@ -817,8 +1015,8 @@ export function App() {
               CV filter
             </label>
           </div>
-          <button onClick={() => void handleCrawl()} disabled={busy}>
-            <Globe2 size={16} /> Crawl pages
+          <button onClick={() => void handleCrawl()} disabled={crawling}>
+            {crawling ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl pages
           </button>
         </section>
 
@@ -828,14 +1026,32 @@ export function App() {
             Output directory
             <input value={outputDir} onChange={(event) => setOutputDir(event.target.value)} />
           </label>
+          <label className="slider-label">
+            <span>Block size: {fragmentSize}px</span>
+            <input
+              type="range"
+              min={8}
+              max={128}
+              step={4}
+              value={fragmentSize}
+              onChange={(event) => setFragmentSize(Number(event.target.value))}
+            />
+          </label>
+          <label className="slider-label">
+            <span>Max tiles per source: {maxContribution === 0 ? 'unlimited' : maxContribution}</span>
+            <input
+              type="range"
+              min={0}
+              max={320}
+              step={1}
+              value={maxContribution}
+              onChange={(event) => setMaxContribution(Number(event.target.value))}
+            />
+          </label>
           <div className="form-grid">
             <label>
               Seed
               <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value))} />
-            </label>
-            <label>
-              Fragment
-              <input type="number" min={8} max={128} value={fragmentSize} onChange={(event) => setFragmentSize(Number(event.target.value))} />
             </label>
             <label>
               Reuse limit
@@ -868,6 +1084,13 @@ export function App() {
       </aside>
 
       {viewerOutput && <OutputViewer item={viewerOutput} onClose={() => setViewerOutput(null)} />}
+      {showUtilities && (
+        <UtilitiesModal
+          busy={busy}
+          onCreateDemo={() => void handleCreateDemoFixtures()}
+          onClose={() => setShowUtilities(false)}
+        />
+      )}
     </div>
   );
 }
@@ -899,16 +1122,46 @@ function WorkflowItem({
 function ReviewCard({
   row,
   busy,
+  selected,
+  checked,
+  onToggleSelect,
   onReview,
+  onPick,
+  onDelete,
 }: {
   row: ManifestRow;
   busy: boolean;
+  selected?: boolean;
+  checked: boolean;
+  onToggleSelect: (id: string) => void;
   onReview: (row: ManifestRow, status: ReviewStatus) => void;
+  onPick: (row: ManifestRow) => void;
+  onDelete: (row: ManifestRow) => void;
 }) {
   const status = row.values.review_status || 'pending';
+  const pickTitle = row.kind === 'targets' ? 'Use as target portrait' : 'View image';
   return (
-    <article className={`review-card ${status}`} key={row.id}>
-      <Preview row={row} compact />
+    <article className={`review-card ${status} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`} key={row.id}>
+      <label className="review-select" title="Select row">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={() => onToggleSelect(row.id)}
+        />
+        {checked ? <CheckSquare size={15} /> : <Square size={15} />}
+      </label>
+      <button
+        type="button"
+        className="review-delete"
+        onClick={() => onDelete(row)}
+        disabled={busy}
+        title="Delete from manifest"
+      >
+        <Trash2 size={14} />
+      </button>
+      <button type="button" className="review-pick" onClick={() => onPick(row)} title={pickTitle}>
+        <Preview row={row} compact />
+      </button>
       <div className="review-card-body">
         <div>
           <strong>{row.label}</strong>
@@ -974,6 +1227,41 @@ function OutputViewer({ item, onClose }: { item: OutputItem; onClose: () => void
         <div className="viewer-actions">
           {stillUrl && <a className="link-button" href={stillUrl} target="_blank" rel="noreferrer">Open still</a>}
           {videoUrl && <a className="link-button" href={videoUrl} target="_blank" rel="noreferrer">Open video</a>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UtilitiesModal({
+  busy,
+  onCreateDemo,
+  onClose,
+}: {
+  busy: boolean;
+  onCreateDemo: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="viewer-backdrop" role="dialog" aria-modal="true">
+      <div className="viewer utilities-modal">
+        <div className="viewer-title">
+          <div>
+            <strong>Utilities</strong>
+            <span>Secondary local tools</span>
+          </div>
+          <button className="icon-button" onClick={onClose} title="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="utilities-body">
+          <section>
+            <h3>Demo fixtures</h3>
+            <p>Synthetic local inputs stored under ignored paths.</p>
+            <button onClick={onCreateDemo} disabled={busy}>
+              <ImageIcon size={16} /> Create demo fixtures
+            </button>
+          </section>
         </div>
       </div>
     </div>

@@ -41,6 +41,19 @@ def clean_text(value: str | None) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
 
+def source_id_for(row: dict[str, str]) -> str:
+    """Source registry id (see data/sources.json) for an override row.
+
+    Uses an explicit ``source_id`` column when present, otherwise slugifies the
+    human ``source_name`` (e.g. "Parque de la Memoria" -> "parque-de-la-memoria").
+    """
+    explicit = clean_text(row.get("source_id"))
+    if explicit:
+        return explicit
+    name = clean_text(row.get("source_name"))
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
 def download_image(url: str, raw_dir: Path, overwrite: bool) -> tuple[Path, str]:
     raw_dir.mkdir(parents=True, exist_ok=True)
     data = request_bytes(url)
@@ -102,13 +115,18 @@ def write_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) -> 
             writer.writerow({key: row.get(key, "") for key in fieldnames})
 
 
-def patch_people_json(path: Path, slug: str, candidate: dict[str, object]) -> None:
+def patch_people_json(path: Path, slug: str, candidate: dict[str, object], source_id: str) -> None:
     if not path.exists():
         return
     people = json.loads(path.read_text(encoding="utf-8"))
     for person in people:
         if person.get("slug") == slug:
             person["portrait_candidates"] = [candidate]
+            person["portrait_status"] = "ok"
+            field_sources = dict(person.get("field_sources") or {})
+            if source_id:
+                field_sources["portrait"] = source_id
+            person["field_sources"] = field_sources
             sources = list(person.get("sources") or [])
             source_page = candidate.get("source_page")
             if source_page and source_page not in sources:
@@ -186,9 +204,11 @@ def main() -> int:
             "status": clean_text(row.get("review_status")) or "candidate",
             "notes": clean_text(row.get("notes")),
         }
-        patch_people_json(people_json, slug, candidate)
+        source_id = source_id_for(row)
+        candidate["source_id"] = source_id
+        patch_people_json(people_json, slug, candidate, source_id)
         patch_manifest(manifest, row, candidate)
-        print(f"applied portrait override: {slug}")
+        print(f"applied portrait override: {slug} (source {source_id or 'unknown'})")
     return 0
 
 

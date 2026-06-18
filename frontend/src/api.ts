@@ -188,6 +188,41 @@ export function updateReviewStatus(payload: {
   });
 }
 
+export function updateReviewStatusBulk(payload: {
+  manifest: string;
+  kind: 'targets' | 'places' | 'people';
+  review_status: 'approved' | 'pending' | 'rejected';
+  row_ids?: string[];
+  all?: boolean;
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review-bulk', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteReviewRow(payload: {
+  manifest: string;
+  kind: 'targets' | 'places' | 'people';
+  row_id: string;
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteReviewRows(payload: {
+  manifest: string;
+  kind: 'targets' | 'places' | 'people';
+  row_ids: string[];
+}): Promise<{ ok: boolean; manifest: ManifestValidation }> {
+  return request('/api/review/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateStage1(payload: {
   targets: string;
   sources: string;
@@ -196,6 +231,7 @@ export function generateStage1(payload: {
   fragment_size: number;
   reuse_limit: number;
   output_width: number;
+  max_contribution_per_source: number;
   make_video: boolean;
   target_id?: string;
 }): Promise<GenerateResponse> {

@@ -75,6 +75,7 @@ def test_generate_endpoint(tmp_path: Path) -> None:
             "fragment_size": 16,
             "reuse_limit": 100,
             "output_width": 120,
+            "max_contribution_per_source": 0,
             "make_video": False,
         },
     )
@@ -82,6 +83,44 @@ def test_generate_endpoint(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert (tmp_path / "outputs").exists()
+
+
+def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, sources = write_fixture(tmp_path)
+    captured: dict[str, int] = {}
+
+    def fake_run_stage1(
+        target_manifest: str,
+        source_manifest: str,
+        output_dir: str,
+        settings: object,
+        *,
+        target_id: str | None = None,
+    ) -> list[object]:
+        del target_manifest, source_manifest, output_dir, target_id
+        captured["cap"] = getattr(settings, "max_contribution_per_source")
+        return []
+
+    monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "targets": str(targets),
+            "sources": str(sources),
+            "output_dir": str(tmp_path / "outputs"),
+            "seed": 17,
+            "fragment_size": 16,
+            "reuse_limit": 100,
+            "output_width": 120,
+            "max_contribution_per_source": 7,
+            "make_video": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["cap"] == 7
 
 
 def test_demo_fixtures_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -120,6 +159,83 @@ def test_review_endpoint_updates_manifest(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert response.status_code == 200
     body = response.json()
     assert body["manifest"]["rows"][0]["values"]["review_status"] == "rejected"
+
+
+def test_review_bulk_endpoint_approves_all(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    with targets.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "t2", "Target two", "https://example.invalid/t2.png", "https://example.invalid/t2",
+            "fixture", "2026-06-17", "target.png", "pending", "", "", "", "", "", "", "", ""
+        ])
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review-bulk",
+        json={
+            "manifest": str(targets),
+            "kind": "targets",
+            "review_status": "approved",
+            "all": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["manifest"]["approved_count"] == 2
+
+
+def test_review_delete_endpoint_removes_row(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review/delete",
+        json={"manifest": str(targets), "kind": "targets", "row_id": "t1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert all(row["id"] != "t1" for row in body["manifest"]["rows"])
+
+
+def test_review_delete_endpoint_removes_many(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    with targets.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "t2", "Target two", "https://example.invalid/t2.png", "https://example.invalid/t2",
+            "fixture", "2026-06-17", "target.png", "pending", "", "", "", "", "", "", "", ""
+        ])
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review/delete",
+        json={"manifest": str(targets), "kind": "targets", "row_ids": ["t1", "t2"]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["manifest"]["rows"] == []
+
+
+def test_review_delete_endpoint_rejects_missing_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, _ = write_fixture(tmp_path)
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/review/delete",
+        json={"manifest": str(targets), "kind": "targets", "row_ids": ["t1", "nope"]},
+    )
+
+    assert response.status_code == 400
+    # The bad id rejects the whole request; t1 is left in place.
+    assert "no row with id" in response.json()["detail"]
 
 
 def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

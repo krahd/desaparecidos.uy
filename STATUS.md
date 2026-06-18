@@ -1,119 +1,146 @@
-# desaparecidos.uy - Project Status
+# desaparecidos.uy Project Status
 
-Last updated: 2026-06-18 10:49 GMT-3
+Last updated: 2026-06-18 14:08 GMT-3
 
 ## Project purpose
 
-`desaparecidos.uy` is a computational memorial artwork series about the persistence of disappearance in Uruguay's present. Stage 1 focuses on **Estan en todas partes**, a place-based prototype that reconstructs public target portraits from fragments of Uruguayan places and surfaces. The repository now also includes an importer for building a full target corpus of detained-disappeared persons connected to Uruguay from Sitios de Memoria Uruguay.
+`desaparecidos.uy` is a local-first computational memorial artwork series about detained-disappeared persons connected to Uruguay. The current implementation focuses on the Stage 1 place-fragment prototype, **Están en todas partes**, which reconstructs target portraits from fragments of contemporary images of Uruguayan places. The system is not an archive, forensic tool, biometric system, deepfake, or identity-matching workflow.
 
 ## Current implementation state
 
-The repository contains the Stage 1 local software prototype: a Python pipeline, FastAPI localhost backend, React/Vite GUI, manifest templates, tests, a macOS launcher, a GUI-accessible synthetic demo fixture path, a bounded page-image crawler for explicit or preset pages, a persistent SQLite/content-addressed crawl cache, crawl-trail JSONL exports, exact and perceptual image dedupe, generated-output deletion controls, and browser-playable H.264 process-video rendering when `ffmpeg` is available.
+The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, and preprocessing features. The branch keeps:
 
-The `import-full-disappeared-corpus` branch adds `scripts/import_sitios_memoria.py`, a source-specific importer that downloads the Sitios de Memoria forced-disappearance corpus, enriches records from individual person pages, downloads target portrait candidates, writes person metadata, and creates processed 4:5 portrait derivatives for review.
+- `people` manifest support for internal Stage 2 contemporary people-source review.
+- crawler run/page/image trail persistence in SQLite plus JSONL run exports;
+- exact SHA-256 and perceptual duplicate rejection;
+- per-kind CV cache classification;
+- mundane contemporary Uruguay crawler presets;
+- URL ticker process videos and `search_trail` sidecar metadata;
+- Sitios importer, portrait override tooling, ignored crawler/review outputs, and current gitignore protections.
 
-Crawler output is now split by source-corpus purpose: `places` rows support Stage 1 place-fragment generation, while `people` rows are internal Stage 2 contemporary public people-source candidates. `targets` remains reserved for disappeared-person portraits.
+The restored current-state features include:
+
+- pure black GUI theme;
+- localStorage manifest paths;
+- fixed review thumbnails;
+- non-blocking crawl state;
+- bulk review and row delete for `targets`, `places`, and `people`;
+- target manifest builder and portrait preprocessing;
+- OpenCV-backed CV gating;
+- vectorised fragment matching;
+- `max_contribution_per_source` feasibility checks and settings propagation;
+- restored commemorative outro sequence in process videos.
 
 ## Active focus
 
-Build the complete disappeared-person target corpus automatically rather than by hand, while improving the crawler so it visibly documents the search through ordinary contemporary Uruguay. Portraits of disappeared persons are treated as target imagery, distinct from crawled place and people source-corpus imagery. Public release still requires provenance, legal, privacy, and historical-source review.
+The active focus is stabilising the combined branch after reconciling `main` with `import-full-disappeared-corpus`. The GUI should present the current workflow directly: validate/crawl/review/generate/output, with synthetic demo fixtures demoted to a Utilities modal and no primary Download panel.
 
 ## Architecture overview
 
-The project is organised as a localhost tool. The frontend calls a local API. The API validates target, place, and people manifests; performs bounded recursive image crawling on user-supplied or preset URLs; records every crawled page and image decision; updates row review status; deletes selected generated outputs on request; and invokes reusable Python pipeline code. The pipeline reads approved target/place inputs and writes ignored outputs plus JSON sidecars. Video generation uses the same assembly trace as still generation: each used source image is introduced full-screen, sampled fragment regions are highlighted, fragments animate into their actual positions in the reconstructed portrait, and crawled or fallback source URLs appear along the bottom as a visible search trace.
+The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls the manifest, crawler, preprocessing, output, and generation modules, and generated files stay in ignored local directories.
 
-The corpus importer is an offline repository-maintenance script. It writes metadata under `data/persons/`, target manifests under `data/manifests/`, and target portraits under `assets/targets/disappeared/`.
-
-### Architecture diagram
-
-The current architecture is a local-only workflow with an offline import path for target portraits and a crawler/search-trail path for source imagery.
-
-<svg width="900" height="330" viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arch-title arch-desc">
-  <title id="arch-title">Stage 1 local architecture plus crawler search trail</title>
-  <desc id="arch-desc">The local GUI calls the FastAPI backend. The backend validates manifests, runs the crawler into a cache and trail, and invokes the pipeline to generate stills and videos with URL ticker metadata.</desc>
+<svg width="980" height="390" viewBox="0 0 980 390" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">Current local architecture</title>
+  <desc id="arch-desc">React GUI and CLI call the local FastAPI and Python pipeline, which read manifests, crawler cache, local corpus files, and write generated outputs.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#555" />
+      <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
     </marker>
   </defs>
-  <rect x="25" y="45" width="145" height="62" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="97" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">React GUI</text>
-  <text x="97" y="91" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">localhost</text>
-  <rect x="230" y="45" width="150" height="62" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="305" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">FastAPI backend</text>
-  <text x="305" y="91" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">local routes</text>
-  <rect x="455" y="35" width="155" height="82" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="532" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Crawler</text>
-  <text x="532" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">caps + robots</text>
-  <text x="532" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">dedupe + CV</text>
-  <rect x="695" y="35" width="170" height="82" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="780" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Crawl cache</text>
-  <text x="780" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">store + SQLite</text>
-  <text x="780" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">JSONL trails</text>
-  <rect x="125" y="205" width="160" height="70" rx="6" fill="#fff" stroke="#999" />
-  <text x="205" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Sitios importer</text>
-  <text x="205" y="252" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">target corpus</text>
-  <rect x="370" y="205" width="165" height="70" rx="6" fill="#fff" stroke="#999" />
-  <text x="452" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Manifests</text>
-  <text x="452" y="252" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">targets / places / people</text>
-  <rect x="635" y="205" width="175" height="70" rx="6" fill="#fff" stroke="#999" />
-  <text x="722" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Pipeline outputs</text>
-  <text x="722" y="252" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">still + URL-ticker video</text>
-  <line x1="170" y1="76" x2="222" y2="76" stroke="#555" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="380" y1="76" x2="447" y2="76" stroke="#555" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="610" y1="76" x2="687" y2="76" stroke="#555" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="532" y1="117" x2="470" y2="198" stroke="#777" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="285" y1="240" x2="362" y2="240" stroke="#777" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="535" y1="240" x2="627" y2="240" stroke="#777" stroke-width="2" marker-end="url(#arrow)" />
-  <line x1="780" y1="117" x2="745" y2="198" stroke="#777" stroke-width="2" marker-end="url(#arrow)" />
+  <rect x="35" y="42" width="170" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="120" y="72" text-anchor="middle" font-size="15" fill="#111">React/Vite GUI</text>
+  <text x="120" y="94" text-anchor="middle" font-size="12" fill="#333">localhost only</text>
+  <rect x="35" y="150" width="170" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="120" y="180" text-anchor="middle" font-size="15" fill="#111">CLI tools</text>
+  <text x="120" y="202" text-anchor="middle" font-size="12" fill="#333">validate, crawl, run</text>
+  <rect x="270" y="92" width="170" height="92" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="355" y="126" text-anchor="middle" font-size="15" fill="#111">FastAPI backend</text>
+  <text x="355" y="148" text-anchor="middle" font-size="12" fill="#333">review, crawl, generate</text>
+  <rect x="505" y="32" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="590" y="62" text-anchor="middle" font-size="15" fill="#111">Manifests</text>
+  <text x="590" y="84" text-anchor="middle" font-size="12" fill="#333">targets, places, people</text>
+  <rect x="505" y="134" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="590" y="164" text-anchor="middle" font-size="15" fill="#111">Crawler cache</text>
+  <text x="590" y="186" text-anchor="middle" font-size="12" fill="#333">SQLite, store, JSONL</text>
+  <rect x="505" y="236" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="590" y="266" text-anchor="middle" font-size="15" fill="#111">Local corpus</text>
+  <text x="590" y="288" text-anchor="middle" font-size="12" fill="#333">doc and processed files</text>
+  <rect x="760" y="92" width="170" height="92" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="845" y="124" text-anchor="middle" font-size="15" fill="#111">Pipeline</text>
+  <text x="845" y="146" text-anchor="middle" font-size="12" fill="#333">match fragments</text>
+  <text x="845" y="166" text-anchor="middle" font-size="12" fill="#333">write still/video</text>
+  <rect x="760" y="236" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="845" y="266" text-anchor="middle" font-size="15" fill="#111">Outputs</text>
+  <text x="845" y="288" text-anchor="middle" font-size="12" fill="#333">PNG, MP4, JSON</text>
+  <line x1="205" y1="78" x2="270" y2="123" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="205" y1="186" x2="270" y2="154" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="116" x2="505" y2="68" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="143" x2="505" y2="170" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="440" y1="164" x2="505" y2="272" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="675" y1="68" x2="760" y2="124" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="675" y1="170" x2="760" y2="145" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="675" y1="272" x2="760" y2="166" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="845" y1="184" x2="845" y2="236" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
 </svg>
 
-### Flow chart
+## Execution and data flow
 
-The crawler flow records both accepted source images and the search path that will later appear in process videos.
+The current data flow makes the search trail visible. Target portraits come from the curated or imported corpus; place and people source candidates come from crawler seeds. Every crawled page and image decision is persisted before review, and generated videos can replay the URL trail in a bottom ticker.
 
-<svg width="900" height="210" viewBox="0 0 900 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
-  <title id="flow-title">Crawler search-trail flow</title>
-  <desc id="flow-desc">Seed pages are crawled into page-trail events, images are deduplicated and classified, pending rows are reviewed, and the video renders the URL ticker.</desc>
+<svg width="1000" height="430" viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
+  <title id="flow-title">Current corpus, crawler, review, and video flow</title>
+  <desc id="flow-desc">Local/imported target corpus and crawler seeds feed manifests and crawl trails; dedupe and CV create pending rows; approved rows generate stills and URL ticker videos.</desc>
   <defs>
     <marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#555" />
+      <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
     </marker>
   </defs>
-  <rect x="18" y="70" width="125" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="80" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Seed pages</text>
-  <text x="80" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">ordinary Uruguay</text>
-  <rect x="172" y="70" width="125" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="234" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Page trail</text>
-  <text x="234" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">all URLs</text>
-  <rect x="326" y="70" width="130" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="391" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Image cache</text>
-  <text x="391" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">SHA + pHash</text>
-  <rect x="485" y="70" width="125" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="547" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Dedupe + CV</text>
-  <text x="547" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">place / people</text>
-  <rect x="640" y="70" width="125" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="702" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Pending rows</text>
-  <text x="702" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">manual review</text>
-  <rect x="795" y="70" width="90" height="60" rx="6" fill="#f7f7f5" stroke="#777" />
-  <text x="840" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Video</text>
-  <text x="840" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">URL ticker</text>
-  <line x1="143" y1="100" x2="164" y2="100" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)" />
-  <line x1="297" y1="100" x2="318" y2="100" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)" />
-  <line x1="456" y1="100" x2="477" y2="100" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)" />
-  <line x1="610" y1="100" x2="632" y2="100" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)" />
-  <line x1="765" y1="100" x2="787" y2="100" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)" />
+  <rect x="35" y="52" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="125" y="80" text-anchor="middle" font-size="14" fill="#111">Tracked target corpus</text>
+  <text x="125" y="102" text-anchor="middle" font-size="12" fill="#333">doc/fotos-desaparecidos</text>
+  <rect x="35" y="172" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="125" y="200" text-anchor="middle" font-size="14" fill="#111">Local import tools</text>
+  <text x="125" y="222" text-anchor="middle" font-size="12" fill="#333">preprocess, overrides</text>
+  <rect x="275" y="112" width="180" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="365" y="140" text-anchor="middle" font-size="14" fill="#111">Target manifest</text>
+  <text x="365" y="162" text-anchor="middle" font-size="12" fill="#333">review-gated portraits</text>
+  <rect x="35" y="304" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="125" y="332" text-anchor="middle" font-size="14" fill="#111">Crawler seeds</text>
+  <text x="125" y="354" text-anchor="middle" font-size="12" fill="#333">Uruguay now presets</text>
+  <rect x="275" y="284" width="180" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="365" y="316" text-anchor="middle" font-size="14" fill="#111">Page trail</text>
+  <text x="365" y="338" text-anchor="middle" font-size="12" fill="#333">crawl order, parent, status</text>
+  <text x="365" y="360" text-anchor="middle" font-size="12" fill="#333">SQLite plus JSONL</text>
+  <rect x="515" y="284" width="180" height="96" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="605" y="316" text-anchor="middle" font-size="14" fill="#111">Dedupe and CV</text>
+  <text x="605" y="338" text-anchor="middle" font-size="12" fill="#333">SHA-256, pHash</text>
+  <text x="605" y="360" text-anchor="middle" font-size="12" fill="#333">places or people gate</text>
+  <rect x="755" y="232" width="180" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="845" y="260" text-anchor="middle" font-size="14" fill="#111">Pending review</text>
+  <text x="845" y="282" text-anchor="middle" font-size="12" fill="#333">targets, places, people</text>
+  <rect x="755" y="92" width="180" height="96" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="845" y="122" text-anchor="middle" font-size="14" fill="#111">Generation</text>
+  <text x="845" y="144" text-anchor="middle" font-size="12" fill="#333">approved targets + places</text>
+  <text x="845" y="166" text-anchor="middle" font-size="12" fill="#333">video URL ticker</text>
+  <line x1="215" y1="90" x2="275" y2="132" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="215" y1="210" x2="275" y2="164" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="215" y1="342" x2="275" y2="332" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="455" y1="332" x2="515" y2="332" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="695" y1="332" x2="755" y2="278" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="845" y1="232" x2="845" y2="188" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M455 150 C560 150 650 140 755 140" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M455 300 C570 240 650 190 755 164" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
 </svg>
 
 ## Setup and run instructions
 
-Use the local launcher for the GUI:
+Normal GUI run:
 
 ```bash
 ./start.sh
 ```
 
-Manual setup:
+Manual run:
 
 ```bash
 python3 -m venv .venv
@@ -124,151 +151,141 @@ python -m desaparecidos serve --host 127.0.0.1 --port 8765
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Run a small importer test:
+Verification:
 
 ```bash
-python scripts/import_sitios_memoria.py --limit 5 --download-images --process-images
-```
-
-Run the full target-corpus import:
-
-```bash
-python scripts/import_sitios_memoria.py --download-images --process-images
+.venv/bin/python -m compileall src tests scripts
+.venv/bin/python -m pytest -q
+npm --prefix frontend run build
+zsh -n start.sh
+git diff --check
 ```
 
 ## Configuration and environment variables
 
-- No secrets are required.
-- The backend must bind to `127.0.0.1` by default.
-- Raw crawler downloads belong under ignored `data/raw/`.
-- Crawler cache and trails belong under ignored `data/raw/crawl/` (`store/`, `cache.sqlite`, and `runs/*.jsonl`).
-- Generated outputs belong under ignored `outputs/stage1/`.
-- Target portraits of disappeared persons are written under ignored `assets/targets/disappeared/` by the importer.
-- Browser-playable video generation requires `ffmpeg` with H.264/libx264 support.
+- `VITE_API_BASE` can point the frontend at a non-default local API during development.
+- The backend and GUI must remain bound to localhost unless explicitly changed.
+- `ffmpeg` with H.264/libx264 support is required for browser-playable MP4 video generation.
+- OpenCV is provided by `opencv-python-headless` and is used only for local CV filtering; no remote model or identity service is involved.
 
 ## Important files and directories
 
-- `README.md`: project overview and setup.
-- `AGENTS.md`: repository instructions for AI coding agents.
-- `STATUS.md`: mandatory project state report.
-- `src/desaparecidos/`: Python pipeline and API.
-- `frontend/`: local GUI.
-- `scripts/import_sitios_memoria.py`: automated Sitios de Memoria metadata and target portrait importer.
-- `src/desaparecidos/cache.py`: SQLite/content-addressed crawl cache plus crawl-run trail export.
-- `src/desaparecidos/cv.py`: no-dependency perceptual hashing and lightweight place/people candidate gating.
-- `src/desaparecidos/crawl.py`: bounded crawler, dedupe, manifest-row creation, and trail recording.
-- `doc/import-sitios-de-memoria.md`: importer usage notes.
-- `data/persons/`: ignored importer output for disappeared-person metadata.
-- `data/manifests/`: tracked manifest templates and importer target manifest output.
-- `data/manifests/people.csv`: tracked empty template for Stage 2 contemporary people-source candidates.
-- `assets/targets/disappeared/`: ignored raw and processed target portraits imported from historical-memory sources.
-- `data/raw/crawl/`: ignored crawler cache and crawl-trail runtime state.
+- `start.sh`: local launcher.
+- `pyproject.toml`: Python package and CLI metadata.
+- `src/desaparecidos/api.py`: FastAPI routes.
+- `src/desaparecidos/pipeline.py`: Stage 1 assembly, sidecars, still/video rendering, URL ticker, outro.
+- `src/desaparecidos/crawl.py`: bounded crawler, presets-compatible ingestion, dedupe, CV decisions, manifest row creation.
+- `src/desaparecidos/cache.py`: ignored SQLite/file cache plus crawl run/page/image trail persistence.
+- `src/desaparecidos/cv.py`: local non-identity CV filters and perceptual hash helpers.
+- `src/desaparecidos/manifests.py`: manifest schemas, validation, review, bulk review, single and bulk row delete.
+- `src/desaparecidos/preprocess.py`: portrait preprocessing for local target manifests.
+- `scripts/import_sitios_memoria.py`: Sitios de Memoria importer; conservative `field-fotografia` portrait selection and per-field provenance.
+- `scripts/apply_portrait_overrides.py`: replaces a person's portrait from an authoritative override source and records portrait provenance.
+- `frontend/src/App.tsx`: restored black GUI workflow.
+- `data/sources.json`: tracked registry of authoritative sources for disappeared-person fields and portraits.
+- `data/manifests/people.csv`: tracked empty people manifest template.
+- `data/manifests/crawled-*.csv`: ignored crawler review manifests.
+- `data/raw/crawl/`: ignored image store, `cache.sqlite`, and JSONL run trails.
+- `data/processed/`: ignored local derivatives.
+- `doc/fotos-desaparecidos/`: tracked source portrait corpus.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecars.
-- GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
 
 ## Current capabilities
 
-- Generate Stage 1 stills and process videos from reviewed local manifests.
-- Operate through a localhost GUI and backend.
-- Crawl bounded user-supplied or preset ordinary-Uruguay place/source pages into pending manifests.
-- Crawl internal Stage 2 contemporary people-source candidates into a separate `people` manifest path without treating them as disappeared-person targets.
-- Store direct image URLs, source page URLs, crawl run ids, content hashes, perceptual hashes, and per-run page trails for crawler output.
-- Render a bottom URL ticker in Stage 1 videos from crawl trails or source-row URL fallbacks.
-- Import the Sitios de Memoria disappearance corpus automatically into structured JSON/CSV plus target-portrait manifests.
-- Download and normalise target portrait candidates to 4:5, 1200 x 1500 pixels.
+- Validate `targets`, `places`, and `people` manifests.
+- Review rows for all three manifest kinds: per-row approve/reject/reset/delete, plus checkbox selection with Select all, Select none, Approve selected, and Delete selected.
+- Import disappeared-person metadata and portraits from Sitios de Memoria with conservative portrait selection (only the `field-fotografia` image) and `portrait_status` of `ok`/`missing`; record per-field provenance in `field_sources` against `data/sources.json`.
+- Crawl ordinary contemporary Uruguay pages for place and people candidates from the GUI.
+- Record every crawled page URL in crawl order with depth, parent, status, error, and fetch time.
+- Record image candidate decisions, duplicate status, hashes, CV decision, and accepted row id.
+- Avoid duplicate image variants with exact SHA-256 and perceptual hash checks.
+- Classify the same cached URL separately per manifest kind.
+- Store `source_url`, `source_page`, `crawl_run_id`, `content_sha256`, and `perceptual_hash` on crawled rows.
+- Store face-region metadata for accepted `people` rows for manual review only.
+- Generate Stage 1 stills and MP4 process videos from approved targets and approved places.
+- Cap source contribution with `max_contribution_per_source`; `0` means unlimited.
+- Control output block size through the GUI `Block size` slider wired to `fragment_size`.
+- Record settings, source usage, source sequence, search trail URLs/run ids, and video process metadata in sidecars.
+- Keep URL ticker overlays on search/assembly frames and a readable commemorative outro.
 
 ## Recent changes
 
-- Initial project documentation, Stage 1 pipeline, local GUI, manifest templates, tests, and launcher were created.
-- Private GitHub repository `krahd/desaparecidos.uy` was created and `main` was pushed.
-- GUI demo fixtures, review controls, constrained crawler, generated-output deletion controls, and source-first process video rendering were added.
-- 2026-06-18 00:38 GMT-3 follow-up: added `scripts/import_sitios_memoria.py` for automated import of the full Sitios de Memoria disappearance corpus and target portrait candidates; added `doc/import-sitios-de-memoria.md` documenting test and full-import commands.
-- 2026-06-18 09:45 GMT-3 follow-up: implemented crawler search-trail support. Added a `people` manifest kind for internal Stage 2 contemporary people-source candidates; extended place rows with crawl metadata; added `src/desaparecidos/cache.py` and `src/desaparecidos/cv.py`; made the crawler bounded recursive with same-domain defaults, robots support, exact SHA-256 dedupe, perceptual hash dedupe, per-kind image classification, page/image event storage, and JSONL run exports; replaced memory/archive crawler presets with mundane contemporary Uruguay sources; added bottom URL ticker rendering and `search_trail` sidecar metadata for Stage 1 videos.
-- 2026-06-18 10:21 GMT-3 follow-up: renamed the local launcher to `start.sh` and updated repository references accordingly.
-- 2026-06-18 10:49 GMT-3 follow-up: expanded `.gitignore` so local importer/crawler outputs stay untracked, including `assets/`, `data/persons/`, `data/processed/`, local manifests, and generated Sitios de Memoria target manifests.
+- Finished purging the redundant 348MB `doc/fotos-desaparecidos.zip` from git history (leftover `refs/original` from an earlier `git filter-branch`, reflog expiry, and `gc`); `.git` shrank from 911MB to ~577MB. The zip stays only as ignored `ignore/fotos-desaparecidos.zip`. No live branch or `origin/*` referenced it; no force-push was required.
+- Replaced the review "Approve all" button with checkbox selection: Select all, Select none, Approve selected, Delete selected. Added `delete_manifest_rows` and bulk `row_ids` support to `POST /api/review/delete`.
+- Made the Sitios importer's portrait selection conservative: only the person's `field--name-field-fotografia` image is accepted, otherwise `portrait_status="missing"` (no false poster/work imagery). Fixed field extraction so trailing fields (e.g. `victim_type`) no longer absorb the "Obras de interés"/"Materiales de interés"/footer text.
+- Added `data/sources.json` (authoritative source registry) and per-field `field_sources` provenance in person records and portrait overrides. Corrected the Abeledo record: metadata from Sitios de Memoria, portrait from Parque de la Memoria.
+- Reconciled `import-full-disappeared-corpus` with `main` without resetting either history.
+- Restored the black GUI theme and current review ergonomics.
+- Removed the primary GUI Download panel; `/api/download` and CLI download remain.
+- Moved synthetic demo fixture controls into a Utilities modal.
+- Restored localStorage manifest paths and non-blocking crawler state.
+- Extended review tabs/actions to `Targets`, `Places`, and `People`.
+- Restored and extended `max_contribution_per_source` through settings, API, GUI, sidecars, and tests.
+- Added the GUI `Block size` slider for `fragment_size`.
+- Combined URL ticker videos with the restored commemorative outro.
+- Reintroduced OpenCV face/scene gating while keeping people ingestion non-identifying and review-gated.
+- Updated `.gitignore`, `README.md`, `AGENTS.md`, and this status report for the current workflow.
 
 ## Tests and verification status
 
-Previous verification on 2026-06-17 passed for compile, pytest, frontend build, synthetic fixtures, CLI smoke runs, backend health checks, GUI load, API validation, and process-video smoke rendering.
+Latest local verification (review controls, importer, sources/provenance, git cleanup):
 
-2026-06-18 importer follow-up:
+- `.venv/bin/python -m compileall src tests scripts`: passed.
+- `.venv/bin/python -m pytest -q`: passed, 77 tests, 1 upstream Starlette/httpx deprecation warning.
+- `npm --prefix frontend run build`: passed (tsc + vite, no type errors).
+- `git diff --check`: passed.
+- Importer validated against live Sitios de Memoria pages: the Abeledo page yields no portrait (`portrait_status="missing"`) and a clean `victim_type`; four other persons resolve to their correct `field-fotografia` portraits. Parque de la Memoria override applied for Abeledo (portrait provenance `parque-de-la-memoria`).
+- Git: confirmed the 348MB zip blob is gone from all refs (`git rev-list --objects --all` has no match) and `.git` is ~577MB.
+- Local smoke: backend health on `127.0.0.1:8766` passed; built frontend served from `frontend/dist` on `127.0.0.1:5174` returned HTTP 200; static checks confirmed black CSS background, no primary `Download` panel text in the React app, Utilities modal demo controls, crawler `places/people`, and both generation sliders.
 
-- Repository files were inspected through the GitHub connector.
-- The importer script and documentation were added through GitHub commits on `import-full-disappeared-corpus`.
-- The importer was not executed in this environment because the active container has no direct internet access for repository-local Python execution.
-- The GitHub Actions self-commit workflow was attempted but blocked by the connector safety layer, so it was not added.
-- No automated test, build, or import run was performed after adding the script.
-
-2026-06-18 crawler search-trail follow-up:
-
-- `python -m compileall src tests`: not runnable because `python` is not on PATH in this shell.
-- `python3 -m compileall src tests`: passed.
-- `.venv/bin/python -m compileall src tests`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 29 tests; one upstream FastAPI/Starlette deprecation warning.
-- `npm --prefix frontend run build`: passed.
+Browser-rendered Playwright/Safari smoke is not complete in this environment: the Homebrew `playwright` executable points to a missing Python 3.11 interpreter, the virtualenv has no Playwright module, and `safaridriver --enable` requires an interactive password.
 
 ## Known issues, risks, and limitations
 
-- Public release requires provenance, legal, privacy, and historical-source review.
-- The importer depends on the current Sitios de Memoria CSV/HTML structure.
-- Automated portrait border removal is conservative and does not guarantee removal of all lettering, frames, or layout artefacts.
-- The importer does not yet merge SDHPR fichas as a secondary verification layer.
-- The Stage 1/Stage 2 crawler is bounded recursive and seeded only by explicit user-entered or preset ordinary-Uruguay pages. It writes pending rows that require explicit approval before generation or internal Stage 2 use.
-- Crawler people-source handling is not identity matching and does not identify individuals; it records manual-review people/face candidate regions only.
-- The no-dependency people/place classifier is intentionally lightweight. Manual review remains authoritative before approval.
-- Crawler cache and trail state is intentionally persisted locally under ignored `data/raw/crawl/`; it can grow and should not be committed.
-- MP4 generation depends on `ffmpeg` with H.264/libx264 support.
-- The GitHub remote is `origin` at `https://github.com/krahd/desaparecidos.uy.git`.
-
-## Recurring tasks
-
-- Keep `STATUS.md` updated after meaningful implementation or verification changes.
-- Keep generated outputs and local caches untracked.
-- Keep crawler cache databases and JSONL crawl trails untracked.
-- Review provenance and `review_status` before generation.
-- Keep target portraits of disappeared persons separated from crawled source-corpus imagery.
+- Full browser-pixel verification remains blocked until Playwright or Safari WebDriver is repaired locally.
+- `zsh -n start.sh` reports `nice(5)` permission warnings even though syntax validation exits successfully.
+- The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
+- People crawling is for internal review-gated source-corpus exploration only. It performs no identity matching and must not be used as a disappeared-person identification workflow.
+- Crawler CV is heuristic and local; manual review remains mandatory.
+- Process videos require local `ffmpeg` with H.264/libx264 support.
+- Generated imagery, raw crawls, JSONL trails, processed target copies, and review manifests remain ignored local data.
 
 ## Pending tasks
 
-- Run the importer against the live source.
-- Inspect generated metadata and portraits.
-- Decide whether imported target portraits should remain `candidate` or be marked `approved`.
-- Add SDHPR verification/merge support.
-- Remove unused empty import branches if desired; the active branch is `import-full-disappeared-corpus`.
-- Run a real bounded crawl from the new mundane Uruguay presets and inspect the resulting `places` and `people` pending rows.
+- Build the targets curation GUI page (deferred from this change): a new top-level view to list/edit person records, set the per-field authoritative source, view/replace/choose portraits, and trigger download-from-web. Requires a persons store module and persons/sources API endpoints.
+- Run the full ~205-person Sitios import with the corrected importer, then add portraits from `madres-familiares` / `parque-de-la-memoria` for persons whose `portrait_status` is `missing`.
+- Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
+- Run a full manual GUI smoke in a browser once browser automation is available.
+- Review the merged `doc/DDHH/` archive additions for repository size policy if needed.
+- Keep checking that crawler presets stay mundane and contemporary rather than memory/archive oriented.
+- Continue improving CV thresholds only with manual review evidence.
 
 ## Next steps
 
-1. Run `python scripts/import_sitios_memoria.py --limit 5 --download-images --process-images` locally and inspect outputs.
-2. Run the full import after the five-record test succeeds.
-3. Keep generated `data/persons/`, `data/manifests/targets-sitios-de-memoria.csv`, and `assets/targets/disappeared/` files local unless a later release policy explicitly changes this.
-4. Add SDHPR fiche cross-checking.
-5. Review the visual effect of the URL ticker in a real generated process video.
+- Commit the combined branch once the user confirms or asks for a commit.
+- Use the Utilities modal only for synthetic fixture workflows; keep primary GUI space dedicated to the real artwork workflow.
+- Use crawled page trails in videos as the visible trace of the search process.
 
 ## Longer-term steps
 
-1. Expand visual method documentation.
-2. Add public website pages after Stage 1 output review.
-3. Prepare legal and privacy review materials before any public release.
-4. Decide which target portraits become canonical and how alternates are represented.
+- Add a reliable automated browser smoke suite for the GUI.
+- Add further Stage 2 internal people-source tooling without identity matching.
+- Decide whether future gallery installation should run the live crawler/search process or replay documented crawl trails.
+- Revisit crawler persistence policy after the review workflow stabilises.
 
 ## Decisions and rationale
 
-- Stage 1 uses place/surface imagery first because it is visually strong and has lower privacy risk than face-fragment processing.
-- Portraits of disappeared persons are treated as target imagery, not source-corpus imagery.
-- Contemporary public people images are separate `people` source-corpus candidates for internal Stage 2 review only; they are not `targets`.
-- Crawler videos should make the search visible by writing the traversed or source URLs along the bottom of the frame.
-- The GUI is localhost-only so the artist/developer can operate the pipeline without exposing data or outputs.
-- Manifests remain the boundary for generation; crawler output is only a pending manifest-building aid.
-- The Sitios de Memoria importer is source-specific to keep provenance explicit and reduce manual collection work.
+- `targets` remain only the disappeared-person portrait corpus.
+- `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
+- Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
+- Download controls are hidden from the primary GUI because they are no longer central to the workflow, but API/CLI support remains for automation.
+- `max_contribution_per_source=0` means unlimited for backwards compatibility and explicitness.
+- URL ticker frames are preserved during the search/assembly sequence; outro cards remain readable and untickered.
 
 ## Documentation alignment notes
 
-- The root README summarises the long project description in `doc/desaparecidos-uy-project-description.md`.
-- `doc/import-sitios-de-memoria.md` documents the corpus importer.
-- `README.md` now documents `people` manifests, crawler dedupe/cache/trails, mundane presets, and URL-ticker videos.
-- `AGENTS.md` requires `STATUS.md` to stay current.
+- `README.md` describes the current GUI, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, and URL ticker videos.
+- `AGENTS.md` records current safety invariants and the tracked portrait-corpus exception.
+- `CLAUDE.md` remains a short pointer to `AGENTS.md` and `STATUS.md`.
 
----
-
-Last updated: 2026-06-18 10:49 GMT-3
+Last updated: 2026-06-18 14:08 GMT-3

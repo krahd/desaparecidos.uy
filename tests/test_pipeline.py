@@ -106,6 +106,37 @@ def test_reuse_limit_applies_per_fragment_not_per_source(tmp_path: Path) -> None
     assert sidecar["max_fragment_reuse_observed"] == 1
 
 
+def test_contribution_cap_limits_tiles_per_source(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=16)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(
+            seed=17, fragment_size=24, reuse_limit=8, output_width=96,
+            max_contribution_per_source=1,
+        ),
+    )
+
+    assert len(assembly.placements) == 16
+    assert max(assembly.source_usage.values()) == 1
+
+
+def test_contribution_cap_infeasible_raises(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=2)
+    settings = Stage1Settings(
+        seed=17, fragment_size=24, reuse_limit=8, output_width=96,
+        max_contribution_per_source=1,
+    )
+
+    with pytest.raises(ValueError, match="max_contribution_per_source"):
+        run_stage1(targets, places, tmp_path / "out", settings)
+
+
 def test_assembly_trace_records_fragment_destinations(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
     target_row = approved_rows(targets, "targets", require_files=True)[0]
@@ -168,3 +199,28 @@ def test_url_ticker_draws_bottom_url() -> None:
     )
 
     assert rendered.getpixel((8, 110)) != (240, 240, 240)
+
+
+def test_process_video_outro_fades_through_text_and_ends_black(tmp_path: Path) -> None:
+    import numpy as np
+
+    targets, places = write_manifests(tmp_path, source_count=1)
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(places, "places", require_files=True)
+    fragments = extract_fragments(source_rows, places, fragment_size=24)
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+    )
+
+    frames = list(pipeline_module._process_video_frames(
+        target_row, assembly, source_rows, places, seed=17, fps=4,
+    ))
+
+    assert np.asarray(frames[-1]).max() <= 8  # ends on black
+    # at least one fully black frame appears mid-sequence (the fades)
+    assert any(np.asarray(frame).max() <= 8 for frame in frames[:-1])
+    # a text card (mostly black with bright glyphs) appears after the last source settle
+    assert any(2 < float(np.asarray(frame).mean()) < 60 for frame in frames)

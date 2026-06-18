@@ -2,17 +2,18 @@
 
 `desaparecidos.uy` is a computational memorial artwork series by Tomas Laurenzo. It reconstructs public images of detained-disappeared persons connected to Uruguay from fragments of the country that survived them: people, places, streets, walls, landscapes, and public visual infrastructures.
 
-The project is not an archive, forensic tool, biometric system, deepfake, or resurrection medium. It is an artistic system for making the continuing structure of disappearance perceptible.
+The project is not an archive, forensic tool, biometric system, deepfake, or resurrection medium. It is an artistic system for making the continuing structure of disappearance perceptible. The created videos aim to metaphorically represent and reenact the continuing search for the disappeared.
 
 The full draft project statement is in [doc/desaparecidos-uy-project-description.md](doc/desaparecidos-uy-project-description.md).
 
-## Stage 1: Estan en todas partes
+## Stage 1: Están en todas partes
 
 Stage 1 implements the place-based prototype. Public target portraits are reconstructed from fragments extracted from curated images of Uruguayan places, surfaces, streets, landscapes, and material environments.
 
 The prototype provides:
 
-- manifest-driven target and place-source ingestion;
+- manifest-driven target, place-source, and internal people-source ingestion;
+- local target-portrait preprocessing that trims white scan borders/caption margins and writes 3:4 processed copies;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
 - a bounded recursive crawler for explicit user-supplied or preset pages;
@@ -20,12 +21,12 @@ The prototype provides:
 - exact and perceptual duplicate detection so repeated image variants do not enter manifests;
 - Stage 1 place-source crawling and internal Stage 2 people-source crawling;
 - a preset menu of ordinary contemporary Uruguay starting pages;
-- deterministic fragment matching and assembly;
-- still PNG outputs and optional browser-playable H.264 MP4 process videos with a bottom URL ticker;
+- deterministic, vectorised fragment matching and assembly with optional per-source contribution caps;
+- still PNG outputs and optional browser-playable H.264 MP4 process videos with a bottom URL ticker and commemorative outro;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
-Raw source imagery, crawl caches, crawl trails, and generated outputs are intentionally ignored by git.
+Generated outputs, processed target copies, raw downloads, crawl caches, crawl trails, and review manifests are intentionally ignored by git. The curated portrait collection in `doc/fotos-desaparecidos/` is tracked intentionally as foundational material for the work.
 
 ## Local GUI
 
@@ -39,9 +40,19 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./start.sh` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, review output sidecars, and delete selected or all generated outputs. Crawler presets now use mundane contemporary Uruguay sources such as Montevideo tourism/events/news and `gub.uy` public news pages rather than memory-site pages. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, animate those fragments into their actual positions in the reconstructed portrait, and write crawled page URLs along the bottom of the video so the search remains visible.
+The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, approve/reject/reset/delete individual manifest rows, select rows with checkboxes to bulk-approve or bulk-delete the selection (Select all, Select none, Approve selected, Delete selected), click a target thumbnail to set the working portrait, run still/video generation, inspect logs, review sidecars, and delete selected or all generated outputs. Crawling has its own running state, so review remains usable while a crawl is running.
 
-The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
+Crawler controls expose only `places` and `people`. `targets` remain the disappeared-person portrait corpus. The `/api/download` route and CLI download command still exist, but the primary GUI no longer shows a download panel. Synthetic demo fixture controls are in the compact Utilities modal.
+
+The GUI remembers the target, place, people, output, and crawl manifest paths across sessions. Crawler presets use mundane contemporary Uruguay sources such as Montevideo tourism/events/news and `gub.uy` public news pages rather than memory-site pages.
+
+Generation controls include:
+
+- `Block size`, wired to `fragment_size` (`8..128`, step `4`);
+- `Max tiles per source`, wired to `max_contribution_per_source` (`0` means unlimited);
+- `reuse_limit`, `output_width`, seed, still generation, and video generation.
+
+Generated videos introduce each used source image full-screen, highlight sampled fragment regions, animate those fragments into their actual positions in the reconstructed portrait, write crawled page URLs along the bottom during search/assembly frames, and finish with a commemorative outro.
 
 ## Manual Setup
 
@@ -51,6 +62,8 @@ python3 -m venv .venv
 python -m pip install -e ".[dev]"
 npm --prefix frontend install
 ```
+
+Installing the package pulls in `opencv-python-headless`, used for crawler face/scene gating; no model download is required.
 
 Video generation requires `ffmpeg` with H.264/libx264 support. On macOS with Homebrew:
 
@@ -79,7 +92,10 @@ python -m desaparecidos validate --targets data/manifests/targets.csv --sources 
 python -m desaparecidos download --manifest data/manifests/places.csv --kind places
 python -m desaparecidos download --manifest data/manifests/people.csv --kind people
 python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17
+python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
+
+The Sitios de Memoria importer and portrait override tooling remain available for local corpus preparation. The importer selects a portrait only from a person page's `field-fotografia` container, recording `portrait_status` as `ok` or `missing` rather than importing work posters or materials as a face. Each person record carries a `field_sources` map noting which source (see the tracked `data/sources.json` registry) is authoritative for each field and for the portrait; `scripts/apply_portrait_overrides.py` swaps in a portrait from a better source (for example Parque de la Memoria for Argentine cases) and records that provenance. Generated importer outputs and review manifests stay ignored unless intentionally curated into source control; `data/sources.json` is tracked.
 
 ## Manifests and Review
 
@@ -88,16 +104,17 @@ Tracked manifest templates live in `data/manifests/`.
 - Target manifests describe disappeared persons' public images and source provenance.
 - Place manifests describe place/surface images and reuse terms.
 - People manifests describe contemporary public images of people for internal Stage 2 exploration. They are review-gated source-corpus material, not disappeared-person targets, and no identity matching is performed.
-- Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
-- The crawler fetches only page URLs entered or selected in the GUI, follows links within depth/page/image limits, honours `robots.txt` by default, and defaults to same-domain traversal for presets.
+- `scripts/build_targets_manifest.py` builds ignored local target manifests from `doc/fotos-desaparecidos/`. By default it writes processed 3:4 portrait copies under ignored `data/processed/targets/`, trimming near-white borders and caption/text margins while keeping the original filename in provenance notes.
+- Rows must use `review_status=approved` before the Stage 1 pipeline can use the corresponding local file.
+- The crawler fetches only page URLs entered or selected in the GUI, follows links within depth/page/image limits, honours `robots.txt` by default, and defaults preset runs to same-domain traversal.
 - The crawler saves discovered images under ignored `data/raw/crawl/store/`, records cache/trail data in ignored `data/raw/crawl/cache.sqlite`, exports each run under ignored `data/raw/crawl/runs/<run_id>.jsonl`, and appends pending rows to ignored `data/manifests/crawled-*.csv`.
-- Crawled rows keep the direct image URL in `source_url`, the page where it was found in `source_page`, and crawl metadata (`crawl_run_id`, `content_sha256`, `perceptual_hash`). People rows also keep a manual-review face-region box.
+- Crawled rows keep the direct image URL in `source_url`, the page where it was found in `source_page`, and crawl metadata (`crawl_run_id`, `content_sha256`, `perceptual_hash`). People rows also keep the largest accepted face-region box for manual review.
 - Exact SHA-256 and perceptual hashes prevent repeated image variants from being added to manifests. Cache classification is per manifest kind, so one URL can be evaluated separately as a place or people candidate without re-downloading.
-- `reuse_limit` is enforced per extracted source fragment. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
-- Video sidecars record the process style, source sequence, tile counts, per-source animated fragment counts, and the search-trail URLs used by the bottom ticker.
+- `reuse_limit` is enforced per extracted source fragment. `max_contribution_per_source` caps how many output tiles any single source image fills, and infeasible caps fail before generation.
+- Video sidecars record settings, source usage, source sequence, tile counts, per-source animated fragment counts, video process metadata, and the search-trail URLs/run ids used by the bottom ticker.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 
-Downloaded and crawled files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.
+Downloaded and crawled files are written under `data/raw/`; processed target copies are written under `data/processed/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.
 
 ## Verification
 
@@ -105,6 +122,8 @@ Downloaded and crawled files are written under `data/raw/`; generated stills, vi
 python -m compileall src tests
 python -m pytest -q
 npm --prefix frontend run build
+zsh -n start.sh
+git diff --check
 ```
 
 ## Repository Notes

@@ -22,8 +22,13 @@ frontend/.vite/
 data/raw/
 data/fragments/
 data/demo/
+data/processed/
+data/persons/
 data/manifests/demo-*.csv
 data/manifests/crawled-*.csv
+data/manifests/local-*.csv
+data/manifests/targets-sitios-de-memoria.csv
+assets/
 outputs/
 
 # Local environment and logs

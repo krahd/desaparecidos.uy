@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-18 10:21 GMT-3
+Last updated: 2026-06-18 10:49 GMT-3
 
 ## Project purpose
 
@@ -143,7 +143,7 @@ python scripts/import_sitios_memoria.py --download-images --process-images
 - Raw crawler downloads belong under ignored `data/raw/`.
 - Crawler cache and trails belong under ignored `data/raw/crawl/` (`store/`, `cache.sqlite`, and `runs/*.jsonl`).
 - Generated outputs belong under ignored `outputs/stage1/`.
-- Target portraits of disappeared persons are written under `assets/targets/disappeared/` by the importer.
+- Target portraits of disappeared persons are written under ignored `assets/targets/disappeared/` by the importer.
 - Browser-playable video generation requires `ffmpeg` with H.264/libx264 support.
 
 ## Important files and directories
@@ -158,10 +158,10 @@ python scripts/import_sitios_memoria.py --download-images --process-images
 - `src/desaparecidos/cv.py`: no-dependency perceptual hashing and lightweight place/people candidate gating.
 - `src/desaparecidos/crawl.py`: bounded crawler, dedupe, manifest-row creation, and trail recording.
 - `doc/import-sitios-de-memoria.md`: importer usage notes.
-- `data/persons/`: importer output for disappeared-person metadata.
+- `data/persons/`: ignored importer output for disappeared-person metadata.
 - `data/manifests/`: tracked manifest templates and importer target manifest output.
 - `data/manifests/people.csv`: tracked empty template for Stage 2 contemporary people-source candidates.
-- `assets/targets/disappeared/`: raw and processed target portraits imported from historical-memory sources.
+- `assets/targets/disappeared/`: ignored raw and processed target portraits imported from historical-memory sources.
 - `data/raw/crawl/`: ignored crawler cache and crawl-trail runtime state.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecars.
 - GitHub: private repository at `https://github.com/krahd/desaparecidos.uy`.
@@ -185,6 +185,7 @@ python scripts/import_sitios_memoria.py --download-images --process-images
 - 2026-06-18 00:38 GMT-3 follow-up: added `scripts/import_sitios_memoria.py` for automated import of the full Sitios de Memoria disappearance corpus and target portrait candidates; added `doc/import-sitios-de-memoria.md` documenting test and full-import commands.
 - 2026-06-18 09:45 GMT-3 follow-up: implemented crawler search-trail support. Added a `people` manifest kind for internal Stage 2 contemporary people-source candidates; extended place rows with crawl metadata; added `src/desaparecidos/cache.py` and `src/desaparecidos/cv.py`; made the crawler bounded recursive with same-domain defaults, robots support, exact SHA-256 dedupe, perceptual hash dedupe, per-kind image classification, page/image event storage, and JSONL run exports; replaced memory/archive crawler presets with mundane contemporary Uruguay sources; added bottom URL ticker rendering and `search_trail` sidecar metadata for Stage 1 videos.
 - 2026-06-18 10:21 GMT-3 follow-up: renamed the local launcher to `start.sh` and updated repository references accordingly.
+- 2026-06-18 10:49 GMT-3 follow-up: expanded `.gitignore` so local importer/crawler outputs stay untracked, including `assets/`, `data/persons/`, `data/processed/`, local manifests, and generated Sitios de Memoria target manifests.
 
 ## Tests and verification status
 
@@ -240,7 +241,7 @@ Previous verification on 2026-06-17 passed for compile, pytest, frontend build, 
 
 1. Run `python scripts/import_sitios_memoria.py --limit 5 --download-images --process-images` locally and inspect outputs.
 2. Run the full import after the five-record test succeeds.
-3. Commit generated `data/persons/`, `data/manifests/targets-sitios-de-memoria.csv`, and `assets/targets/disappeared/` files after review.
+3. Keep generated `data/persons/`, `data/manifests/targets-sitios-de-memoria.csv`, and `assets/targets/disappeared/` files local unless a later release policy explicitly changes this.
 4. Add SDHPR fiche cross-checking.
 5. Review the visual effect of the URL ticker in a real generated process video.
 
@@ -270,4 +271,4 @@ Previous verification on 2026-06-17 passed for compile, pytest, frontend build, 
 
 ---
 
-Last updated: 2026-06-18 10:21 GMT-3
+Last updated: 2026-06-18 10:49 GMT-3

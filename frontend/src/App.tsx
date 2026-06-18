@@ -3,6 +3,7 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
+  Database,
   Eye,
   FileCheck2,
   Globe2,
@@ -10,10 +11,14 @@ import {
   LayoutGrid,
   Maximize2,
   Play,
+  Plus,
   RefreshCw,
+  Save,
+  Search,
   Settings,
   Square,
   Trash2,
+  UserRound,
   Video,
   X,
 } from 'lucide-react';
@@ -23,15 +28,25 @@ import {
   CrawlResponse,
   ManifestRow,
   OutputItem,
+  PersonRecord,
+  PersonsResponse,
+  SourceRegistry,
   ValidateResponse,
+  addPersonPortrait,
   crawlPages,
   createDemoFixtures,
   deleteOutputs,
   deleteReviewRow,
   deleteReviewRows,
+  exportTargetsFromPersons,
   fileUrl,
   generateStage1,
+  listPersonSources,
+  listPersons,
   listOutputs,
+  processPersonPortrait,
+  savePerson,
+  selectPersonPortrait,
   updateReviewStatus,
   updateReviewStatusBulk,
   validateManifests,
@@ -43,10 +58,11 @@ type LogEntry = {
   tone?: 'ok' | 'error';
 };
 
-type SectionId = 'manifests' | 'review' | 'generate' | 'outputs';
+type SectionId = 'targets' | 'manifests' | 'review' | 'generate' | 'outputs';
 type ReviewKind = 'targets' | 'places' | 'people';
 type CrawlKind = 'places' | 'people';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
+type PersonFilter = 'all' | 'missing' | 'portrait';
 type CrawlPreset = {
   id: string;
   label: string;
@@ -58,6 +74,7 @@ type CrawlPreset = {
 };
 
 const defaultPaths = {
+  personStore: 'data/persons/disappeared.json',
   targets: 'data/manifests/local-targets.csv',
   sources: 'data/manifests/places.csv',
   people: 'data/manifests/people.csv',
@@ -157,7 +174,46 @@ function manifestForKind(kind: ReviewKind, paths: { targets: string; sources: st
   return paths.people;
 }
 
+function blankPerson(): PersonRecord {
+  const now = new Date().toISOString();
+  return {
+    id: '',
+    slug: '',
+    full_name: '',
+    given_names: '',
+    family_names: '',
+    date_of_birth: '',
+    place_of_birth: '',
+    date_of_disappearance: '',
+    date_of_detention: '',
+    place_of_disappearance: '',
+    country_of_disappearance: '',
+    places_of_detention: [],
+    remains_status: 'unknown',
+    date_of_remains_found: '',
+    place_of_remains_found: '',
+    short_bio: '',
+    notes: '',
+    source_page: '',
+    sources: [],
+    field_sources: {},
+    portrait_status: 'missing',
+    portrait_candidates: [],
+    selected_portrait_id: '',
+    selected_portrait: null,
+    review_status: 'pending',
+    missing_fields: [],
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function copyPerson(person: PersonRecord): PersonRecord {
+  return JSON.parse(JSON.stringify(person)) as PersonRecord;
+}
+
 export function App() {
+  const [personStore, setPersonStore] = useState(() => loadStored('personStore', defaultPaths.personStore));
   const [targets, setTargets] = useState(() => loadStored('targets', defaultPaths.targets));
   const [sources, setSources] = useState(() => loadStored('sources', defaultPaths.sources));
   const [people, setPeople] = useState(() => loadStored('people', defaultPaths.people));
@@ -169,6 +225,19 @@ export function App() {
   const [maxContribution, setMaxContribution] = useState(0);
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
+  const [personsResponse, setPersonsResponse] = useState<PersonsResponse | null>(null);
+  const [sourceRegistry, setSourceRegistry] = useState<SourceRegistry | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState('');
+  const [editingPerson, setEditingPerson] = useState<PersonRecord | null>(null);
+  const [personQuery, setPersonQuery] = useState('');
+  const [personFilter, setPersonFilter] = useState<PersonFilter>('all');
+  const [portraitForm, setPortraitForm] = useState({
+    image_url: '',
+    source_page: '',
+    source_id: 'madres-familiares',
+    licence_or_terms: '',
+    notes: '',
+  });
   const [outputs, setOutputs] = useState<OutputItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [crawling, setCrawling] = useState(false);
@@ -202,6 +271,7 @@ export function App() {
     ].slice(0, 80));
   }, []);
 
+  const persons = personsResponse?.people ?? [];
   const allTargets = validation?.targets.rows ?? [];
   const approvedTargets = allTargets.filter((row) => row.approved);
   const approvedSources = validation?.sources.rows.filter((row) => row.approved) ?? [];
@@ -215,6 +285,20 @@ export function App() {
     ?? allTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
   const selectedReviewCount = selectedReviewIds.size;
+  const filteredPersons = useMemo(() => {
+    const query = personQuery.trim().toLowerCase();
+    return persons.filter((person) => {
+      if (personFilter === 'missing' && person.missing_fields.length === 0) return false;
+      if (personFilter === 'portrait' && person.selected_portrait?.processed_path) return false;
+      if (!query) return true;
+      return [
+        person.full_name,
+        person.place_of_birth,
+        person.place_of_disappearance,
+        person.notes,
+      ].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [personFilter, personQuery, persons]);
 
   const statusLabel = useMemo(() => {
     if (crawling) return 'crawling';
@@ -248,6 +332,135 @@ export function App() {
       ?? document.getElementById(`controls-${section}`);
     target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, []);
+
+  const refreshPersons = useCallback(async (preferredId?: string): Promise<PersonsResponse | null> => {
+    const response = await runAction(
+      'Loading target person store.',
+      () => listPersons(personStore),
+      'Target person store loaded.',
+    );
+    if (!response) return null;
+    setPersonsResponse(response);
+    const nextId = preferredId
+      ?? selectedPersonId
+      ?? response.people[0]?.id
+      ?? '';
+    const selected = response.people.find((person) => person.id === nextId) ?? response.people[0] ?? null;
+    setSelectedPersonId(selected?.id ?? '');
+    setEditingPerson(selected ? copyPerson(selected) : null);
+    return response;
+  }, [personStore, runAction, selectedPersonId]);
+
+  function updateEditingPerson(field: keyof PersonRecord, value: PersonRecord[keyof PersonRecord]) {
+    setEditingPerson((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function handlePersonSelect(personId: string) {
+    const selected = persons.find((person) => person.id === personId) ?? null;
+    setSelectedPersonId(selected?.id ?? '');
+    setEditingPerson(selected ? copyPerson(selected) : null);
+  }
+
+  function handleNewPerson() {
+    setSelectedPersonId('');
+    setEditingPerson(blankPerson());
+    setActiveSection('targets');
+  }
+
+  async function handleSavePerson() {
+    if (!editingPerson) {
+      appendLog('No target person selected.', 'error');
+      return;
+    }
+    const response = await runAction(
+      `Saving ${editingPerson.full_name || 'new target person'}.`,
+      () => savePerson({ store: personStore, person: editingPerson }),
+      'Target person saved.',
+    );
+    if (!response) return;
+    await refreshPersons(response.person.id);
+  }
+
+  async function handleAddPortraitCandidate() {
+    if (!editingPerson) {
+      appendLog('No target person selected.', 'error');
+      return;
+    }
+    if (!editingPerson.id) {
+      appendLog('Save the person record before adding portrait candidates.', 'error');
+      return;
+    }
+    if (!portraitForm.image_url.trim()) {
+      appendLog('Add an image URL before downloading a portrait candidate.', 'error');
+      return;
+    }
+    const source = sourceRegistry?.sources.find((item) => item.id === portraitForm.source_id);
+    const response = await runAction(
+      `Downloading portrait candidate for ${editingPerson.full_name || editingPerson.id}.`,
+      () => addPersonPortrait({
+        store: personStore,
+        person_id: editingPerson.id,
+        image_url: portraitForm.image_url.trim(),
+        source_page: portraitForm.source_page.trim(),
+        source_id: portraitForm.source_id,
+        source_name: source?.name ?? '',
+        licence_or_terms: portraitForm.licence_or_terms.trim() || source?.licence || '',
+        notes: portraitForm.notes.trim(),
+        raw_root: 'assets/targets/disappeared/raw',
+        overwrite: false,
+      }),
+      'Portrait candidate downloaded.',
+    );
+    if (!response) return;
+    setPortraitForm((current) => ({ ...current, image_url: '', source_page: '', notes: '' }));
+    await refreshPersons(response.person.id);
+  }
+
+  async function handleSelectPortrait(candidateId: string, process = false) {
+    if (!editingPerson) return;
+    const response = await runAction(
+      process ? 'Processing selected target portrait.' : 'Selecting target portrait.',
+      () => (
+        process
+          ? processPersonPortrait({
+            store: personStore,
+            person_id: editingPerson.id,
+            candidate_id: candidateId,
+            selected_root: 'assets/targets/disappeared/selected',
+            aspect: 0.75,
+            use_face: true,
+            max_side: 1200,
+            overwrite: true,
+          })
+          : selectPersonPortrait({
+            store: personStore,
+            person_id: editingPerson.id,
+            candidate_id: candidateId,
+          })
+      ),
+      process ? 'Portrait processed and selected.' : 'Portrait selected.',
+    );
+    if (!response) return;
+    await refreshPersons(response.person.id);
+  }
+
+  async function handleExportTargets() {
+    const response = await runAction(
+      'Exporting targets manifest from person store.',
+      () => exportTargetsFromPersons({
+        store: personStore,
+        manifest: targets,
+        approved: false,
+      }),
+      'Targets manifest exported.',
+    );
+    if (!response) return;
+    appendLog(
+      `Wrote ${response.rows_written} target row${response.rows_written === 1 ? '' : 's'}; ${response.skipped} skipped without selected portraits.`,
+      response.rows_written ? 'ok' : undefined,
+    );
+    await handleValidate(false);
+  }
 
   async function handleValidate(requireFiles = false) {
     const response = await runAction(
@@ -618,6 +831,7 @@ export function App() {
     await refreshOutputs();
   }
 
+  useEffect(() => saveStored('personStore', personStore), [personStore]);
   useEffect(() => saveStored('targets', targets), [targets]);
   useEffect(() => saveStored('sources', sources), [sources]);
   useEffect(() => saveStored('people', people), [people]);
@@ -641,6 +855,17 @@ export function App() {
         if (firstApproved) setTargetId(firstApproved);
       })
       .catch(() => undefined);
+    listPersons(personStore)
+      .then((response) => {
+        setPersonsResponse(response);
+        const first = response.people[0] ?? null;
+        setSelectedPersonId(first?.id ?? '');
+        setEditingPerson(first ? copyPerson(first) : null);
+      })
+      .catch(() => undefined);
+    listPersonSources()
+      .then((response) => setSourceRegistry(response.registry))
+      .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -663,6 +888,13 @@ export function App() {
       </header>
 
       <aside className="workflow">
+        <WorkflowItem
+          icon={<UserRound />}
+          title="Targets"
+          active={activeSection === 'targets'}
+          detail={`${personsResponse?.summary.missing_count ?? 0} incomplete`}
+          onSelect={() => selectWorkflow('targets')}
+        />
         <WorkflowItem
           icon={<FileCheck2 />}
           title="Manifests"
@@ -694,6 +926,275 @@ export function App() {
       </aside>
 
       <main className="workspace">
+        <section className="stage-panel targets-admin-panel" id="section-targets">
+          <div className="panel-title">
+            <span>Target administration</span>
+            <div className="panel-actions">
+              <button className="text-button" onClick={() => void refreshPersons()} disabled={busy}>
+                <RefreshCw size={14} /> Refresh
+              </button>
+              <button className="text-button" onClick={handleNewPerson} disabled={busy}>
+                <Plus size={14} /> New record
+              </button>
+              <button className="text-button" onClick={() => void handleExportTargets()} disabled={busy}>
+                <Database size={14} /> Export targets
+              </button>
+            </div>
+          </div>
+          <div className="targets-admin-grid">
+            <div className="person-browser">
+              <div className="person-summary">
+                <strong>{personsResponse?.summary.count ?? 0}</strong>
+                <span>{personsResponse?.summary.missing_count ?? 0} incomplete</span>
+                <span>{personsResponse?.summary.weak_portrait_count ?? 0} need portraits</span>
+              </div>
+              <label className="search-label">
+                <Search size={14} />
+                <input
+                  value={personQuery}
+                  onChange={(event) => setPersonQuery(event.target.value)}
+                  placeholder="Search targets"
+                />
+              </label>
+              <div className="segmented target-filter">
+                <button className={personFilter === 'all' ? 'selected' : ''} onClick={() => setPersonFilter('all')}>
+                  All
+                </button>
+                <button className={personFilter === 'missing' ? 'selected' : ''} onClick={() => setPersonFilter('missing')}>
+                  Missing
+                </button>
+                <button className={personFilter === 'portrait' ? 'selected' : ''} onClick={() => setPersonFilter('portrait')}>
+                  Portrait
+                </button>
+              </div>
+              <div className="person-list">
+                {filteredPersons.length === 0 && <EmptyState text="No target records match the current filter." />}
+                {filteredPersons.map((person) => (
+                  <button
+                    type="button"
+                    key={person.id}
+                    className={`person-row ${selectedPersonId === person.id ? 'selected' : ''}`}
+                    onClick={() => handlePersonSelect(person.id)}
+                  >
+                    <strong>{person.full_name}</strong>
+                    <span>
+                      {person.missing_fields.length === 0
+                        ? 'complete'
+                        : `missing ${person.missing_fields.join(', ')}`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="person-editor">
+              {!editingPerson && <EmptyState text="Load or create a target person record." />}
+              {editingPerson && (
+                <>
+                  <div className="person-editor-header">
+                    <div>
+                      <h2>{editingPerson.full_name || 'New target person'}</h2>
+                      <p>{editingPerson.id || 'Save to assign an id from the name.'}</p>
+                    </div>
+                    <button onClick={() => void handleSavePerson()} disabled={busy}>
+                      <Save size={16} /> Save
+                    </button>
+                  </div>
+
+                  <div className="person-editor-layout">
+                    <div className="person-form">
+                      <div className="form-grid">
+                        <label>
+                          Full name
+                          <input
+                            value={editingPerson.full_name}
+                            onChange={(event) => updateEditingPerson('full_name', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Review status
+                          <select
+                            value={editingPerson.review_status}
+                            onChange={(event) => updateEditingPerson('review_status', event.target.value as PersonRecord['review_status'])}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                        </label>
+                        <label>
+                          Date of birth
+                          <input
+                            value={editingPerson.date_of_birth}
+                            onChange={(event) => updateEditingPerson('date_of_birth', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Place of birth
+                          <input
+                            value={editingPerson.place_of_birth}
+                            onChange={(event) => updateEditingPerson('place_of_birth', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Date of disappearance
+                          <input
+                            value={editingPerson.date_of_disappearance}
+                            onChange={(event) => updateEditingPerson('date_of_disappearance', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Place of disappearance
+                          <input
+                            value={editingPerson.place_of_disappearance}
+                            onChange={(event) => updateEditingPerson('place_of_disappearance', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Remains
+                          <select
+                            value={editingPerson.remains_status}
+                            onChange={(event) => updateEditingPerson('remains_status', event.target.value as PersonRecord['remains_status'])}
+                          >
+                            <option value="unknown">Unknown</option>
+                            <option value="not_found">Not found</option>
+                            <option value="found">Found</option>
+                          </select>
+                        </label>
+                        <label>
+                          Source page
+                          <input
+                            value={editingPerson.source_page}
+                            onChange={(event) => updateEditingPerson('source_page', event.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        Short bio
+                        <textarea
+                          rows={3}
+                          value={editingPerson.short_bio}
+                          onChange={(event) => updateEditingPerson('short_bio', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Notes
+                        <textarea
+                          rows={3}
+                          value={editingPerson.notes}
+                          onChange={(event) => updateEditingPerson('notes', event.target.value)}
+                        />
+                      </label>
+                      <div className="missing-fields">
+                        <strong>Missing information</strong>
+                        {editingPerson.missing_fields.length === 0 ? (
+                          <span className="status-pill approved">complete</span>
+                        ) : (
+                          editingPerson.missing_fields.map((field) => (
+                            <span className="status-pill" key={field}>{field}</span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="portrait-admin">
+                      <div className="portrait-preview">
+                        {editingPerson.selected_portrait?.processed_path || editingPerson.selected_portrait?.raw_path ? (
+                          <img
+                            src={fileUrl(
+                              editingPerson.selected_portrait.processed_path
+                              || editingPerson.selected_portrait.raw_path,
+                            )}
+                            alt=""
+                          />
+                        ) : (
+                          <EmptyState text="No selected portrait." />
+                        )}
+                      </div>
+                      <div className="candidate-list">
+                        {editingPerson.portrait_candidates.length === 0 && <EmptyState text="No portrait candidates recorded." />}
+                        {editingPerson.portrait_candidates.map((candidate) => {
+                          const localPath = candidate.processed_path || candidate.raw_path;
+                          const isSelected = candidate.id === editingPerson.selected_portrait_id;
+                          return (
+                            <article className={`candidate-card ${isSelected ? 'selected' : ''}`} key={candidate.id}>
+                              {localPath ? <img src={fileUrl(localPath)} alt="" /> : <div />}
+                              <div>
+                                <strong>{candidate.source_name || candidate.source_id || candidate.id}</strong>
+                                <span>{candidate.source_page || candidate.source_url}</span>
+                              </div>
+                              <div className="candidate-actions">
+                                <button
+                                  className="text-button"
+                                  onClick={() => void handleSelectPortrait(candidate.id, Boolean(candidate.raw_path))}
+                                  disabled={busy}
+                                >
+                                  {candidate.processed_path ? 'Select' : 'Process'}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                      <div className="portrait-download">
+                        <h3>Add online candidate</h3>
+                        <label>
+                          Image URL
+                          <input
+                            value={portraitForm.image_url}
+                            onChange={(event) => setPortraitForm((current) => ({ ...current, image_url: event.target.value }))}
+                            placeholder="https://..."
+                          />
+                        </label>
+                        <label>
+                          Source page
+                          <input
+                            value={portraitForm.source_page}
+                            onChange={(event) => setPortraitForm((current) => ({ ...current, source_page: event.target.value }))}
+                            placeholder="https://..."
+                          />
+                        </label>
+                        <div className="form-grid">
+                          <label>
+                            Source
+                            <select
+                              value={portraitForm.source_id}
+                              onChange={(event) => setPortraitForm((current) => ({ ...current, source_id: event.target.value }))}
+                            >
+                              {sourceRegistry?.sources.map((source) => (
+                                <option key={source.id} value={source.id}>{source.name}</option>
+                              ))}
+                              <option value="web-search">Controlled web search</option>
+                            </select>
+                          </label>
+                          <label>
+                            Licence / terms
+                            <input
+                              value={portraitForm.licence_or_terms}
+                              onChange={(event) => setPortraitForm((current) => ({ ...current, licence_or_terms: event.target.value }))}
+                            />
+                          </label>
+                        </div>
+                        <label>
+                          Candidate notes
+                          <textarea
+                            rows={2}
+                            value={portraitForm.notes}
+                            onChange={(event) => setPortraitForm((current) => ({ ...current, notes: event.target.value }))}
+                          />
+                        </label>
+                        <button onClick={() => void handleAddPortraitCandidate()} disabled={busy || !editingPerson.id}>
+                          <Plus size={16} /> Download candidate
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
         <section className="stage-panel target-panel" id="section-generate">
           <div className="panel-title">
             <span>Target portrait</span>
@@ -898,6 +1399,10 @@ export function App() {
               <Settings size={15} />
             </button>
           </div>
+          <label>
+            Person store
+            <input value={personStore} onChange={(event) => setPersonStore(event.target.value)} />
+          </label>
           <label>
             Targets
             <input value={targets} onChange={(event) => setTargets(event.target.value)} />

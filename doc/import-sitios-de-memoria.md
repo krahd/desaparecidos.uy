@@ -5,14 +5,14 @@
 ## Outputs
 
 ```text
-data/persons/disappeared-sitios-de-memoria.json
+data/persons/disappeared.json
 data/persons/disappeared-sitios-de-memoria.csv
-data/manifests/targets-sitios-de-memoria.csv
+data/manifests/targets.csv
 assets/targets/disappeared/raw/<person-slug>/...
-assets/targets/disappeared/processed/<person-slug>.png
+assets/targets/disappeared/selected/<person-slug>.jpg
 ```
 
-Portraits of disappeared persons are treated as target imagery. Existing files are not deleted.
+Portraits of disappeared persons are treated as target imagery. Existing files are not deleted. Raw downloads remain ignored; reviewed selected derivatives in `assets/targets/disappeared/selected/` are the trackable curated portrait corpus.
 
 ## Test import
 
@@ -26,7 +26,7 @@ python scripts/import_sitios_memoria.py --limit 5 --download-images --process-im
 python scripts/import_sitios_memoria.py --download-images --process-images
 ```
 
-By default, target manifest rows are written with `review_status=candidate`. Add `--approved-targets` only after deciding that the imported portraits should be available as approved target imagery.
+By default, target manifest rows are written with `review_status=pending`. Add `--approved-targets` only after deciding that the imported portraits should be available as approved target imagery.
 
 ## Regenerate existing imported files
 
@@ -50,7 +50,7 @@ Apply them after the main import:
 python scripts/apply_portrait_overrides.py --overwrite
 ```
 
-This downloads the override image, creates a processed 4:5 derivative, replaces the matching person's `portrait_candidates` entry in the generated JSON, and replaces the corresponding target-manifest row.
+This downloads the override image, creates a processed 3:4 derivative with white borders removed, replaces the matching person's `portrait_candidates` entry in the canonical JSON, and replaces the corresponding target-manifest row.
 
 The first override is for `abeledo-sotuyo-horacio-adolfo`: Sitios de Memoria exposed a poster for *El tiempo pasa* under `Obras de interés`; the override uses the Parque de la Memoria record instead.
 
@@ -62,4 +62,4 @@ Secondary verification/source layer for selected corrections: Secretaría de Der
 
 ## Notes
 
-The importer records provenance for every candidate portrait and does not perform identification, classification, enhancement, or forensic reconstruction. It normalises processed derivatives to 4:5 at 1200 × 1500 pixels. Manual review remains necessary for portraits with lettering, frames, or embedded layout elements.
+The importer records provenance for every candidate portrait and does not perform identification, classification, enhancement, or forensic reconstruction. It normalises processed derivatives to 3:4 at up to 900 × 1200 pixels by default, trimming white borders and centring on detected faces when possible. Manual review remains necessary for portraits with lettering, frames, or embedded layout elements.

@@ -23,12 +23,24 @@ data/raw/
 data/fragments/
 data/demo/
 data/processed/
-data/persons/
+data/persons/*
+!data/persons/.gitkeep
+!data/persons/disappeared.json
 data/manifests/demo-*.csv
 data/manifests/crawled-*.csv
 data/manifests/local-*.csv
 data/manifests/targets-sitios-de-memoria.csv
-assets/
+assets/*
+!assets/targets/
+assets/targets/*
+!assets/targets/disappeared/
+assets/targets/disappeared/*
+!assets/targets/disappeared/selected/
+assets/targets/disappeared/selected/*
+!assets/targets/disappeared/selected/.gitkeep
+!assets/targets/disappeared/selected/*.jpg
+!assets/targets/disappeared/selected/*.jpeg
+!assets/targets/disappeared/selected/*.png
 outputs/
 
 /assets/targets/disappeared/raw/

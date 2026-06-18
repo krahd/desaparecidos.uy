@@ -20,6 +20,18 @@ from .manifests import (
 )
 from .outputs import delete_outputs, list_outputs
 from .paths import PROJECT_ROOT, safe_project_path
+from .persons import (
+    add_portrait_candidate,
+    delete_person,
+    export_targets_manifest,
+    get_person,
+    list_persons_api,
+    load_sources_registry,
+    process_selected_portrait,
+    search_plan,
+    set_selected_portrait,
+    upsert_person,
+)
 from .pipeline import Stage1Settings, run_stage1
 
 
@@ -95,6 +107,52 @@ class DeleteOutputsRequest(BaseModel):
     all: bool = False
 
 
+class PersonSaveRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    person: dict[str, Any]
+
+
+class PersonDeleteRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    person_id: str
+
+
+class PersonPortraitAddRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    person_id: str
+    image_url: str
+    source_page: str = ""
+    source_id: str = ""
+    source_name: str = ""
+    licence_or_terms: str = ""
+    notes: str = ""
+    raw_root: str = "assets/targets/disappeared/raw"
+    overwrite: bool = False
+
+
+class PersonPortraitSelectRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    person_id: str
+    candidate_id: str
+
+
+class PersonPortraitProcessRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    person_id: str
+    candidate_id: str
+    selected_root: str = "assets/targets/disappeared/selected"
+    aspect: float = Field(default=0.75, gt=0, le=4)
+    use_face: bool = True
+    max_side: int = Field(default=1200, ge=128, le=4096)
+    overwrite: bool = True
+
+
+class PersonExportTargetsRequest(BaseModel):
+    store: str = "data/persons/disappeared.json"
+    manifest: str = "data/manifests/targets.csv"
+    approved: bool = False
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="desaparecidos.uy local API")
     app.add_middleware(
@@ -119,6 +177,7 @@ def create_app() -> FastAPI:
             "target_manifest": "data/manifests/targets.csv",
             "source_manifest": "data/manifests/places.csv",
             "people_manifest": "data/manifests/people.csv",
+            "person_store": "data/persons/disappeared.json",
             "output_dir": "outputs/stage1",
         }
 
@@ -146,6 +205,108 @@ def create_app() -> FastAPI:
     @app.post("/api/demo-fixtures")
     def demo_fixtures() -> dict[str, object]:
         return create_demo_fixtures()
+
+    @app.get("/api/persons")
+    def persons(store: str = "data/persons/disappeared.json") -> dict[str, Any]:
+        try:
+            return list_persons_api(safe_project_path(store))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/persons/save")
+    def save_person(request: PersonSaveRequest) -> dict[str, Any]:
+        try:
+            person = upsert_person(safe_project_path(request.store), request.person)
+            return {"ok": True, "person": person}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/persons/delete")
+    def remove_person(request: PersonDeleteRequest) -> dict[str, Any]:
+        try:
+            return delete_person(safe_project_path(request.store), request.person_id)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/persons/sources")
+    def person_sources() -> dict[str, Any]:
+        try:
+            return {"ok": True, "registry": load_sources_registry()}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/persons/search-plan")
+    def persons_search_plan(store: str = "data/persons/disappeared.json") -> dict[str, Any]:
+        try:
+            return search_plan(safe_project_path(store))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/persons/{person_id}")
+    def person(person_id: str, store: str = "data/persons/disappeared.json") -> dict[str, Any]:
+        try:
+            return {"ok": True, "person": get_person(safe_project_path(store), person_id)}
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/persons/portrait/add")
+    def persons_add_portrait(request: PersonPortraitAddRequest) -> dict[str, Any]:
+        try:
+            person = add_portrait_candidate(
+                safe_project_path(request.store),
+                request.person_id,
+                image_url=request.image_url,
+                source_page=request.source_page,
+                source_id=request.source_id,
+                source_name=request.source_name,
+                licence_or_terms=request.licence_or_terms,
+                notes=request.notes,
+                raw_root=safe_project_path(request.raw_root),
+                overwrite=request.overwrite,
+            )
+            return {"ok": True, "person": person}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/persons/portrait/select")
+    def persons_select_portrait(request: PersonPortraitSelectRequest) -> dict[str, Any]:
+        try:
+            person = set_selected_portrait(
+                safe_project_path(request.store),
+                request.person_id,
+                request.candidate_id,
+            )
+            return {"ok": True, "person": person}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/persons/portrait/process")
+    def persons_process_portrait(request: PersonPortraitProcessRequest) -> dict[str, Any]:
+        try:
+            person = process_selected_portrait(
+                safe_project_path(request.store),
+                request.person_id,
+                request.candidate_id,
+                selected_root=safe_project_path(request.selected_root),
+                aspect=request.aspect,
+                use_face=request.use_face,
+                max_side=request.max_side,
+                overwrite=request.overwrite,
+            )
+            return {"ok": True, "person": person}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/persons/export-targets")
+    def persons_export_targets(request: PersonExportTargetsRequest) -> dict[str, Any]:
+        try:
+            return export_targets_manifest(
+                safe_project_path(request.store),
+                safe_project_path(request.manifest),
+                approved=request.approved,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/crawl")
     def crawl(request: CrawlRequest) -> dict[str, object]:

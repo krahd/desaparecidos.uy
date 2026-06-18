@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-18 15:31 GMT-3
+Last updated: 2026-06-18 16:22 GMT-3
 
 ## Project purpose
 
@@ -8,15 +8,18 @@ Last updated: 2026-06-18 15:31 GMT-3
 
 ## Current implementation state
 
-The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, and preprocessing features. The branch keeps:
+The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, preprocessing, and target-admin features. The branch keeps:
 
+- canonical disappeared-person target records in `data/persons/disappeared.json`;
+- target administration APIs and a GUI screen for missing-field review, record editing, portrait candidate download, selected portrait processing, and target-manifest export;
+- reviewed selected 3:4 target portrait derivatives under trackable `assets/targets/disappeared/selected/`, while raw downloads and rejected candidates remain ignored;
 - `people` manifest support for internal Stage 2 contemporary people-source review.
 - crawler run/page/image trail persistence in SQLite plus JSONL run exports;
 - exact SHA-256 and perceptual duplicate rejection;
 - versioned per-kind CV cache classification;
 - mundane contemporary Uruguay crawler presets;
 - fast search-candidate scan videos, URL ticker process videos, and `search_trail` / `search_candidates` sidecar metadata;
-- Sitios importer, portrait override tooling, ignored crawler/review outputs, and current gitignore protections.
+- Sitios importer and portrait override tooling updated to write the canonical person store, 3:4 selected derivatives, current target manifest fields, and current gitignore protections.
 
 The restored current-state features include:
 
@@ -33,15 +36,15 @@ The restored current-state features include:
 
 ## Active focus
 
-The active focus is aligning the implementation with the project statement: the crawler should admit only stronger face/place candidates into review, videos should visibly perform the search through fast non-contributing candidate scans, and documentation should preserve the triptych, privacy, and non-identification constraints.
+The active focus is target corpus curation: improving historical target portrait crops, filling missing disappeared-person metadata from trusted sources plus controlled web candidates, preserving provenance, and keeping source-person privacy/non-identification constraints intact.
 
 ## Architecture overview
 
-The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls the manifest, crawler, preprocessing, output, and generation modules, and generated files stay in ignored local directories.
+The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls the person-store, manifest, crawler, preprocessing, output, and generation modules, and generated files stay in ignored local directories.
 
 <svg width="980" height="390" viewBox="0 0 980 390" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">Current local architecture</title>
-  <desc id="arch-desc">React GUI and CLI call the local FastAPI and Python pipeline, which read manifests, crawler cache, local corpus files, and write generated outputs.</desc>
+  <desc id="arch-desc">React GUI and CLI call the local FastAPI and Python pipeline, which read person records, manifests, crawler cache, local corpus files, and write generated outputs.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
@@ -57,7 +60,7 @@ The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls 
   <text x="355" y="126" text-anchor="middle" font-size="15" fill="#111">FastAPI backend</text>
   <text x="355" y="148" text-anchor="middle" font-size="12" fill="#333">review, crawl, generate</text>
   <rect x="505" y="32" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="590" y="62" text-anchor="middle" font-size="15" fill="#111">Manifests</text>
+  <text x="590" y="62" text-anchor="middle" font-size="15" fill="#111">Persons + manifests</text>
   <text x="590" y="84" text-anchor="middle" font-size="12" fill="#333">targets, places, people</text>
   <rect x="505" y="134" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
   <text x="590" y="164" text-anchor="middle" font-size="15" fill="#111">Crawler cache</text>
@@ -85,25 +88,25 @@ The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls 
 
 ## Execution and data flow
 
-The current data flow makes both the crawl and the search visible. Target portraits come from the curated or imported corpus; place and people source candidates come from crawler seeds. Every crawled page and image decision is persisted before review. Generated videos can replay page URLs and flash local non-contributing image candidates before showing the selected fragments assemble.
+The current data flow makes both target curation and the crawl/search visible. Target portraits come from canonical person records plus selected portrait derivatives; place and people source candidates come from crawler seeds. Every crawled page and image decision is persisted before review. Generated videos can replay page URLs and flash local non-contributing image candidates before showing the selected fragments assemble.
 
 <svg width="1120" height="470" viewBox="0 0 1120 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">Current corpus, crawler, review, and video flow</title>
-  <desc id="flow-desc">Target corpus and crawler seeds feed manifests and crawl trails; image candidates pass through dedupe and stricter CV; approved rows generate videos with a fast candidate scan and URL ticker.</desc>
+  <desc id="flow-desc">Person records and selected portraits export target manifests; crawler seeds feed crawl trails and image candidates; approved rows generate videos with a fast candidate scan and URL ticker.</desc>
   <defs>
     <marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
     </marker>
   </defs>
   <rect x="35" y="52" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
-  <text x="125" y="80" text-anchor="middle" font-size="14" fill="#111">Tracked target corpus</text>
-  <text x="125" y="102" text-anchor="middle" font-size="12" fill="#333">doc/fotos-desaparecidos</text>
+  <text x="125" y="80" text-anchor="middle" font-size="14" fill="#111">Person store</text>
+  <text x="125" y="102" text-anchor="middle" font-size="12" fill="#333">metadata, provenance</text>
   <rect x="35" y="172" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
-  <text x="125" y="200" text-anchor="middle" font-size="14" fill="#111">Local import tools</text>
-  <text x="125" y="222" text-anchor="middle" font-size="12" fill="#333">preprocess, overrides</text>
+  <text x="125" y="200" text-anchor="middle" font-size="14" fill="#111">Portrait curation</text>
+  <text x="125" y="222" text-anchor="middle" font-size="12" fill="#333">sources, crops, review</text>
   <rect x="275" y="112" width="180" height="76" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="365" y="140" text-anchor="middle" font-size="14" fill="#111">Target manifest</text>
-  <text x="365" y="162" text-anchor="middle" font-size="12" fill="#333">review-gated portraits</text>
+  <text x="365" y="140" text-anchor="middle" font-size="14" fill="#111">Derived targets</text>
+  <text x="365" y="162" text-anchor="middle" font-size="12" fill="#333">exported manifest</text>
   <rect x="35" y="334" width="180" height="76" rx="8" fill="#f4f4f0" stroke="#333"/>
   <text x="125" y="362" text-anchor="middle" font-size="14" fill="#111">Crawler seeds</text>
   <text x="125" y="384" text-anchor="middle" font-size="12" fill="#333">Uruguay now presets</text>
@@ -188,13 +191,17 @@ git diff --check
 - `src/desaparecidos/cache.py`: ignored SQLite/file cache plus crawl run/page/image trail persistence.
 - `src/desaparecidos/cv.py`: local non-identity CV filters and perceptual hash helpers.
 - `src/desaparecidos/manifests.py`: manifest schemas, validation, review, bulk review, single and bulk row delete.
+- `src/desaparecidos/persons.py`: canonical disappeared-person store, missing-field computation, portrait candidate handling, selected portrait processing, and target manifest export.
 - `src/desaparecidos/preprocess.py`: portrait preprocessing for local target manifests.
 - `scripts/import_sitios_memoria.py`: Sitios de Memoria importer; conservative `field-fotografia` portrait selection and per-field provenance.
 - `scripts/apply_portrait_overrides.py`: replaces a person's portrait from an authoritative override source and records portrait provenance.
-- `frontend/src/App.tsx`: restored black GUI workflow.
+- `frontend/src/App.tsx`: restored black GUI workflow plus target administration screen.
 - `data/sources.json`: tracked registry of authoritative sources for disappeared-person fields and portraits.
+- `data/persons/disappeared.json`: canonical target-person metadata/provenance store.
+- `assets/targets/disappeared/selected/`: trackable reviewed 3:4 selected portrait derivatives.
 - `data/manifests/people.csv`: tracked empty people manifest template.
 - `data/manifests/crawled-*.csv`: ignored crawler review manifests.
+- `assets/targets/disappeared/raw/`: ignored raw portrait candidate downloads.
 - `data/raw/crawl/`: ignored image store, `cache.sqlite`, and JSONL run trails.
 - `data/processed/`: ignored local derivatives.
 - `doc/fotos-desaparecidos/`: tracked source portrait corpus.
@@ -203,8 +210,10 @@ git diff --check
 ## Current capabilities
 
 - Validate `targets`, `places`, and `people` manifests.
+- Administer target-person records in the GUI: search, filter missing information, edit biographical/remains fields, add explicit online portrait candidates, process selected portraits to 3:4, and export the derived target manifest.
+- Serve person-store APIs for list/get/save/delete, source registry, search-plan links, portrait candidate download, selected portrait processing/selection, and target manifest export.
 - Review rows for all three manifest kinds: per-row approve/reject/reset/delete, plus checkbox selection with Select all, Select none, Approve selected, and Delete selected.
-- Import disappeared-person metadata and portraits from Sitios de Memoria with conservative portrait selection (only the `field-fotografia` image) and `portrait_status` of `ok`/`missing`; record per-field provenance in `field_sources` against `data/sources.json`.
+- Import disappeared-person metadata and portraits from Sitios de Memoria into the canonical store with conservative portrait selection (only the `field-fotografia` image) and `portrait_status` of `ok`/`missing`; record per-field provenance in `field_sources` against `data/sources.json`.
 - Crawl ordinary contemporary Uruguay pages for place and people candidates from the GUI.
 - Record every crawled page URL in crawl order with depth, parent, status, error, and fetch time.
 - Record image candidate decisions, duplicate status, hashes, CV decision, and accepted row id.
@@ -221,6 +230,9 @@ git diff --check
 
 ## Recent changes
 
+- Added canonical target corpus administration: `src/desaparecidos/persons.py`, person-store FastAPI routes, React Targets screen, missing-field filters, explicit portrait candidate download, selected portrait processing, source provenance display, and target-manifest export.
+- Updated target corpus tracking policy: `data/persons/disappeared.json` and `assets/targets/disappeared/selected/` are trackable curated corpus paths; raw portrait downloads, rejected candidates, crawl outputs, and local generated derivatives remain ignored.
+- Converted the Sitios importer and portrait override helper to 3:4 full-frame portrait preprocessing with white-border trimming, canonical person-store output, and current target manifest fields.
 - Aligned root and compatibility documentation with `doc/desaparecidos-uy-project-description.md`, including the triptych structure, non-identification/privacy constraints, and search-as-process language. Replaced stale `doc/AGENTS.md` and `doc/STATUS.md` templates with canonical pointers.
 - Tightened crawler CV: `people` crawling requires a detected face with a minimum face box/area; `places` crawling now accepts only conservative `place-photo` candidates and rejects flat graphics, limited-palette graphics, prominent faces, and noise-like textures. Added `CV_POLICY_VERSION=2` so old cached decisions are recomputed.
 - Added fast search-candidate scans to Stage 1 process videos. Videos can flash local crawl candidates that did not contribute, then switch into the existing full-source fragment highlight/assembly sequence when a usable source contributes. Sidecars now record `search_candidates` metadata.
@@ -243,13 +255,14 @@ git diff --check
 
 ## Tests and verification status
 
-Latest local verification (documentation alignment, stricter crawler CV, search-candidate process videos):
+Latest local verification (target corpus administration and prior crawler/video work):
 
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 86 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m pytest -q`: passed, 92 tests, 1 upstream Starlette/httpx deprecation warning.
 - `npm --prefix frontend run build`: passed (tsc + vite, no type errors).
 - `zsh -n start.sh`: exited successfully with the known `nice(5)` permission warnings.
 - `git diff --check`: passed.
+- Local GUI smoke: FastAPI health responded on `http://127.0.0.1:8765`, Vite served the GUI on `http://127.0.0.1:5173/`, and `/api/persons?store=data/persons/disappeared.json` returned the empty canonical person store summary.
 
 Earlier verification retained from the current branch reconciliation:
 
@@ -267,11 +280,10 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - People crawling is for internal review-gated source-corpus exploration only. It performs no identity matching and must not be used as a disappeared-person identification workflow.
 - Crawler CV is stricter but still heuristic and local; manual review remains mandatory and false positives/negatives are expected.
 - Process videos require local `ffmpeg` with H.264/libx264 support.
-- Generated imagery, raw crawls, JSONL trails, processed target copies, and review manifests remain ignored local data.
+- Generated imagery, raw crawls, JSONL trails, raw portrait candidates, rejected candidates, temporary processed target copies, and review manifests remain ignored local data. Reviewed selected target portraits under `assets/targets/disappeared/selected/` are the explicit corpus exception.
 
 ## Pending tasks
 
-- Build the targets curation GUI page (deferred from this change): a new top-level view to list/edit person records, set the per-field authoritative source, view/replace/choose portraits, and trigger download-from-web. Requires a persons store module and persons/sources API endpoints.
 - Run the full ~205-person Sitios import with the corrected importer, then add portraits from `madres-familiares` / `parque-de-la-memoria` for persons whose `portrait_status` is `missing`.
 - Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
 - Run a full manual GUI smoke in a browser once browser automation is available.
@@ -281,7 +293,8 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 
 ## Next steps
 
-- Commit the combined branch once the user confirms or asks for a commit.
+- Run the full target corpus import/curation pass when network access and review time are available.
+- Use the Targets screen to fill missing birth/disappearance/remains fields and choose the best reviewed portrait per person.
 - Use the Utilities modal only for synthetic fixture workflows; keep primary GUI space dedicated to the real artwork workflow.
 - Use crawled page trails and local image-candidate events in videos as the visible trace of the search process.
 
@@ -295,6 +308,8 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 ## Decisions and rationale
 
 - `targets` remain only the disappeared-person portrait corpus.
+- `data/persons/disappeared.json` is the canonical disappeared-person data store; `targets.csv` is a derived generation manifest.
+- Reviewed selected target portrait derivatives are allowed under `assets/targets/disappeared/selected/`; raw downloads and temporary candidates remain ignored.
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
 - Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
 - Crawler CV cache entries are versioned; old decisions are recomputed rather than silently reused after policy changes.
@@ -304,8 +319,8 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 
 ## Documentation alignment notes
 
-- `README.md` describes the current GUI, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
-- `AGENTS.md` records current safety invariants, the tracked portrait-corpus exception, strict people/place CV expectations, and non-identification requirements.
+- `README.md` describes the current GUI, target administration screen, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
+- `AGENTS.md` records current safety invariants, the canonical person-store/selected-portrait corpus exceptions, strict people/place CV expectations, and non-identification requirements.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-18 15:31 GMT-3
+Last updated: 2026-06-18 16:22 GMT-3

@@ -14,10 +14,14 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+
+from desaparecidos.manifests import TARGET_FIELDS
+from desaparecidos.preprocess import preprocess_file
 
 USER_AGENT = "desaparecidos.uy portrait override importer; research/art archival use"
 
@@ -69,36 +73,14 @@ def process_portrait(raw_path: Path, processed_path: Path, size: tuple[int, int]
         from PIL import Image
         with Image.open(processed_path) as img:
             return img.size
-    try:
-        from PIL import Image, ImageOps
-    except ImportError as exc:
-        raise RuntimeError("Pillow is required. Install with: python -m pip install Pillow") from exc
-    with Image.open(raw_path) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
-        gray = ImageOps.grayscale(img)
-        mask = gray.point(lambda p: 255 if p < 245 else 0)
-        bbox = mask.getbbox()
-        if bbox:
-            pad = 10
-            left, top, right, bottom = bbox
-            img = img.crop((max(0, left - pad), max(0, top - pad), min(img.width, right + pad), min(img.height, bottom + pad)))
-        target_w, target_h = size
-        target_ratio = target_w / target_h
-        ratio = img.width / img.height
-        if ratio > target_ratio:
-            new_h = int(round(img.width / target_ratio))
-            canvas = Image.new("RGB", (img.width, new_h), "white")
-            canvas.paste(img, (0, (new_h - img.height) // 2))
-            img = canvas
-        elif ratio < target_ratio:
-            new_w = int(round(img.height * target_ratio))
-            canvas = Image.new("RGB", (new_w, img.height), "white")
-            canvas.paste(img, ((new_w - img.width) // 2, 0))
-            img = canvas
-        img = img.resize(size, Image.Resampling.LANCZOS)
-        processed_path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(processed_path)
-        return img.size
+    width, height = size
+    return preprocess_file(
+        raw_path,
+        processed_path,
+        aspect=width / height,
+        use_face=True,
+        max_side=max(width, height),
+    )
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -123,6 +105,7 @@ def patch_people_json(path: Path, slug: str, candidate: dict[str, object], sourc
         if person.get("slug") == slug:
             person["portrait_candidates"] = [candidate]
             person["portrait_status"] = "ok"
+            person["selected_portrait_id"] = candidate.get("id") or "portrait-01"
             field_sources = dict(person.get("field_sources") or {})
             if source_id:
                 field_sources["portrait"] = source_id
@@ -137,24 +120,34 @@ def patch_people_json(path: Path, slug: str, candidate: dict[str, object], sourc
 
 
 def patch_manifest(path: Path, row: dict[str, str], candidate: dict[str, object]) -> None:
-    fieldnames = [
-        "target_id", "person_slug", "full_name", "image_path", "raw_image_path", "source_url",
-        "source_page", "licence", "review_status", "date_of_birth", "date_of_disappearance", "notes",
-    ]
+    fieldnames = TARGET_FIELDS
     rows = read_csv(path) if path.exists() else []
-    rows = [existing for existing in rows if existing.get("person_slug") != row["person_slug"]]
+    rows = [
+        existing for existing in rows
+        if existing.get("id") != row["person_slug"] and existing.get("person_slug") != row["person_slug"]
+    ]
+    processed_path = clean_text(candidate.get("processed_path"))
+    rel_local = processed_path
+    if processed_path:
+        local = Path(processed_path)
+        if not local.is_absolute():
+            local = Path.cwd() / local
+        rel_local = os.path.relpath(local.resolve(), path.resolve().parent)
+    review_status = clean_text(row.get("review_status")) or "pending"
+    if review_status == "candidate":
+        review_status = "pending"
     rows.append({
-        "target_id": f"{row['person_slug']}-override-01",
-        "person_slug": row["person_slug"],
-        "full_name": row["full_name"],
-        "image_path": str(candidate.get("processed_path") or ""),
-        "raw_image_path": str(candidate.get("raw_path") or ""),
+        "id": row["person_slug"],
+        "name": row["full_name"],
         "source_url": row["image_url"],
         "source_page": row["source_page"],
-        "licence": row.get("licence", ""),
-        "review_status": row.get("review_status") or "candidate",
-        "date_of_birth": "",
-        "date_of_disappearance": "",
+        "licence_or_terms": row.get("licence", ""),
+        "accessed_at": "",
+        "local_path": rel_local,
+        "review_status": review_status,
+        "birth_date": "",
+        "disappearance_date": "",
+        "disappearance_place": "",
         "notes": row.get("notes", ""),
     })
     write_csv(path, rows, fieldnames)
@@ -164,12 +157,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--overrides", type=Path, default=Path("data/manifests/portrait-overrides.csv"))
-    parser.add_argument("--people-json", type=Path, default=Path("data/persons/disappeared-sitios-de-memoria.json"))
-    parser.add_argument("--manifest", type=Path, default=Path("data/manifests/targets-sitios-de-memoria.csv"))
+    parser.add_argument("--people-json", type=Path, default=Path("data/persons/disappeared.json"))
+    parser.add_argument("--manifest", type=Path, default=Path("data/manifests/targets.csv"))
     parser.add_argument("--raw-dir", type=Path, default=Path("assets/targets/disappeared/raw"))
-    parser.add_argument("--processed-dir", type=Path, default=Path("assets/targets/disappeared/processed"))
-    parser.add_argument("--width", type=int, default=1200)
-    parser.add_argument("--height", type=int, default=1500)
+    parser.add_argument("--processed-dir", type=Path, default=Path("assets/targets/disappeared/selected"))
+    parser.add_argument("--width", type=int, default=900)
+    parser.add_argument("--height", type=int, default=1200)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -190,9 +183,10 @@ def main() -> int:
         if not slug or not image_url:
             continue
         raw_path, digest = download_image(image_url, raw_root / slug, args.overwrite)
-        processed_path = processed_root / f"{slug}.png"
+        processed_path = processed_root / f"{slug}.jpg"
         width, height = process_portrait(raw_path, processed_path, size, args.overwrite)
         candidate = {
+            "id": "portrait-01",
             "source_url": image_url,
             "source_page": clean_text(row.get("source_page")),
             "source_name": clean_text(row.get("source_name")),

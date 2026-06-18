@@ -7,11 +7,11 @@ available portrait candidates, and writes repository-ready metadata and manifest
 
 Outputs are written inside the repository by default:
 
-- data/persons/disappeared-sitios-de-memoria.json
+- data/persons/disappeared.json
 - data/persons/disappeared-sitios-de-memoria.csv
-- data/manifests/targets-sitios-de-memoria.csv
+- data/manifests/targets.csv
 - assets/targets/disappeared/raw/<slug>/...
-- assets/targets/disappeared/processed/<slug>.png
+- assets/targets/disappeared/selected/<slug>.jpg
 
 The script never deletes existing portraits or metadata. Existing files are kept unless
 --overwrite is passed. Portraits of disappeared persons are treated as target imagery,
@@ -35,6 +35,10 @@ from typing import Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
+
+from desaparecidos.manifests import TARGET_FIELDS
+from desaparecidos.persons import normalise_person, target_row_from_person
+from desaparecidos.preprocess import preprocess_file
 
 BASE_URL = "https://sitiosdememoria.uy"
 LIST_URL = f"{BASE_URL}/desaparicion-forzada"
@@ -86,6 +90,12 @@ DATE_FIELDS = {"date_of_birth", "date_of_detention", "date_of_remains_found"}
 @dataclass
 class ImageCandidate:
     source_url: str
+    id: str = "portrait-01"
+    source_page: str = ""
+    source_id: str = SITIOS_SOURCE_ID
+    source_name: str = "Sitios de Memoria Uruguay"
+    licence_or_terms: str = "CC BY-SA 4.0; verify per item before public release"
+    accessed_at: str | None = None
     raw_path: str | None = None
     processed_path: str | None = None
     sha256: str | None = None
@@ -400,36 +410,14 @@ def process_portrait(raw_path: Path, processed_path: Path, size: tuple[int, int]
                 return img.size
         except Exception:
             return size
-    try:
-        from PIL import Image, ImageOps
-    except ImportError as exc:
-        raise RuntimeError("Pillow is required for --process-images. Install with: python -m pip install Pillow") from exc
-    with Image.open(raw_path) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
-        gray = ImageOps.grayscale(img)
-        mask = gray.point(lambda p: 255 if p < 245 else 0)
-        bbox = mask.getbbox()
-        if bbox:
-            pad = 10
-            left, top, right, bottom = bbox
-            img = img.crop((max(0, left - pad), max(0, top - pad), min(img.width, right + pad), min(img.height, bottom + pad)))
-        target_w, target_h = size
-        target_ratio = target_w / target_h
-        ratio = img.width / img.height
-        if ratio > target_ratio:
-            new_h = int(round(img.width / target_ratio))
-            canvas = Image.new("RGB", (img.width, new_h), "white")
-            canvas.paste(img, (0, (new_h - img.height) // 2))
-            img = canvas
-        elif ratio < target_ratio:
-            new_w = int(round(img.height * target_ratio))
-            canvas = Image.new("RGB", (new_w, img.height), "white")
-            canvas.paste(img, ((new_w - img.width) // 2, 0))
-            img = canvas
-        img = img.resize(size, Image.Resampling.LANCZOS)
-        processed_path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(processed_path)
-        return img.size
+    width, height = size
+    return preprocess_file(
+        raw_path,
+        processed_path,
+        aspect=width / height,
+        use_face=True,
+        max_side=max(width, height),
+    )
 
 
 def first_nonempty(row: dict[str, str], keys: Iterable[str]) -> str:
@@ -464,13 +452,13 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
         record.field_sources["portrait"] = SITIOS_SOURCE_ID
     if portrait_urls and (args.download_images or args.process_images):
         url = portrait_urls[0]
-        candidate = ImageCandidate(source_url=url)
+        candidate = ImageCandidate(source_url=url, source_page=page_url)
         try:
             raw_path, digest = download_portrait(url, args.raw_dir / slug, "01", args.overwrite)
             candidate.raw_path = str(raw_path.relative_to(args.repo_root))
             candidate.sha256 = digest
             if args.process_images:
-                processed_path = args.processed_dir / f"{slug}.png"
+                processed_path = args.processed_dir / f"{slug}.jpg"
                 width, height = process_portrait(raw_path, processed_path, args.size, args.overwrite)
                 candidate.processed_path = str(processed_path.relative_to(args.repo_root))
                 candidate.width = width
@@ -483,7 +471,7 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
 
 def write_json(path: Path, records: list[PersonRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = [record.as_dict() for record in records]
+    payload = [normalise_person(record.as_dict()) for record in records]
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -508,33 +496,16 @@ def write_people_csv(path: Path, records: list[PersonRecord]) -> None:
 
 def write_target_manifest(path: Path, records: list[PersonRecord], approved_targets: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    columns = [
-        "target_id", "person_slug", "full_name", "image_path", "raw_image_path", "source_url",
-        "source_page", "licence", "review_status", "date_of_birth", "date_of_disappearance", "notes",
+    people = [normalise_person(record.as_dict()) for record in records]
+    rows = [
+        row for person in people
+        if (row := target_row_from_person(person, path, approved_targets)) is not None
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer = csv.DictWriter(handle, fieldnames=TARGET_FIELDS)
         writer.writeheader()
-        for record in records:
-            data = record.as_dict()
-            for idx, candidate in enumerate(record.portrait_candidates or [], start=1):
-                image_path = candidate.processed_path or candidate.raw_path or ""
-                if not image_path:
-                    continue
-                writer.writerow({
-                    "target_id": f"{record.slug}-{idx:02d}",
-                    "person_slug": record.slug,
-                    "full_name": record.full_name,
-                    "image_path": image_path,
-                    "raw_image_path": candidate.raw_path or "",
-                    "source_url": candidate.source_url,
-                    "source_page": record.source_page,
-                    "licence": "CC BY-SA 4.0; verify before public release",
-                    "review_status": "approved" if approved_targets else "candidate",
-                    "date_of_birth": data.get("date_of_birth", ""),
-                    "date_of_disappearance": data.get("date_of_detention", ""),
-                    "notes": "Portrait of disappeared person imported as target imagery, not source-corpus imagery.",
-                })
+        for row in rows:
+            writer.writerow(row)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -543,18 +514,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=0, help="Limit records for testing. 0 means all records.")
     parser.add_argument("--sleep", type=float, default=0.25, help="Delay between individual page fetches.")
     parser.add_argument("--download-images", action="store_true", help="Download portrait candidates.")
-    parser.add_argument("--process-images", action="store_true", help="Create normalized 4:5 processed portrait derivatives.")
+    parser.add_argument("--process-images", action="store_true", help="Create normalised 3:4 processed portrait derivatives with white borders removed.")
     parser.add_argument("--approved-targets", action="store_true", help="Write approved review status for target portraits instead of candidate.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing generated import files.")
-    parser.add_argument("--width", type=int, default=1200)
-    parser.add_argument("--height", type=int, default=1500)
+    parser.add_argument("--width", type=int, default=900)
+    parser.add_argument("--height", type=int, default=1200)
     args = parser.parse_args(argv)
     args.repo_root = args.repo_root.resolve()
-    args.people_json = args.repo_root / "data/persons/disappeared-sitios-de-memoria.json"
+    args.people_json = args.repo_root / "data/persons/disappeared.json"
     args.people_csv = args.repo_root / "data/persons/disappeared-sitios-de-memoria.csv"
-    args.manifest_csv = args.repo_root / "data/manifests/targets-sitios-de-memoria.csv"
+    args.manifest_csv = args.repo_root / "data/manifests/targets.csv"
     args.raw_dir = args.repo_root / "assets/targets/disappeared/raw"
-    args.processed_dir = args.repo_root / "assets/targets/disappeared/processed"
+    args.processed_dir = args.repo_root / "assets/targets/disappeared/selected"
     args.size = (args.width, args.height)
     return args
 

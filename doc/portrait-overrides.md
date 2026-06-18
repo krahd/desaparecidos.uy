@@ -24,6 +24,6 @@ data/manifests/portrait-overrides.csv
 
 The Sitios de Memoria page for `abeledo-sotuyo-horacio-adolfo` exposes a poster for *El tiempo pasa* under `Obras de interés`, not a portrait of Horacio Adolfo Abeledo Sotuyo. The override points to the Parque de la Memoria public record instead.
 
-The override script replaces the generated `portrait_candidates` entry for the matching slug and replaces the corresponding row in `data/manifests/targets-sitios-de-memoria.csv`.
+The override script replaces the `portrait_candidates` entry for the matching slug in `data/persons/disappeared.json`, writes a selected 3:4 derivative under `assets/targets/disappeared/selected/`, and replaces the corresponding row in `data/manifests/targets.csv`.
 
-Portrait overrides remain `review_status=candidate` until manually inspected.
+Portrait overrides remain `review_status=pending` until manually inspected.

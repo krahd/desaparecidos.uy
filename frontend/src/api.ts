@@ -81,6 +81,81 @@ export type CrawlResponse = {
   }>;
 };
 
+export type PortraitCandidate = {
+  id: string;
+  source_url: string;
+  source_page: string;
+  source_id: string;
+  source_name: string;
+  licence_or_terms: string;
+  accessed_at: string;
+  raw_path: string;
+  processed_path: string;
+  sha256: string;
+  width: number | string;
+  height: number | string;
+  status: string;
+  confidence: string;
+  notes: string;
+};
+
+export type PersonRecord = {
+  id: string;
+  slug: string;
+  full_name: string;
+  given_names: string;
+  family_names: string;
+  date_of_birth: string;
+  place_of_birth: string;
+  date_of_disappearance: string;
+  date_of_detention: string;
+  place_of_disappearance: string;
+  country_of_disappearance: string;
+  places_of_detention: string[];
+  remains_status: 'found' | 'not_found' | 'unknown';
+  date_of_remains_found: string;
+  place_of_remains_found: string;
+  short_bio: string;
+  notes: string;
+  source_page: string;
+  sources: string[];
+  field_sources: Record<string, string>;
+  portrait_status: string;
+  portrait_candidates: PortraitCandidate[];
+  selected_portrait_id: string;
+  selected_portrait?: PortraitCandidate | null;
+  review_status: 'pending' | 'approved' | 'rejected';
+  missing_fields: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersonsResponse = {
+  ok: boolean;
+  path: string;
+  summary: {
+    count: number;
+    missing_count: number;
+    weak_portrait_count: number;
+    approved_count: number;
+  };
+  required_fields: string[];
+  people: PersonRecord[];
+};
+
+export type SourceRegistry = {
+  description: string;
+  sources: Array<{
+    id: string;
+    name: string;
+    url: string;
+    kind: string;
+    licence: string;
+    trust?: Record<string, string>;
+    notes: string;
+  }>;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -154,6 +229,96 @@ export function createDemoFixtures(): Promise<{
   return request('/api/demo-fixtures', {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export function listPersons(store: string): Promise<PersonsResponse> {
+  return request(`/api/persons?store=${encodeURIComponent(store)}`);
+}
+
+export function savePerson(payload: {
+  store: string;
+  person: PersonRecord;
+}): Promise<{ ok: boolean; person: PersonRecord }> {
+  return request('/api/persons/save', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePersonRecord(payload: {
+  store: string;
+  person_id: string;
+}): Promise<{ ok: boolean; summary: PersonsResponse['summary'] }> {
+  return request('/api/persons/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listPersonSources(): Promise<{ ok: boolean; registry: SourceRegistry }> {
+  return request('/api/persons/sources');
+}
+
+export function addPersonPortrait(payload: {
+  store: string;
+  person_id: string;
+  image_url: string;
+  source_page: string;
+  source_id: string;
+  source_name: string;
+  licence_or_terms: string;
+  notes: string;
+  raw_root: string;
+  overwrite: boolean;
+}): Promise<{ ok: boolean; person: PersonRecord }> {
+  return request('/api/persons/portrait/add', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function selectPersonPortrait(payload: {
+  store: string;
+  person_id: string;
+  candidate_id: string;
+}): Promise<{ ok: boolean; person: PersonRecord }> {
+  return request('/api/persons/portrait/select', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function processPersonPortrait(payload: {
+  store: string;
+  person_id: string;
+  candidate_id: string;
+  selected_root: string;
+  aspect: number;
+  use_face: boolean;
+  max_side: number;
+  overwrite: boolean;
+}): Promise<{ ok: boolean; person: PersonRecord }> {
+  return request('/api/persons/portrait/process', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function exportTargetsFromPersons(payload: {
+  store: string;
+  manifest: string;
+  approved: boolean;
+}): Promise<{
+  ok: boolean;
+  manifest: string;
+  rows_written: number;
+  people_seen: number;
+  skipped: number;
+}> {
+  return request('/api/persons/export-targets', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

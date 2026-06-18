@@ -289,6 +289,65 @@ def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     assert response.json()["ok"] is True
 
 
+def test_persons_endpoints_save_list_and_export(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    image = tmp_path / "portrait.jpg"
+    Image.new("RGB", (120, 160), (120, 110, 100)).save(image)
+    store = tmp_path / "persons.json"
+    manifest = tmp_path / "targets.csv"
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/persons/save",
+        json={
+            "store": str(store),
+            "person": {
+                "id": "person-one",
+                "full_name": "Person One",
+                "date_of_birth": "1940-01-01",
+                "place_of_birth": "Montevideo",
+                "date_of_disappearance": "1976-01-02",
+                "place_of_disappearance": "Buenos Aires",
+                "remains_status": "not_found",
+                "portrait_candidates": [
+                    {
+                        "id": "portrait-01",
+                        "source_url": "https://example.invalid/person.jpg",
+                        "source_page": "https://example.invalid/person",
+                        "licence_or_terms": "fixture",
+                        "processed_path": str(image),
+                    }
+                ],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["person"]["missing_fields"] == []
+
+    listed = client.get("/api/persons", params={"store": str(store)})
+    assert listed.status_code == 200
+    assert listed.json()["summary"]["count"] == 1
+
+    exported = client.post(
+        "/api/persons/export-targets",
+        json={"store": str(store), "manifest": str(manifest), "approved": False},
+    )
+    assert exported.status_code == 200
+    assert exported.json()["rows_written"] == 1
+    assert manifest.exists()
+
+
+def test_person_sources_endpoint_does_not_hit_person_id_route() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/persons/sources")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert response.json()["registry"]["sources"]
+
+
 def test_delete_outputs_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     output_dir = tmp_path / "outputs"
     output_dir.mkdir()

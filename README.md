@@ -19,6 +19,7 @@ Stage 1 implements the place-based prototype. Public target portraits are recons
 The prototype provides:
 
 - manifest-driven target, place-source, and internal people-source ingestion;
+- a canonical disappeared-person JSON store for target curation, missing-field review, portrait candidate provenance, and target-manifest export;
 - local target-portrait preprocessing that trims white scan borders/caption margins and writes 3:4 processed copies;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
@@ -33,7 +34,7 @@ The prototype provides:
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
-Generated outputs, processed target copies, raw downloads, crawl caches, crawl trails, and review manifests are intentionally ignored by git. The curated portrait collection in `doc/fotos-desaparecidos/` is tracked intentionally as foundational material for the work.
+Generated outputs, raw downloads, crawl caches, crawl trails, rejected candidates, temporary processed copies, and review manifests are intentionally ignored by git. The curated portrait collection in `doc/fotos-desaparecidos/`, the canonical target store at `data/persons/disappeared.json`, and reviewed selected portrait derivatives under `assets/targets/disappeared/selected/` are trackable project corpus files.
 
 ## Local GUI
 
@@ -47,7 +48,9 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./start.sh` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, approve/reject/reset/delete individual manifest rows, select rows with checkboxes to bulk-approve or bulk-delete the selection (Select all, Select none, Approve selected, Delete selected), click a target thumbnail to set the working portrait, run still/video generation, inspect logs, review sidecars, and delete selected or all generated outputs. Crawling has its own running state, so review remains usable while a crawl is running.
+The GUI can administer target person records, validate manifests, crawl user-supplied or preset pages for candidate images, approve/reject/reset/delete individual manifest rows, select rows with checkboxes to bulk-approve or bulk-delete the selection (Select all, Select none, Approve selected, Delete selected), click a target thumbnail to set the working portrait, run still/video generation, inspect logs, review sidecars, and delete selected or all generated outputs. Crawling has its own running state, so review remains usable while a crawl is running.
+
+The **Targets** screen edits `data/persons/disappeared.json`. It lists disappeared-person records, filters records with missing information, edits full name, birth/disappearance/remains fields, stores source/provenance notes, downloads explicit portrait candidates by URL, processes the selected candidate into a white-border-trimmed 3:4 portrait, and exports the derived `targets.csv` manifest. Online acquisition is controlled: trusted sources in `data/sources.json` are preferred, general web results are candidate evidence only, and arbitrary web images are never made authoritative without review.
 
 Crawler controls expose only `places` and `people`. `targets` remain the disappeared-person portrait corpus. The `/api/download` route and CLI download command still exist, but the primary GUI no longer shows a download panel. Synthetic demo fixture controls are in the compact Utilities modal.
 
@@ -102,17 +105,18 @@ python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --source
 python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
 
-The Sitios de Memoria importer and portrait override tooling remain available for local corpus preparation. The importer selects a portrait only from a person page's `field-fotografia` container, recording `portrait_status` as `ok` or `missing` rather than importing work posters or materials as a face. Each person record carries a `field_sources` map noting which source (see the tracked `data/sources.json` registry) is authoritative for each field and for the portrait; `scripts/apply_portrait_overrides.py` swaps in a portrait from a better source (for example Parque de la Memoria for Argentine cases) and records that provenance. Generated importer outputs and review manifests stay ignored unless intentionally curated into source control; `data/sources.json` is tracked.
+The Sitios de Memoria importer and portrait override tooling remain available for corpus preparation. The importer selects a portrait only from a person page's `field-fotografia` container, recording `portrait_status` as `ok` or `missing` rather than importing work posters or materials as a face. It writes the canonical person store at `data/persons/disappeared.json`, raw downloads under ignored `assets/targets/disappeared/raw/`, selected 3:4 derivatives under `assets/targets/disappeared/selected/`, and the derived `data/manifests/targets.csv`. Each person record carries a `field_sources` map noting which source (see the tracked `data/sources.json` registry) is authoritative for each field and for the portrait; `scripts/apply_portrait_overrides.py` swaps in a portrait from a better source (for example Parque de la Memoria for Argentine cases) and records that provenance.
 
 ## Manifests and Review
 
 Tracked manifest templates live in `data/manifests/`.
 
 - Target manifests describe disappeared persons' public images and source provenance.
+- The canonical target corpus is `data/persons/disappeared.json`; target manifests are derived export files for generation compatibility.
 - Place manifests describe place/surface images and reuse terms.
 - People manifests describe contemporary public images of people for internal Stage 2 exploration. They are review-gated source-corpus material, not disappeared-person targets, and no identity matching is performed.
 - Public availability is not treated as blanket permission. Source images of living people are privacy-sensitive; public release requires legal/ethical review, deletion or exclusion procedures, and output review so no living source person appears recognisably.
-- `scripts/build_targets_manifest.py` builds ignored local target manifests from `doc/fotos-desaparecidos/`. By default it writes processed 3:4 portrait copies under ignored `data/processed/targets/`, trimming near-white borders and caption/text margins while keeping the original filename in provenance notes.
+- `scripts/build_targets_manifest.py` remains available for ignored local manifests from `doc/fotos-desaparecidos/`. The newer target-admin workflow stores reviewed person metadata and selected portraits in the canonical corpus, then exports `targets.csv`.
 - Rows must use `review_status=approved` before the Stage 1 pipeline can use the corresponding local file.
 - The crawler fetches only page URLs entered or selected in the GUI, follows links within depth/page/image limits, honours `robots.txt` by default, and defaults preset runs to same-domain traversal.
 - `people` crawling now requires an actual detected face before a pending row is written. It stores only the largest face box for review and does not infer identity, category, demographic traits, or relation to a disappeared person.

@@ -23,11 +23,12 @@ def test_fragment_limit_samples_across_source_image(tmp_path: Path) -> None:
         writer = csv.writer(handle)
         writer.writerow([
             "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
-            "local_path", "review_status", "location_label", "notes"
+            "local_path", "review_status", "location_label", "notes",
+            "crawl_run_id", "content_sha256", "perceptual_hash"
         ])
         writer.writerow([
             "source", "Source", "local://source.png", "local://source",
-            "fixture", "2026-06-17", "source.png", "approved", "fixture", ""
+            "fixture", "2026-06-17", "source.png", "approved", "fixture", "", "", "", ""
         ])
 
     rows = approved_rows(manifest, "places")

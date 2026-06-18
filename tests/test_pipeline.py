@@ -46,7 +46,8 @@ def write_manifests(tmp_path: Path, source_count: int = 2) -> tuple[Path, Path]:
         writer = csv.writer(handle)
         writer.writerow([
             "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
-            "local_path", "review_status", "location_label", "notes"
+            "local_path", "review_status", "location_label", "notes",
+            "crawl_run_id", "content_sha256", "perceptual_hash"
         ])
         for index in range(source_count):
             image_path = tmp_path / f"source-{index}.png"
@@ -54,7 +55,7 @@ def write_manifests(tmp_path: Path, source_count: int = 2) -> tuple[Path, Path]:
             writer.writerow([
                 f"source-{index}", f"Source {index}", f"https://example.invalid/source-{index}.png",
                 f"https://example.invalid/source-{index}", "fixture", "2026-06-17",
-                image_path.name, "approved", "fixture", ""
+                image_path.name, "approved", "fixture", "", "fixture-run", "", ""
             ])
     return target_manifest, places_manifest
 
@@ -77,6 +78,7 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     assert sidecar["max_fragment_reuse_observed"] <= 2
     assert sidecar["tile_count"] == 16
     assert sidecar["source_sequence"]
+    assert sidecar["search_trail"]["urls"]
 
 
 def test_reuse_limit_is_enforced(tmp_path: Path) -> None:
@@ -145,6 +147,7 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
             places,
             seed=17,
             fps=4,
+            search_trail=["https://example.invalid/search"],
         ),
         12,
     ))
@@ -153,3 +156,15 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
     assert all(frame.size == assembly.image.size for frame in frames)
     assert frames[0].tobytes() != assembly.image.tobytes()
     assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])
+
+
+def test_url_ticker_draws_bottom_url() -> None:
+    frame = Image.new("RGB", (240, 120), (240, 240, 240))
+    rendered = pipeline_module._with_url_ticker(
+        frame,
+        ["https://example.invalid/search/page"],
+        frame_index=0,
+        fps=4,
+    )
+
+    assert rendered.getpixel((8, 110)) != (240, 240, 240)

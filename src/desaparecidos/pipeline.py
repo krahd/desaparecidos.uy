@@ -13,6 +13,7 @@ from typing import Iterable
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from .cache import page_trail_for_runs
 from .images import Fragment, crop_from_row, descriptor_for, extract_fragments, load_rgb
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
@@ -160,6 +161,7 @@ def render_video(
     assembly: AssemblyResult | None = None,
     source_rows: list[ManifestRow] | None = None,
     source_manifest: str | Path | None = None,
+    search_trail: list[str] | None = None,
     fps: int = 12,
     seconds: int = 8,
 ) -> str:
@@ -171,6 +173,7 @@ def render_video(
             source_manifest,
             seed=seed,
             fps=fps,
+            search_trail=search_trail or [],
         )
     else:
         frames = _reveal_video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds)
@@ -219,6 +222,7 @@ def _process_video_frames(
     *,
     seed: int,
     fps: int,
+    search_trail: list[str] | None = None,
 ) -> Iterable[Image.Image]:
     width, height = assembly.image.size
     tile = assembly.placements[0].image.width if assembly.placements else 24
@@ -227,6 +231,8 @@ def _process_video_frames(
     mosaic = Image.new("RGB", assembly.image.size, BACKGROUND)
     placed_mask = Image.new("L", assembly.image.size, 0)
     mask_draw = ImageDraw.Draw(placed_mask)
+    trail = search_trail or []
+    frame_index = 0
 
     for source_id, placements in placements_by_source:
         row = source_rows_by_id.get(source_id)
@@ -238,7 +244,8 @@ def _process_video_frames(
         samples = _sample_placements(placements, MAX_ANIMATED_FRAGMENTS_PER_SOURCE)
 
         for _ in range(max(1, int(fps * 0.9))):
-            yield source_full.copy()
+            yield _with_url_ticker(source_full.copy(), trail, frame_index, fps)
+            frame_index += 1
 
         highlighted = _source_fullscreen_frame(
             source_image,
@@ -249,7 +256,8 @@ def _process_video_frames(
             fragment_size=tile,
         )
         for _ in range(max(1, int(fps * 0.7))):
-            yield highlighted.copy()
+            yield _with_url_ticker(highlighted.copy(), trail, frame_index, fps)
+            frame_index += 1
 
         transition_frames = max(1, int(fps * 1.8))
         for index in range(transition_frames):
@@ -269,7 +277,8 @@ def _process_video_frames(
                 progress,
                 seed=seed,
             )
-            yield frame
+            yield _with_url_ticker(frame, trail, frame_index, fps)
+            frame_index += 1
 
         for placement in placements:
             mosaic.paste(placement.image, (placement.dest_x, placement.dest_y))
@@ -281,13 +290,15 @@ def _process_video_frames(
                     placement.dest_y + tile - 1,
                 ),
                 fill=255,
-            )
+        )
         settled = _placed_background(assembly.target_canvas, mosaic, placed_mask)
         for _ in range(max(1, int(fps * 0.25))):
-            yield settled.copy()
+            yield _with_url_ticker(settled.copy(), trail, frame_index, fps)
+            frame_index += 1
 
     for _ in range(max(1, int(fps * 2.0))):
-        yield assembly.image.copy()
+        yield _with_url_ticker(assembly.image.copy(), trail, frame_index, fps)
+        frame_index += 1
 
 
 def _placements_by_source(placements: list[TilePlacement]) -> list[tuple[str, list[TilePlacement]]]:
@@ -357,6 +368,43 @@ def _draw_source_label(frame: Image.Image, row: ManifestRow) -> None:
     bar_height = 34
     draw.rectangle((0, height - bar_height, width, height), fill=(18, 18, 17, 190))
     draw.text((18, height - 24), label, fill=(245, 245, 240, 235), font=font)
+
+
+def _with_url_ticker(frame: Image.Image, urls: list[str], frame_index: int, fps: int) -> Image.Image:
+    if not urls:
+        return frame
+    width, height = frame.size
+    draw = ImageDraw.Draw(frame, "RGBA")
+    font = ImageFont.load_default()
+    strip_height = 34
+    url_index = (frame_index // max(1, int(fps * 0.75))) % len(urls)
+    url = urls[url_index]
+    max_chars = max(24, width // 7)
+    if len(url) > max_chars:
+        url = "..." + url[-(max_chars - 3):]
+    draw.rectangle((0, height - strip_height, width, height), fill=(0, 0, 0, 215))
+    draw.text((18, height - 23), url, fill=(245, 245, 240, 238), font=font)
+    return frame
+
+
+def _search_trail_for_sources(source_rows: list[ManifestRow]) -> tuple[list[str], list[str]]:
+    run_ids: list[str] = []
+    for row in source_rows:
+        run_id = row.values.get("crawl_run_id", "").strip()
+        if run_id and run_id not in run_ids:
+            run_ids.append(run_id)
+    urls: list[str] = []
+    if run_ids:
+        for entry in page_trail_for_runs("data/raw/crawl", run_ids):
+            url = str(entry.get("url", "")).strip()
+            if url and url not in urls:
+                urls.append(url)
+    for row in source_rows:
+        for key in ("source_page", "source_url"):
+            url = row.values.get(key, "").strip()
+            if url and url not in urls:
+                urls.append(url)
+    return urls, run_ids
 
 
 def _placed_background(target_canvas: Image.Image, mosaic: Image.Image, placed_mask: Image.Image) -> Image.Image:
@@ -538,6 +586,7 @@ def run_stage1(
         fragment_size=settings.fragment_size,
         max_fragments_per_source=settings.max_fragments_per_source,
     )
+    search_trail, search_run_ids = _search_trail_for_sources(source_rows)
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -564,6 +613,7 @@ def run_stage1(
                 assembly=assembly,
                 source_rows=source_rows,
                 source_manifest=source_manifest,
+                search_trail=search_trail,
             )
 
         source_sequence = [
@@ -593,7 +643,13 @@ def run_stage1(
                 "style": PROCESS_VIDEO_STYLE,
                 "full_screen_source_intro": True,
                 "animated_fragment_limit_per_source": MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
+                "url_ticker": bool(search_trail),
             } if video_path else None,
+            "search_trail": {
+                "run_ids": search_run_ids,
+                "urls": search_trail,
+                "url_count": len(search_trail),
+            },
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "method": "Stage 1 place-fragment reconstruction prototype",
         }

@@ -145,6 +145,9 @@ def create_demo_fixtures(root: str | Path = PROJECT_ROOT) -> dict[str, object]:
                 "review_status",
                 "location_label",
                 "notes",
+                "crawl_run_id",
+                "content_sha256",
+                "perceptual_hash",
             ]
         )
         writer.writerow(
@@ -159,6 +162,9 @@ def create_demo_fixtures(root: str | Path = PROJECT_ROOT) -> dict[str, object]:
                 "approved",
                 "demo",
                 "Generated local synthetic place fixture.",
+                "",
+                "",
+                "",
             ]
         )
         writer.writerow(
@@ -173,6 +179,9 @@ def create_demo_fixtures(root: str | Path = PROJECT_ROOT) -> dict[str, object]:
                 "approved",
                 "demo",
                 "Generated local synthetic place fixture.",
+                "",
+                "",
+                "",
             ]
         )
         writer.writerow(
@@ -187,6 +196,9 @@ def create_demo_fixtures(root: str | Path = PROJECT_ROOT) -> dict[str, object]:
                 "approved",
                 "demo",
                 "Generated local synthetic place fixture.",
+                "",
+                "",
+                "",
             ]
         )
         writer.writerow(
@@ -201,6 +213,9 @@ def create_demo_fixtures(root: str | Path = PROJECT_ROOT) -> dict[str, object]:
                 "approved",
                 "demo",
                 "Generated local synthetic place fixture.",
+                "",
+                "",
+                "",
             ]
         )
 

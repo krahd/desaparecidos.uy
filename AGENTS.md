@@ -138,21 +138,26 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `src/desaparecidos/`: Python pipeline, CLI, and local API.
 - `frontend/`: React/Vite localhost GUI.
 - `data/manifests/`: tracked manifest templates and examples only.
-- `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests.
+- `data/manifests/people.csv`: tracked empty template for internal Stage 2 contemporary people-source review.
+- `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests, including `crawled-places.csv` and `crawled-people.csv`.
 - `data/raw/`: ignored downloaded or local source imagery.
+- `data/raw/crawl/`: ignored crawler cache, content-addressed image store, SQLite crawl index, and JSONL crawl-trail exports.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
-- `Start desaparecidos.command`: macOS launcher for the local GUI.
+- `start.sh`: launcher for the local GUI.
 
 ### 5.3:  Safety invariants
 
 - Keep the GUI and API bound to localhost unless the user explicitly requests another deployment mode.
-- Never commit raw source imagery, generated outputs, fragments, downloaded files, or review-sensitive data.
+- Never commit raw source imagery, generated outputs, fragments, downloaded files, crawler cache databases, crawl-trail exports, or review-sensitive data.
 - Require `review_status=approved` before any source image participates in Stage 1 generation.
 - Keep provenance metadata with every downloaded input and generated output.
 - Treat historical target images respectfully: do not claim enhancement, recovery, or forensic reconstruction.
 - Validate paths stay inside the project root for API file access.
-- Keep crawling constrained to explicit user-supplied pages, localhost-only operation, ignored raw files, pending manifest rows, and manual approval before generation. Do not add recursive or identity-seeking crawlers.
+- Keep crawling seeded by explicit user-supplied or approved preset pages, localhost-only operation, ignored raw files, pending manifest rows, depth/page/image caps, same-domain preset defaults, `robots.txt` by default, and manual approval before generation.
+- Preserve exact and perceptual dedupe so repeated image variants do not become repeated manifest rows.
+- Keep `targets` for disappeared-person portraits only. Contemporary public images of people belong in `people` manifests for internal Stage 2 review and must not be treated as disappeared-person targets.
+- Do not add identity-seeking behaviour, face/name matching, or biometric identification for contemporary people images.
 
 Do not weaken safety invariants without explicit user instruction and documentation.
 

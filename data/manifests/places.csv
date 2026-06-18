@@ -1,1 +1,1 @@
-id,title,source_url,source_page,licence_or_terms,accessed_at,local_path,review_status,location_label,notes
+id,title,source_url,source_page,licence_or_terms,accessed_at,local_path,review_status,location_label,notes,crawl_run_id,content_sha256,perceptual_hash

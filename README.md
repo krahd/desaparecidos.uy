@@ -15,28 +15,31 @@ The prototype provides:
 - manifest-driven target and place-source ingestion;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
-- a constrained page-image crawler for explicit user-supplied pages;
-- a preset menu of starting pages for crawler trials;
+- a bounded recursive crawler for explicit user-supplied or preset pages;
+- a persistent crawl cache and crawl trail so page traversal can be replayed;
+- exact and perceptual duplicate detection so repeated image variants do not enter manifests;
+- Stage 1 place-source crawling and internal Stage 2 people-source crawling;
+- a preset menu of ordinary contemporary Uruguay starting pages;
 - deterministic fragment matching and assembly;
-- still PNG outputs and optional browser-playable H.264 MP4 process videos;
+- still PNG outputs and optional browser-playable H.264 MP4 process videos with a bottom URL ticker;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
-Raw source imagery and generated outputs are intentionally ignored by git.
+Raw source imagery, crawl caches, crawl trails, and generated outputs are intentionally ignored by git.
 
 ## Local GUI
 
 The normal workflow is the local web GUI.
 
 ```bash
-./Start\ desaparecidos.command
+./start.sh
 ```
 
 The launcher creates or reuses a local Python environment, installs Python and frontend dependencies when needed, starts the FastAPI backend, starts the Vite GUI, and opens the browser. It prefers backend port `8765` and frontend port `5173`, but automatically moves to free localhost ports when those are already occupied.
 
-If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./Start\ desaparecidos.command` again. The launcher prints the exact backend and frontend URLs it selected.
+If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./start.sh` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, review output sidecars, and delete selected or all generated outputs. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, and animate those fragments into their actual positions in the reconstructed portrait so the assembly process remains visible.
+The GUI can validate manifests, crawl user-supplied or preset pages for candidate images, download manifest-listed sources, approve or reject manifest rows, run still/video generation, inspect progress logs, review output sidecars, and delete selected or all generated outputs. Crawler presets now use mundane contemporary Uruguay sources such as Montevideo tourism/events/news and `gub.uy` public news pages rather than memory-site pages. Generated videos introduce each used source image full-screen, highlight sampled fragment regions, animate those fragments into their actual positions in the reconstructed portrait, and write crawled page URLs along the bottom of the video so the search remains visible.
 
 The tracked manifests are empty templates. To test the pipeline without editing CSV files, use **Create demo fixtures** in the GUI. It creates ignored synthetic images and demo manifests under `data/demo/` and `data/manifests/demo-*.csv`, switches the GUI to those manifests, and validates them. Demo provenance uses `local://demo/...` fixture identifiers, not placeholder external URLs.
 
@@ -74,6 +77,7 @@ The CLI remains available for automation and testing.
 ```bash
 python -m desaparecidos validate --targets data/manifests/targets.csv --sources data/manifests/places.csv
 python -m desaparecidos download --manifest data/manifests/places.csv --kind places
+python -m desaparecidos download --manifest data/manifests/people.csv --kind people
 python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17
 ```
 
@@ -83,10 +87,14 @@ Tracked manifest templates live in `data/manifests/`.
 
 - Target manifests describe disappeared persons' public images and source provenance.
 - Place manifests describe place/surface images and reuse terms.
+- People manifests describe contemporary public images of people for internal Stage 2 exploration. They are review-gated source-corpus material, not disappeared-person targets, and no identity matching is performed.
 - Rows must use `review_status=approved` before the pipeline can use the corresponding local file.
-- The crawler fetches only page URLs entered or selected in the GUI. It saves discovered images under ignored `data/raw/crawl/`, appends pending rows to ignored `data/manifests/crawled-*.csv`, and never makes crawled media eligible for generation until a row is manually approved.
+- The crawler fetches only page URLs entered or selected in the GUI, follows links within depth/page/image limits, honours `robots.txt` by default, and defaults to same-domain traversal for presets.
+- The crawler saves discovered images under ignored `data/raw/crawl/store/`, records cache/trail data in ignored `data/raw/crawl/cache.sqlite`, exports each run under ignored `data/raw/crawl/runs/<run_id>.jsonl`, and appends pending rows to ignored `data/manifests/crawled-*.csv`.
+- Crawled rows keep the direct image URL in `source_url`, the page where it was found in `source_page`, and crawl metadata (`crawl_run_id`, `content_sha256`, `perceptual_hash`). People rows also keep a manual-review face-region box.
+- Exact SHA-256 and perceptual hashes prevent repeated image variants from being added to manifests. Cache classification is per manifest kind, so one URL can be evaluated separately as a place or people candidate without re-downloading.
 - `reuse_limit` is enforced per extracted source fragment. Sidecars record source usage, fragment count, and the maximum observed fragment reuse.
-- Video sidecars record the process style, source sequence, tile counts, and per-source animated fragment counts.
+- Video sidecars record the process style, source sequence, tile counts, per-source animated fragment counts, and the search-trail URLs used by the bottom ticker.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 
 Downloaded and crawled files are written under `data/raw/`; generated stills, videos, and sidecars are written under `outputs/stage1/`. These directories are ignored.

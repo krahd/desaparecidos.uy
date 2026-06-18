@@ -588,6 +588,24 @@ label {
   gap: 9px;
 }
 
+.toggle-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.checkbox input {
+  width: auto;
+  margin: 0;
+}
+
 .icon-button {
   width: 34px;
   padding: 0;

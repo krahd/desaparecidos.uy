@@ -33,11 +33,12 @@ def write_fixture(tmp_path: Path) -> tuple[Path, Path]:
         writer = csv.writer(handle)
         writer.writerow([
             "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
-            "local_path", "review_status", "location_label", "notes"
+            "local_path", "review_status", "location_label", "notes",
+            "crawl_run_id", "content_sha256", "perceptual_hash"
         ])
         writer.writerow([
             "s1", "Source", "https://example.invalid/s.png", "https://example.invalid/s",
-            "fixture", "2026-06-17", "source.png", "approved", "fixture", ""
+            "fixture", "2026-06-17", "source.png", "approved", "fixture", "", "", "", ""
         ])
     return targets, sources
 
@@ -56,6 +57,7 @@ def test_health_and_validate(tmp_path: Path) -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["targets"]["approved_count"] == 1
+    assert body["people"]["row_count"] == 0
     assert body["targets"]["rows"][0]["file_path"].endswith("target.png")
 
 
@@ -128,6 +130,14 @@ def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
                 "manifest": "data/manifests/crawled-places.csv",
                 "kind": "places",
                 "pages": ["https://example.test/page"],
+                "run_id": "test-run",
+                "trail_path": "data/raw/crawl/runs/test-run.jsonl",
+                "pages_crawled": 1,
+                "images_seen": 0,
+                "from_cache": 0,
+                "cv_rejected": 0,
+                "duplicates": 0,
+                "added": 0,
                 "items": [],
                 "errors": [],
             }
@@ -145,6 +155,11 @@ def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
             "kind": "places",
             "manifest": "data/manifests/crawled-places.csv",
             "output_root": "data/raw/crawl",
+            "max_depth": 1,
+            "max_pages": 10,
+            "max_images": 20,
+            "cross_domain": False,
+            "use_cv": True,
         },
     )
 

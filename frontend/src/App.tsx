@@ -41,12 +41,13 @@ type LogEntry = {
 };
 
 type SectionId = 'manifests' | 'review' | 'generate' | 'outputs';
-type ReviewKind = 'targets' | 'places';
+type ReviewKind = 'targets' | 'places' | 'people';
+type CrawlKind = 'places' | 'people';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
 type CrawlPreset = {
   id: string;
   label: string;
-  kind: ReviewKind;
+  kind: CrawlKind;
   manifest: string;
   pages: string[];
   maxImages: number;
@@ -56,74 +57,85 @@ type CrawlPreset = {
 const defaultPaths = {
   targets: 'data/manifests/targets.csv',
   sources: 'data/manifests/places.csv',
+  people: 'data/manifests/people.csv',
   outputDir: 'outputs/stage1',
 };
 
-const crawlerManifestDefaults: Record<ReviewKind, string> = {
-  targets: 'data/manifests/crawled-targets.csv',
+const crawlerManifestDefaults: Record<CrawlKind, string> = {
   places: 'data/manifests/crawled-places.csv',
+  people: 'data/manifests/crawled-people.csv',
 };
 
 const crawlPresets: CrawlPreset[] = [
   {
-    id: 'cdf-home',
-    label: 'CdF Montevideo',
+    id: 'montevideo-tourism',
+    label: 'Montevideo tourism',
     kind: 'places',
     manifest: crawlerManifestDefaults.places,
-    pages: ['https://cdf.montevideo.gub.uy/'],
+    pages: ['https://montevideo.gub.uy/tipo/area-tematica/turismo-y-tiempo-libre'],
     maxImages: 12,
-    labelPrefix: 'CdF',
+    labelPrefix: 'Montevideo tourism',
   },
   {
-    id: 'cdf-exhibitions',
-    label: 'CdF exhibitions',
+    id: 'montevideo-events',
+    label: 'Montevideo events',
     kind: 'places',
     manifest: crawlerManifestDefaults.places,
-    pages: ['https://cdf.montevideo.gub.uy/exposiciones'],
+    pages: ['https://eventos.montevideo.gub.uy/'],
     maxImages: 18,
-    labelPrefix: 'CdF exhibition',
+    labelPrefix: 'Montevideo event',
   },
   {
-    id: 'mume',
-    label: 'MUME',
+    id: 'mintur-news',
+    label: 'MINTUR news',
     kind: 'places',
     manifest: crawlerManifestDefaults.places,
-    pages: ['https://mume.montevideo.gub.uy/'],
+    pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
     maxImages: 12,
-    labelPrefix: 'MUME',
+    labelPrefix: 'Uruguay tourism',
   },
   {
-    id: 'sitios-memoria',
-    label: 'Sitios de Memoria',
+    id: 'descubri-montevideo',
+    label: 'Descubri Montevideo',
     kind: 'places',
     manifest: crawlerManifestDefaults.places,
-    pages: ['https://sitiosdememoria.uy/'],
+    pages: ['https://www.descubrimontevideo.uy/'],
     maxImages: 12,
-    labelPrefix: 'Sitio memoria',
+    labelPrefix: 'Descubri Montevideo',
   },
   {
-    id: 'commons-streets',
-    label: 'Commons streets',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
-    pages: ['https://commons.wikimedia.org/wiki/Category:Streets_in_Montevideo'],
-    maxImages: 24,
-    labelPrefix: 'Montevideo street',
+    id: 'montevideo-people-news',
+    label: 'Montevideo people',
+    kind: 'people',
+    manifest: crawlerManifestDefaults.people,
+    pages: ['https://montevideo.gub.uy/noticias'],
+    maxImages: 12,
+    labelPrefix: 'Montevideo people',
   },
   {
-    id: 'commons-buildings',
-    label: 'Commons buildings',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
-    pages: ['https://commons.wikimedia.org/wiki/Category:Buildings_in_Montevideo'],
-    maxImages: 24,
-    labelPrefix: 'Montevideo building',
+    id: 'mec-people-news',
+    label: 'MEC people',
+    kind: 'people',
+    manifest: crawlerManifestDefaults.people,
+    pages: ['https://www.gub.uy/ministerio-educacion-cultura/comunicacion/noticias'],
+    maxImages: 12,
+    labelPrefix: 'MEC people',
+  },
+  {
+    id: 'mintur-people-events',
+    label: 'MINTUR people',
+    kind: 'people',
+    manifest: crawlerManifestDefaults.people,
+    pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
+    maxImages: 12,
+    labelPrefix: 'MINTUR people',
   },
 ];
 
 export function App() {
   const [targets, setTargets] = useState(defaultPaths.targets);
   const [sources, setSources] = useState(defaultPaths.sources);
+  const [people, setPeople] = useState(defaultPaths.people);
   const [outputDir, setOutputDir] = useState(defaultPaths.outputDir);
   const [seed, setSeed] = useState(17);
   const [fragmentSize, setFragmentSize] = useState(24);
@@ -138,10 +150,15 @@ export function App() {
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('manifests');
   const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
-  const [crawlKind, setCrawlKind] = useState<ReviewKind>('places');
+  const [crawlKind, setCrawlKind] = useState<CrawlKind>('places');
   const [crawlPagesText, setCrawlPagesText] = useState('');
   const [crawlManifest, setCrawlManifest] = useState(crawlerManifestDefaults.places);
   const [crawlMaxImages, setCrawlMaxImages] = useState(12);
+  const [crawlDepth, setCrawlDepth] = useState(2);
+  const [crawlMaxPages, setCrawlMaxPages] = useState(60);
+  const [crawlMaxTotal, setCrawlMaxTotal] = useState(80);
+  const [crawlCrossDomain, setCrawlCrossDomain] = useState(false);
+  const [crawlUseCv, setCrawlUseCv] = useState(true);
   const [crawlLabelPrefix, setCrawlLabelPrefix] = useState('');
   const [log, setLog] = useState<LogEntry[]>([
     { at: new Date().toLocaleTimeString(), text: 'GUI ready. Backend must be running on localhost.' },
@@ -158,7 +175,9 @@ export function App() {
   const approvedSources = validation?.sources.rows.filter((row) => row.approved) ?? [];
   const reviewRows = reviewKind === 'targets'
     ? validation?.targets.rows ?? []
-    : validation?.sources.rows ?? [];
+    : reviewKind === 'places'
+      ? validation?.sources.rows ?? []
+      : validation?.people.rows ?? [];
   const activeTarget = approvedTargets.find((row) => row.id === targetId) ?? approvedTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
 
@@ -198,7 +217,7 @@ export function App() {
   async function handleValidate(requireFiles = false) {
     const response = await runAction(
       'Validating manifests.',
-      () => validateManifests({ targets, sources, require_files: requireFiles }),
+      () => validateManifests({ targets, sources, people, require_files: requireFiles }),
       'Validation finished.',
     );
     if (!response) return;
@@ -218,6 +237,7 @@ export function App() {
         const checked = await validateManifests({
           targets: fixtures.targets,
           sources: fixtures.sources,
+          people,
           require_files: true,
         });
         return { fixtures, checked };
@@ -234,7 +254,7 @@ export function App() {
   }
 
   async function handleDownload(kind: ReviewKind) {
-    const manifest = kind === 'targets' ? targets : sources;
+    const manifest = kind === 'targets' ? targets : kind === 'places' ? sources : people;
     await runAction(
       `Downloading ${kind} manifest URLs.`,
       () => downloadManifest({ manifest, kind, output_root: 'data/raw' }),
@@ -269,6 +289,7 @@ export function App() {
         const checked = await validateManifests({
           targets,
           sources,
+          people,
           require_files: true,
         });
         setValidation(checked);
@@ -326,30 +347,40 @@ export function App() {
         output_root: 'data/raw/crawl',
         max_images_per_page: crawlMaxImages,
         label_prefix: crawlLabelPrefix,
+        max_depth: crawlDepth,
+        max_pages: crawlMaxPages,
+        max_images: crawlMaxTotal,
+        cross_domain: crawlCrossDomain,
+        use_cv: crawlUseCv,
       }),
       'Crawler finished.',
     );
     if (!response) return;
-    if (crawlKind === 'targets') {
-      setTargets(response.manifest);
-    } else {
+    if (crawlKind === 'places') {
       setSources(response.manifest);
+    } else {
+      setPeople(response.manifest);
     }
     setReviewKind(crawlKind);
     setActiveSection('review');
     const checked = await validateManifests({
-      targets: crawlKind === 'targets' ? response.manifest : targets,
+      targets,
       sources: crawlKind === 'places' ? response.manifest : sources,
+      people: crawlKind === 'people' ? response.manifest : people,
       require_files: true,
     });
     setValidation(checked);
     const saved = response.items.filter((item) => item.ok).length;
-    appendLog(`Crawler saved ${saved} image${saved === 1 ? '' : 's'} as pending review.`, saved ? 'ok' : 'error');
+    appendLog(
+      `Crawler run ${response.run_id}: ${response.pages_crawled} pages, ${response.images_seen} images, `
+      + `${response.added} added, ${response.duplicates} duplicates, ${response.cv_rejected} CV-rejected.`,
+      saved ? 'ok' : 'error',
+    );
     response.errors.forEach((error) => appendLog(error, 'error'));
   }
 
   async function handleReviewStatus(row: ManifestRow, status: ReviewStatus) {
-    const manifest = row.kind === 'targets' ? targets : sources;
+    const manifest = row.kind === 'targets' ? targets : row.kind === 'places' ? sources : people;
     const response = await runAction(
       `${status === 'approved' ? 'Approving' : status === 'rejected' ? 'Rejecting' : 'Resetting'} ${row.label}.`,
       async () => {
@@ -359,7 +390,7 @@ export function App() {
           row_id: row.id,
           review_status: status,
         });
-        return validateManifests({ targets, sources, require_files: true });
+        return validateManifests({ targets, sources, people, require_files: true });
       },
       'Review status updated.',
     );
@@ -376,7 +407,7 @@ export function App() {
     appendLog(row ? `Selected target: ${row.label}.` : 'No approved target selected.', row ? 'ok' : undefined);
   }
 
-  function handleCrawlKindChange(value: ReviewKind) {
+  function handleCrawlKindChange(value: CrawlKind) {
     setCrawlKind(value);
     setCrawlManifest(crawlerManifestDefaults[value]);
     setReviewKind(value);
@@ -468,7 +499,7 @@ export function App() {
           icon={<LayoutGrid />}
           title="Review images"
           active={activeSection === 'review'}
-          detail={`${approvedSources.length} approved sources`}
+          detail={`${approvedSources.length} approved places`}
           onSelect={() => selectWorkflow('review')}
         />
         <WorkflowItem
@@ -528,6 +559,13 @@ export function App() {
                 disabled={busy}
               >
                 Places
+              </button>
+              <button
+                className={reviewKind === 'people' ? 'selected' : ''}
+                onClick={() => setReviewKind('people')}
+                disabled={busy}
+              >
+                People
               </button>
             </div>
           </div>
@@ -645,6 +683,10 @@ export function App() {
             Places
             <input value={sources} onChange={(event) => setSources(event.target.value)} />
           </label>
+          <label>
+            People
+            <input value={people} onChange={(event) => setPeople(event.target.value)} />
+          </label>
           <div className="button-row">
             <button onClick={() => void handleValidate(false)} disabled={busy}>
               <FileCheck2 size={16} /> Validate
@@ -672,6 +714,9 @@ export function App() {
             <button onClick={() => void handleDownload('places')} disabled={busy}>
               <Download size={16} /> Sources
             </button>
+            <button onClick={() => void handleDownload('people')} disabled={busy}>
+              <Download size={16} /> People
+            </button>
           </div>
         </section>
 
@@ -690,9 +735,9 @@ export function App() {
           </label>
           <label>
             Kind
-            <select value={crawlKind} onChange={(event) => handleCrawlKindChange(event.target.value as ReviewKind)}>
+            <select value={crawlKind} onChange={(event) => handleCrawlKindChange(event.target.value as CrawlKind)}>
               <option value="places">Places</option>
-              <option value="targets">Targets</option>
+              <option value="people">People</option>
             </select>
           </label>
           <label>
@@ -710,7 +755,7 @@ export function App() {
           </label>
           <div className="form-grid">
             <label>
-              Max images
+              Per page
               <input
                 type="number"
                 min={1}
@@ -720,8 +765,56 @@ export function App() {
               />
             </label>
             <label>
+              Depth
+              <input
+                type="number"
+                min={0}
+                max={4}
+                value={crawlDepth}
+                onChange={(event) => setCrawlDepth(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Max pages
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={crawlMaxPages}
+                onChange={(event) => setCrawlMaxPages(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Total images
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={crawlMaxTotal}
+                onChange={(event) => setCrawlMaxTotal(Number(event.target.value))}
+              />
+            </label>
+            <label>
               Label prefix
               <input value={crawlLabelPrefix} onChange={(event) => setCrawlLabelPrefix(event.target.value)} />
+            </label>
+          </div>
+          <div className="toggle-row">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={crawlCrossDomain}
+                onChange={(event) => setCrawlCrossDomain(event.target.checked)}
+              />
+              Follow other domains
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={crawlUseCv}
+                onChange={(event) => setCrawlUseCv(event.target.checked)}
+              />
+              CV filter
             </label>
           </div>
           <button onClick={() => void handleCrawl()} disabled={busy}>
@@ -895,12 +988,12 @@ function ValidationSummary({ validation }: { validation: ValidateResponse | null
   if (!validation) {
     return <p>No validation run yet.</p>;
   }
-  const errors = [...validation.targets.errors, ...validation.sources.errors];
-  const warnings = [...validation.targets.warnings, ...validation.sources.warnings];
+  const errors = [...validation.targets.errors, ...validation.sources.errors, ...validation.people.errors];
+  const warnings = [...validation.targets.warnings, ...validation.sources.warnings, ...validation.people.warnings];
   return (
     <div className="validation-summary">
       <p>
-        {validation.targets.approved_count} approved targets, {validation.sources.approved_count} approved sources.
+        {validation.targets.approved_count} approved targets, {validation.sources.approved_count} approved places, {validation.people.approved_count} approved people.
       </p>
       {errors.map((error) => (
         <div className="validation-line error" key={error}>

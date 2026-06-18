@@ -25,6 +25,26 @@ TARGET_HEADER = [
     "crop_height",
 ]
 
+PEOPLE_HEADER = [
+    "id",
+    "title",
+    "source_url",
+    "source_page",
+    "licence_or_terms",
+    "accessed_at",
+    "local_path",
+    "review_status",
+    "location_label",
+    "notes",
+    "crawl_run_id",
+    "content_sha256",
+    "perceptual_hash",
+    "face_x",
+    "face_y",
+    "face_width",
+    "face_height",
+]
+
 
 def write_csv(path: Path, header: list[str], rows: list[list[str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -104,3 +124,35 @@ def test_approved_file_must_exist_when_required(tmp_path: Path) -> None:
 
     assert not result.ok
     assert any("does not exist" in error for error in result.errors)
+
+
+def test_people_manifest_kind_is_validated(tmp_path: Path) -> None:
+    path = tmp_path / "people.csv"
+    write_csv(
+        path,
+        PEOPLE_HEADER,
+        [[
+            "p1",
+            "Public event person",
+            "https://example.invalid/person.png",
+            "https://example.invalid/event",
+            "fixture",
+            "2026-06-18",
+            "person.png",
+            "pending",
+            "Montevideo",
+            "manual review",
+            "run-1",
+            "abc",
+            "ff00",
+            "10",
+            "12",
+            "80",
+            "90",
+        ]],
+    )
+
+    result = validate_manifest(path, "people")
+
+    assert result.ok
+    assert result.rows[0].label == "Public event person"

@@ -20,6 +20,7 @@ from .pipeline import Stage1Settings, run_stage1
 class ValidateRequest(BaseModel):
     targets: str = "data/manifests/targets.csv"
     sources: str = "data/manifests/places.csv"
+    people: str = "data/manifests/people.csv"
     require_files: bool = False
 
 
@@ -48,6 +49,13 @@ class CrawlRequest(BaseModel):
     output_root: str = "data/raw/crawl"
     max_images_per_page: int = Field(default=12, ge=1, le=50)
     label_prefix: str = ""
+    max_depth: int = Field(default=2, ge=0, le=4)
+    max_pages: int = Field(default=60, ge=1, le=500)
+    max_images: int = Field(default=80, ge=1, le=1000)
+    cross_domain: bool = False
+    delay: float = Field(default=0.7, ge=0, le=10)
+    respect_robots: bool = True
+    use_cv: bool = True
 
 
 class ReviewRequest(BaseModel):
@@ -86,6 +94,7 @@ def create_app() -> FastAPI:
         return {
             "target_manifest": "data/manifests/targets.csv",
             "source_manifest": "data/manifests/places.csv",
+            "people_manifest": "data/manifests/people.csv",
             "output_dir": "outputs/stage1",
         }
 
@@ -93,10 +102,12 @@ def create_app() -> FastAPI:
     def validate(request: ValidateRequest) -> dict[str, Any]:
         targets = validate_manifest(request.targets, "targets", require_files=request.require_files)
         sources = validate_manifest(request.sources, "places", require_files=request.require_files)
+        people = validate_manifest(request.people, "people", require_files=request.require_files)
         return {
-            "ok": targets.ok and sources.ok,
+            "ok": targets.ok and sources.ok and people.ok,
             "targets": targets.to_api(),
             "sources": sources.to_api(),
+            "people": people.to_api(),
         }
 
     @app.post("/api/download")
@@ -122,6 +133,13 @@ def create_app() -> FastAPI:
                 output_root=safe_project_path(request.output_root),
                 max_images_per_page=request.max_images_per_page,
                 label_prefix=request.label_prefix,
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                max_images=request.max_images,
+                cross_domain=request.cross_domain,
+                delay=request.delay,
+                respect_robots=request.respect_robots,
+                use_cv=request.use_cv,
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

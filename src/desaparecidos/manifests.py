@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from .paths import display_path
 
-ManifestKind = Literal["targets", "places"]
+ManifestKind = Literal["targets", "places", "people"]
 
 TARGET_FIELDS = [
     "id",
@@ -39,6 +39,29 @@ PLACE_FIELDS = [
     "review_status",
     "location_label",
     "notes",
+    "crawl_run_id",
+    "content_sha256",
+    "perceptual_hash",
+]
+
+PEOPLE_FIELDS = [
+    "id",
+    "title",
+    "source_url",
+    "source_page",
+    "licence_or_terms",
+    "accessed_at",
+    "local_path",
+    "review_status",
+    "location_label",
+    "notes",
+    "crawl_run_id",
+    "content_sha256",
+    "perceptual_hash",
+    "face_x",
+    "face_y",
+    "face_width",
+    "face_height",
 ]
 
 REQUIRED_VALUES = {
@@ -62,9 +85,19 @@ REQUIRED_VALUES = {
         "local_path",
         "review_status",
     ],
+    "people": [
+        "id",
+        "title",
+        "source_url",
+        "source_page",
+        "licence_or_terms",
+        "accessed_at",
+        "local_path",
+        "review_status",
+    ],
 }
 
-EXPECTED_FIELDS = {"targets": TARGET_FIELDS, "places": PLACE_FIELDS}
+EXPECTED_FIELDS = {"targets": TARGET_FIELDS, "places": PLACE_FIELDS, "people": PEOPLE_FIELDS}
 APPROVED = "approved"
 
 

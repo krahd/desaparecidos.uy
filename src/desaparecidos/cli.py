@@ -24,11 +24,12 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="Validate target and source manifests.")
     validate.add_argument("--targets", default="data/manifests/targets.csv")
     validate.add_argument("--sources", default="data/manifests/places.csv")
+    validate.add_argument("--people", default="data/manifests/people.csv")
     validate.add_argument("--require-files", action="store_true")
 
     download = subparsers.add_parser("download", help="Download URLs listed in a manifest.")
     download.add_argument("--manifest", required=True)
-    download.add_argument("--kind", choices=["targets", "places"], required=True)
+    download.add_argument("--kind", choices=["targets", "places", "people"], required=True)
     download.add_argument("--output-root", default="data/raw")
 
     run = subparsers.add_parser("run-stage1", help="Run Stage 1 reconstruction.")
@@ -59,8 +60,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "validate":
         targets = validate_manifest(args.targets, "targets", require_files=args.require_files)
         sources = validate_manifest(args.sources, "places", require_files=args.require_files)
-        _print_json({"ok": targets.ok and sources.ok, "targets": targets.to_api(), "sources": sources.to_api()})
-        return 0 if targets.ok and sources.ok else 1
+        people = validate_manifest(args.people, "people", require_files=args.require_files)
+        _print_json({
+            "ok": targets.ok and sources.ok and people.ok,
+            "targets": targets.to_api(),
+            "sources": sources.to_api(),
+            "people": people.to_api(),
+        })
+        return 0 if targets.ok and sources.ok and people.ok else 1
 
     if args.command == "download":
         summary = download_manifest(args.manifest, args.kind, output_root=args.output_root)

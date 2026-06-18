@@ -2,7 +2,7 @@ export const API_BASE =
   import.meta.env.VITE_API_BASE?.replace(/\/$/, '') ?? 'http://127.0.0.1:8765';
 
 export type ManifestRow = {
-  kind: 'targets' | 'places';
+  kind: 'targets' | 'places' | 'people';
   line_number: number;
   id: string;
   label: string;
@@ -13,7 +13,7 @@ export type ManifestRow = {
 
 export type ManifestValidation = {
   path: string;
-  kind: 'targets' | 'places';
+  kind: 'targets' | 'places' | 'people';
   ok: boolean;
   errors: string[];
   warnings: string[];
@@ -26,6 +26,7 @@ export type ValidateResponse = {
   ok: boolean;
   targets: ManifestValidation;
   sources: ManifestValidation;
+  people: ManifestValidation;
 };
 
 export type OutputItem = {
@@ -50,9 +51,17 @@ export type GenerateResponse = {
 export type CrawlResponse = {
   ok: boolean;
   manifest: string;
-  kind: 'targets' | 'places';
+  kind: 'targets' | 'places' | 'people';
   pages: string[];
+  run_id: string;
+  trail_path?: string | null;
   errors: string[];
+  pages_crawled: number;
+  images_seen: number;
+  from_cache: number;
+  cv_rejected: number;
+  duplicates: number;
+  added: number;
   items: Array<{
     id: string;
     page_url: string;
@@ -60,6 +69,14 @@ export type CrawlResponse = {
     local_path: string;
     ok: boolean;
     bytes_written: number;
+    from_cache: boolean;
+    duplicate: boolean;
+    cv_label: string;
+    cv_score: number;
+    cv_accept: boolean;
+    content_sha256: string;
+    perceptual_hash: string;
+    crawl_run_id: string;
     error?: string | null;
   }>;
 };
@@ -73,7 +90,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     throw new Error(
-      `Cannot reach the local FastAPI backend at ${API_BASE}. Start the app with Start desaparecidos.command.`,
+      `Cannot reach the local FastAPI backend at ${API_BASE}. Start the app with ./start.sh.`,
     );
   }
   if (!response.ok) {
@@ -93,7 +110,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     if (contentType.includes('text/html') || body.trimStart().startsWith('<!DOCTYPE')) {
       throw new Error(
-        `The server at ${API_BASE} is not the desaparecidos FastAPI backend. Restart Start desaparecidos.command; it will choose a free backend port if 8765 is occupied.`,
+        `The server at ${API_BASE} is not the desaparecidos FastAPI backend. Restart ./start.sh; it will choose a free backend port if 8765 is occupied.`,
       );
     }
     throw new Error(body || response.statusText);
@@ -108,6 +125,7 @@ export function fileUrl(path: string): string {
 export function validateManifests(payload: {
   targets: string;
   sources: string;
+  people: string;
   require_files: boolean;
 }): Promise<ValidateResponse> {
   return request('/api/validate', {
@@ -118,7 +136,7 @@ export function validateManifests(payload: {
 
 export function downloadManifest(payload: {
   manifest: string;
-  kind: 'targets' | 'places';
+  kind: 'targets' | 'places' | 'people';
   output_root: string;
 }): Promise<Record<string, unknown>> {
   return request('/api/download', {
@@ -141,11 +159,16 @@ export function createDemoFixtures(): Promise<{
 
 export function crawlPages(payload: {
   pages: string[];
-  kind: 'targets' | 'places';
+  kind: 'places' | 'people';
   manifest: string;
   output_root: string;
   max_images_per_page: number;
   label_prefix: string;
+  max_depth: number;
+  max_pages: number;
+  max_images: number;
+  cross_domain: boolean;
+  use_cv: boolean;
 }): Promise<CrawlResponse> {
   return request('/api/crawl', {
     method: 'POST',
@@ -155,7 +178,7 @@ export function crawlPages(payload: {
 
 export function updateReviewStatus(payload: {
   manifest: string;
-  kind: 'targets' | 'places';
+  kind: 'targets' | 'places' | 'people';
   row_id: string;
   review_status: 'approved' | 'pending' | 'rejected';
 }): Promise<{ ok: boolean; manifest: ManifestValidation }> {

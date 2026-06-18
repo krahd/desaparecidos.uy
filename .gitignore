@@ -35,3 +35,7 @@ doc/fotos-desaparecidos.zip
 .env
 .env.*
 *.log
+
+# Large local source archives
+/doc/fotos-desaparecidos.zip
+*.zip

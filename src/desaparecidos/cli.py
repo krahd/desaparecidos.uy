@@ -6,7 +6,7 @@ from pathlib import Path
 
 import uvicorn
 
-from .api import create_app
+from .api import DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, create_app
 from .download import download_manifest
 from .manifests import validate_manifest
 from .outputs import list_outputs
@@ -15,6 +15,11 @@ from .pipeline import Stage1Settings, run_stage1
 
 def _print_json(value: object) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def _normalise_contribution_cap(value: int) -> int:
+    """Map legacy 0/unset CLI values to the active ethical default cap."""
+    return value if value > 0 else DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,7 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fragment-size", type=int, default=24)
     run.add_argument("--reuse-limit", type=int, default=8)
     run.add_argument("--output-width", type=int, default=720)
-    run.add_argument("--max-contribution-per-source", type=int, default=0)
+    run.add_argument(
+        "--max-contribution-per-source",
+        type=int,
+        default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
+        help=(
+            "maximum output tiles any single source image may contribute; "
+            f"0 is treated as the ethical default ({DEFAULT_MAX_CONTRIBUTION_PER_SOURCE}), "
+            "not as unlimited"
+        ),
+    )
     run.add_argument("--search-scan-frames-per-candidate", type=int, default=2)
     run.add_argument("--search-scan-max-candidates", type=int, default=120)
     run.add_argument("--target-id")
@@ -83,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
             fragment_size=args.fragment_size,
             reuse_limit=args.reuse_limit,
             output_width=args.output_width,
-            max_contribution_per_source=args.max_contribution_per_source,
+            max_contribution_per_source=_normalise_contribution_cap(args.max_contribution_per_source),
             search_scan_frames_per_candidate=args.search_scan_frames_per_candidate,
             search_scan_max_candidates=args.search_scan_max_candidates,
             make_video=args.video,

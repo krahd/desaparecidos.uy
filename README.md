@@ -29,7 +29,8 @@ The prototype provides:
 - Stage 1 place-source crawling and internal Stage 2 people-source crawling;
 - a preset menu of ordinary contemporary Uruguay starting pages;
 - stricter local OpenCV/NumPy crawler gating: `people` rows require a detected face and `places` rows require photo-like non-face scene material;
-- deterministic, vectorised fragment matching and assembly with optional per-source contribution caps;
+- deterministic, vectorised fragment matching using a deliberately modest six-dimensional colour/contrast/edge descriptor and L2 nearest-neighbour search;
+- an active default per-source contribution cap so no single source image can dominate a generated portrait;
 - still PNG outputs and optional browser-playable H.264 MP4 process videos with a fast search-candidate scan, bottom URL ticker, and commemorative outro;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
@@ -59,7 +60,7 @@ The GUI remembers the target, place, people, output, and crawl manifest paths ac
 Generation controls include:
 
 - `Block size`, wired to `fragment_size` (`8..128`, step `4`);
-- `Max tiles per source`, wired to `max_contribution_per_source` (`0` means unlimited);
+- `Max tiles per source`, wired to `max_contribution_per_source`; the running backend normalises `0` or unset legacy values to the active ethical default of `240`, not to unlimited use;
 - `reuse_limit`, `output_width`, seed, still generation, and video generation.
 
 Generated videos show the search before the selection: local crawl candidates that do not contribute are flashed quickly in crawl order, then a usable source is introduced full-screen, sampled fragment regions are highlighted, and those fragments animate into their actual positions in the reconstructed portrait. Crawler page URLs are written along the bottom during search/assembly frames, and the video finishes with a commemorative outro.
@@ -101,7 +102,7 @@ The CLI remains available for automation and testing.
 python -m desaparecidos validate --targets data/manifests/targets.csv --sources data/manifests/places.csv
 python -m desaparecidos download --manifest data/manifests/places.csv --kind places
 python -m desaparecidos download --manifest data/manifests/people.csv --kind people
-python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17 --search-scan-frames-per-candidate 2 --search-scan-max-candidates 120
+python -m desaparecidos run-stage1 --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17 --max-contribution-per-source 240 --search-scan-frames-per-candidate 2 --search-scan-max-candidates 120
 python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
 
@@ -124,7 +125,8 @@ Tracked manifest templates live in `data/manifests/`.
 - The crawler saves discovered images under ignored `data/raw/crawl/store/`, records cache/trail data in ignored `data/raw/crawl/cache.sqlite`, exports each run under ignored `data/raw/crawl/runs/<run_id>.jsonl`, and appends pending rows to ignored `data/manifests/crawled-*.csv`.
 - Crawled rows keep the direct image URL in `source_url`, the page where it was found in `source_page`, and crawl metadata (`crawl_run_id`, `content_sha256`, `perceptual_hash`). People rows also keep the largest accepted face-region box for manual review.
 - Exact SHA-256 and perceptual hashes prevent repeated image variants from being added to manifests. Cache classification is per manifest kind, so one URL can be evaluated separately as a place or people candidate without re-downloading.
-- `reuse_limit` is enforced per extracted source fragment. `max_contribution_per_source` caps how many output tiles any single source image fills, and infeasible caps fail before generation.
+- Stage 1 matching uses non-overlapping 24-pixel tiles by default. Each fragment is described by mean RGB, luminance contrast, and horizontal/vertical edge energy, then matched by deterministic L2 nearest-neighbour search. This technical modesty is intentional: it keeps seams, mismatches, and fragment boundaries visible rather than smoothing the output into a synthetic restoration.
+- `reuse_limit` is enforced per extracted source fragment. `max_contribution_per_source` caps how many output tiles any single source image fills; GUI/API/CLI generation now normalises `0` or unset legacy values to `240`, and infeasible caps fail before generation.
 - Video sidecars record settings, source usage, source sequence, tile counts, per-source animated fragment counts, video process metadata, search-trail URLs/run ids, and displayed search-candidate frame references used by the fast scan and bottom ticker.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 

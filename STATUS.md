@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-18 16:22 GMT-3
+Last updated: 2026-06-19 16:28 GMT-3
 
 ## Project purpose
 
@@ -230,6 +230,7 @@ git diff --check
 
 ## Recent changes
 
+- Merged `origin/paper-ai-society-open-forum-import` into `import-full-disappeared-corpus`, adding the AI & Society/Open Forum drafts, source audit, summer publication plan, and paper figure SVGs under `doc/writings/`.
 - Added canonical target corpus administration: `src/desaparecidos/persons.py`, person-store FastAPI routes, React Targets screen, missing-field filters, explicit portrait candidate download, selected portrait processing, source provenance display, and target-manifest export.
 - Updated target corpus tracking policy: `data/persons/disappeared.json` and `assets/targets/disappeared/selected/` are trackable curated corpus paths; raw portrait downloads, rejected candidates, crawl outputs, and local generated derivatives remain ignored.
 - Converted the Sitios importer and portrait override helper to 3:4 full-frame portrait preprocessing with white-border trimming, canonical person-store output, and current target manifest fields.
@@ -287,7 +288,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - Run the full ~205-person Sitios import with the corrected importer, then add portraits from `madres-familiares` / `parque-de-la-memoria` for persons whose `portrait_status` is `missing`.
 - Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
 - Run a full manual GUI smoke in a browser once browser automation is available.
-- Review the merged `doc/DDHH/` archive additions for repository size policy if needed.
+- Review the merged `doc/DDHH/` archive additions and `doc/writings/` publication materials for repository size and publication-readiness policy if needed.
 - Keep checking that crawler presets stay mundane and contemporary rather than memory/archive oriented.
 - Continue improving CV thresholds only with manual review evidence from real crawl runs.
 
@@ -321,6 +322,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 
 - `README.md` describes the current GUI, target administration screen, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
 - `AGENTS.md` records current safety invariants, the canonical person-store/selected-portrait corpus exceptions, strict people/place CV expectations, and non-identification requirements.
+- `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-18 16:22 GMT-3
+Last updated: 2026-06-19 16:28 GMT-3

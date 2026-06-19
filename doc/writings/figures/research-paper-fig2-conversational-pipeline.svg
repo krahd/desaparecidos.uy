@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="420" viewBox="0 0 1400 420">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#111"/></marker><style>.title{font-family:Arial;font-size:30px;font-weight:700}.label{font-family:Arial;font-size:15px;font-weight:700}.body{font-family:Arial;font-size:12px}.box{fill:#f8f8f8;stroke:#111;stroke-width:2;rx:12;ry:12}.line{stroke:#111;stroke-width:2;fill:none;marker-end:url(#arrow)}</style></defs>
+<rect x="24" y="24" width="1352" height="372" fill="white" stroke="#111" stroke-width="2"/>
+<text x="55" y="70" class="title">Seven-stage conversational pipeline</text>
+<g transform="translate(50,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">1. Entry</text><text x="20" y="62" class="body">purpose, rights,</text><text x="20" y="82" class="body">voluntary frame</text></g>
+<g transform="translate(235,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">2. Calibration</text><text x="20" y="62" class="body">style, mode,</text><text x="20" y="82" class="body">relation to topic</text></g>
+<g transform="translate(420,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">3. Elicitation</text><text x="20" y="62" class="body">careful</text><text x="20" y="82" class="body">memory prompts</text></g>
+<g transform="translate(605,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">4. Clarification</text><text x="20" y="62" class="body">places, dates,</text><text x="20" y="82" class="body">relations</text></g>
+<g transform="translate(790,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">5. Review</text><text x="20" y="62" class="body">revise, segment,</text><text x="20" y="82" class="body">embargo</text></g>
+<g transform="translate(975,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">6. Processing</text><text x="20" y="62" class="body">transcript, tags,</text><text x="20" y="82" class="body">metadata</text></g>
+<g transform="translate(1160,135)"><rect width="160" height="110" class="box"/><text x="20" y="35" class="label">7. Routing</text><text x="20" y="62" class="body">access tier and</text><text x="20" y="82" class="body">retention class</text></g>
+<line x1="210" y1="190" x2="235" y2="190" class="line"/><line x1="395" y1="190" x2="420" y2="190" class="line"/><line x1="580" y1="190" x2="605" y2="190" class="line"/><line x1="765" y1="190" x2="790" y2="190" class="line"/><line x1="950" y1="190" x2="975" y2="190" class="line"/><line x1="1135" y1="190" x2="1160" y2="190" class="line"/>
+<text x="55" y="330" class="body">Methodological principle: the interface is part of how the eventual record is formed.</text>
+</svg>

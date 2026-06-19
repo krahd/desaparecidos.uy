@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="520" viewBox="0 0 1300 520">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#111"/></marker><style>.title{font-family:Arial;font-size:30px;font-weight:700}.label{font-family:Arial;font-size:17px;font-weight:700}.body{font-family:Arial;font-size:13px}.box{fill:#f8f8f8;stroke:#111;stroke-width:2;rx:12;ry:12}.derived{fill:#fff;stroke:#111;stroke-width:2;stroke-dasharray:7 5;rx:12;ry:12}.line{stroke:#111;stroke-width:2;fill:none;marker-end:url(#arrow)}</style></defs>
+<rect x="24" y="24" width="1252" height="472" fill="white" stroke="#111" stroke-width="2"/>
+<text x="55" y="70" class="title">Record transformation and provenance</text>
+<text x="55" y="102" class="body">Each derivative layer is useful but risk-bearing; none replaces the original participant record.</text>
+<g transform="translate(60,170)"><rect width="185" height="120" class="box"/><text x="25" y="35" class="label">Raw session</text><text x="25" y="65" class="body">conversation trace</text><text x="25" y="88" class="body">highest sensitivity</text></g>
+<g transform="translate(285,170)"><rect width="185" height="120" class="box"/><text x="25" y="35" class="label">Transcript</text><text x="25" y="65" class="body">reviewable text</text><text x="25" y="88" class="body">speaker control</text></g>
+<g transform="translate(510,170)"><rect width="185" height="120" class="derived"/><text x="25" y="35" class="label">Redacted version</text><text x="25" y="65" class="body">identifiers reduced</text><text x="25" y="88" class="body">risk-limited use</text></g>
+<g transform="translate(735,170)"><rect width="185" height="120" class="derived"/><text x="25" y="35" class="label">Metadata</text><text x="25" y="65" class="body">topics, places, dates</text><text x="25" y="88" class="body">uncertainty tags</text></g>
+<g transform="translate(960,170)"><rect width="185" height="120" class="derived"/><text x="25" y="35" class="label">Interpretive output</text><text x="25" y="65" class="body">curated excerpts</text><text x="25" y="88" class="body">public only by review</text></g>
+<line x1="245" y1="230" x2="285" y2="230" class="line"/><line x1="470" y1="230" x2="510" y2="230" class="line"/><line x1="695" y1="230" x2="735" y2="230" class="line"/><line x1="920" y1="230" x2="960" y2="230" class="line"/>
+<text x="55" y="390" class="body">Governance metadata travels with every layer: consent state, review state, access tier, provenance, retention policy, and revision history.</text>
+</svg>

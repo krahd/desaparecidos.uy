@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-label="Triptych diagram for computational memorial artwork">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#111" />
+    </marker>
+    <style>
+      .title{font-family:Arial, Helvetica, sans-serif;font-size:32px;font-weight:700;fill:#111}
+      .label{font-family:Arial, Helvetica, sans-serif;font-size:22px;font-weight:700;fill:#111}
+      .body{font-family:Arial, Helvetica, sans-serif;font-size:18px;fill:#111}
+      .small{font-family:Arial, Helvetica, sans-serif;font-size:15px;fill:#111}
+      .box{fill:#f7f7f7;stroke:#111;stroke-width:2.4;rx:18;ry:18}
+      .inner{fill:#fff;stroke:#111;stroke-width:1.6;rx:12;ry:12}
+      .line{stroke:#111;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+      .muted{fill:#efefef;stroke:#111;stroke-width:1.5;stroke-dasharray:5 5;rx:10;ry:10}
+    </style>
+  </defs>
+  <rect x="24" y="24" width="1152" height="592" fill="white" stroke="#111" stroke-width="2"/>
+  <text x="60" y="70" class="title">Computational memorial triptych</text>
+  <text x="60" y="104" class="body">Three related source fields through which disappeared persons reappear without restoration.</text>
+
+  <rect x="60" y="150" width="320" height="330" class="box"/>
+  <text x="85" y="190" class="label">Todos somos familiares</text>
+  <rect x="92" y="222" width="256" height="70" class="inner"/>
+  <text x="116" y="252" class="body">Living social body</text>
+  <text x="116" y="278" class="small">public images of contemporary people</text>
+  <rect x="92" y="318" width="256" height="92" class="muted"/>
+  <text x="116" y="348" class="body">Non-identifying fragments</text>
+  <text x="116" y="374" class="small">no naming, classification, or biometric</text>
+  <text x="116" y="397" class="small">search of source persons</text>
+
+  <rect x="440" y="150" width="320" height="330" class="box"/>
+  <text x="465" y="190" class="label">Están en todas partes</text>
+  <rect x="472" y="222" width="256" height="70" class="inner"/>
+  <text x="496" y="252" class="body">Material body of country</text>
+  <text x="496" y="278" class="small">streets, walls, buildings, surfaces</text>
+  <rect x="472" y="318" width="256" height="92" class="muted"/>
+  <text x="496" y="348" class="body">Stage 1 prototype</text>
+  <text x="496" y="374" class="small">lower immediate privacy risk;</text>
+  <text x="496" y="397" class="small">place-fragment reconstruction</text>
+
+  <rect x="820" y="150" width="320" height="330" class="box"/>
+  <text x="845" y="190" class="label">Seguimos buscando</text>
+  <rect x="852" y="222" width="256" height="70" class="inner"/>
+  <text x="876" y="252" class="body">Traversal and search</text>
+  <text x="876" y="278" class="small">movement across the visual field</text>
+  <rect x="852" y="318" width="256" height="92" class="muted"/>
+  <text x="876" y="348" class="body">Temporal memorial form</text>
+  <text x="876" y="374" class="small">the search remains visible;</text>
+  <text x="876" y="397" class="small">the portrait is never closure</text>
+
+  <line x1="220" y1="505" x2="220" y2="550" class="line"/>
+  <line x1="600" y1="505" x2="600" y2="550" class="line"/>
+  <line x1="980" y1="505" x2="980" y2="550" class="line"/>
+  <rect x="260" y="540" width="680" height="52" class="inner"/>
+  <text x="294" y="573" class="body">Shared output: fragmentary reappearance, provenance, non-identification, designed incompletion</text>
+</svg>

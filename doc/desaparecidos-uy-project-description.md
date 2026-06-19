@@ -75,7 +75,7 @@ The final images should not become too polished. The face should remain dependen
 
 Where the first two pieces focus on reconstruction from particular classes of visual material—people and places—this third work foregrounds traversal. It imagines the country as an image field to be scanned, crossed, searched, and revisited. The work may use street-level imagery, self-captured footage, archival routes, crowdsourced visual material, or other forms of lawful and ethically reviewed visual traversal. Its central gesture is not the static composition of a portrait, but the process by which a face emerges from movement through the country.
 
-While in the three pieces the searching itself is  an important compontent of the work, it is in **Seguimos buscando** where it is surfaced more explicitly. 
+While in the three pieces the searching itself is an important component of the work, it is in **Seguimos buscando** where it is surfaced more explicitly.
 
 The title avoids naming the search as complete. It also avoids assigning the search only to the state, only to families, or only to institutions. “Seguimos” is deliberately plural. It implies persistence, but also insufficiency. The search continues because the truth remains incomplete.
 
@@ -137,6 +137,8 @@ For **Seguimos buscando**, source acquisition should favour self-captured footag
 
 The source image field is decomposed into fragments. These fragments may be rectangular patches, irregular patches, texture samples, colour fields, edge fields, or other visual units.
 
+The current Stage 1 implementation is intentionally simple: it extracts non-overlapping square fragments, 24 pixels by default, with a default ceiling of 240 fragments per source image. This coarse tile structure is not merely an early technical compromise. It helps keep the reconstruction visibly assembled and prevents the system from drifting toward a seamless simulation of restoration.
+
 In **Todos somos familiares**, fragment extraction should be designed to reduce identifiability. The system may store face-derived fragments, but the project’s internal rule is that it does not identify, classify, or represent the living persons whose publicly available images may have contributed visual fragments. It treats the web as a dispersed visual field, not as a biometric archive.
 
 Possible privacy-preserving design choices include:
@@ -145,7 +147,7 @@ Possible privacy-preserving design choices include:
 - storing fragments rather than complete portraits wherever feasible;
 - limiting the size of contiguous fragments;
 - avoiding large recognizable crops of eyes, mouths, or full facial structures;
-- preventing any single source image from contributing too much to any final portrait;
+- preventing any single source image from contributing too much to any final portrait through explicit source-level caps;
 - keeping source identity separated from visual fragments;
 - documenting and enforcing deletion policies for raw source material;
 - excluding minors, private contexts, sensitive contexts, and images connected to health, criminal justice, education, or political participation unless explicit permission exists.
@@ -154,9 +156,13 @@ These constraints are not merely compliance measures. They support the work’s 
 
 ### 5.4. Matching and assembly
 
-The reconstruction process compares regions of the target portrait with fragments from the source field. Matching may use colour, luminance, gradient, edge direction, texture, local contrast, spatial composition, perceptual similarity, learned embeddings, or combinations of these methods. The system should not require semantic identification of source persons or places.
+The running Stage 1 matcher compares regions of the target portrait with fragments from the source field using a hand-designed six-dimensional descriptor: mean red, green, and blue values; luminance contrast; horizontal edge energy; and vertical edge energy. It then performs deterministic L2 nearest-neighbour selection over the available fragments, masking fragments that have reached their per-fragment reuse limit and sources that have reached the active per-source contribution cap. It does not currently use perceptual similarity models, learned embeddings, face embeddings, semantic segmentation, or diffusion-based image synthesis for matching.
 
-The assembly should remain visible as assembly. The final image should not fully conceal the fragments. The viewer should be able to perceive that the face is made from elsewhere: from other faces, from walls, from streets, from surfaces, from the country.
+Learned embeddings or more sophisticated perceptual metrics may be explored later as explicitly labelled extensions, but they should not be described as part of the current system. The present implementation is deliberately impoverished. Its modest descriptor cannot infer semantic correspondences, smooth identity, or produce photorealistic restoration. It matches low-level colour, contrast, and edge structure only.
+
+The running generation path now uses an active default source cap. Earlier configuration allowed `max_contribution_per_source = 0`, meaning unlimited source-level contribution; this conflicted with the ethical claim that no single source should dominate the image. The current GUI/API/CLI generation path normalises zero or unset legacy values to a default cap of 240 output tiles per source image, while `reuse_limit` continues to limit how often each extracted fragment can recur. Infeasible caps fail before generation.
+
+The assembly should remain visible as assembly. The final image should not fully conceal the fragments. The viewer should be able to perceive that the face is made from elsewhere: from other faces, from walls, from streets, from surfaces, from the country. In the present system, this is not only a curatorial aspiration; it is enforced by the coarse tiles, the restricted descriptor, and the absence of smoothing or learned identity transfer.
 
 The system should allow multiple reconstructions of the same person. This variability is conceptually important. It prevents the work from producing a definitive substitute image. Each output is one possible temporary apparition, not a replacement for the historical photograph.
 
@@ -304,7 +310,7 @@ The reconstructions should remain incomplete, unstable, and materially legible. 
 
 This is especially important because the project deals with disappearance. A seamless reconstruction risks suggesting restoration, technological mastery, or closure. The correct visual condition is partial reappearance: a face made visible through fragments, yet still marked by loss.
 
-The works should also avoid the sentimental codes of memorial imagery when possible. They should be sober, precise, and formally rigorous. The affective force should emerge from the system’s operation rather than from added melodrama.
+In the current implementation, incompletion is enforced by the system's technical poverty: a low-dimensional descriptor, coarse tiles, no smoothing stage, no learned identity model, and source-contribution limits. This should be understood as an ethical decision as much as a visual one. The matcher does not need to be protected from becoming photorealistic by a later stylistic filter; it is structurally unable to become a restoration engine.
 
 Possible visual principles:
 

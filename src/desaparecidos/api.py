@@ -34,6 +34,8 @@ from .persons import (
 )
 from .pipeline import Stage1Settings, run_stage1
 
+DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 240
+
 
 class ValidateRequest(BaseModel):
     targets: str = "data/manifests/targets.csv"
@@ -56,7 +58,7 @@ class GenerateRequest(BaseModel):
     fragment_size: int = Field(default=24, ge=8, le=128)
     reuse_limit: int = Field(default=8, ge=1, le=10000)
     output_width: int = Field(default=720, ge=120, le=4096)
-    max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
+    max_contribution_per_source: int = Field(default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, ge=0, le=1000000)
     search_scan_frames_per_candidate: int = Field(default=2, ge=1, le=24)
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     make_video: bool = False
@@ -153,6 +155,11 @@ class PersonExportTargetsRequest(BaseModel):
     approved: bool = False
 
 
+def _normalise_contribution_cap(value: int) -> int:
+    """Map legacy 0/unset GUI values to the active ethical default cap."""
+    return value if value > 0 else DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="desaparecidos.uy local API")
     app.add_middleware(
@@ -172,13 +179,14 @@ def create_app() -> FastAPI:
         return {"ok": True, "project_root": str(PROJECT_ROOT)}
 
     @app.get("/api/config")
-    def config() -> dict[str, str]:
+    def config() -> dict[str, str | int]:
         return {
             "target_manifest": "data/manifests/targets.csv",
             "source_manifest": "data/manifests/places.csv",
             "people_manifest": "data/manifests/people.csv",
             "person_store": "data/persons/disappeared.json",
             "output_dir": "outputs/stage1",
+            "default_max_contribution_per_source": DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
         }
 
     @app.post("/api/validate")
@@ -378,7 +386,7 @@ def create_app() -> FastAPI:
             fragment_size=request.fragment_size,
             reuse_limit=request.reuse_limit,
             output_width=request.output_width,
-            max_contribution_per_source=request.max_contribution_per_source,
+            max_contribution_per_source=_normalise_contribution_cap(request.max_contribution_per_source),
             search_scan_frames_per_candidate=request.search_scan_frames_per_candidate,
             search_scan_max_candidates=request.search_scan_max_candidates,
             make_video=request.make_video,

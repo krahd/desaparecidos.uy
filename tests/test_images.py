@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 
 from PIL import Image
+import pytest
 
 from desaparecidos.images import extract_fragments
 from desaparecidos.manifests import approved_rows
@@ -40,3 +41,48 @@ def test_fragment_limit_samples_across_source_image(tmp_path: Path) -> None:
     )
 
     assert [fragment.x for fragment in fragments] == [0, 96]
+
+
+def test_people_fragments_use_only_reviewed_face_region(tmp_path: Path) -> None:
+    image = Image.new("RGB", (96, 48), (220, 20, 20))
+    for x in range(48, 96):
+        for y in range(48):
+            image.putpixel((x, y), (20, 40, 220))
+    image.save(tmp_path / "person.png")
+    manifest = tmp_path / "people.csv"
+    with manifest.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
+            "local_path", "review_status", "location_label", "notes", "crawl_run_id",
+            "content_sha256", "perceptual_hash", "face_x", "face_y", "face_width", "face_height",
+        ])
+        writer.writerow([
+            "person", "Person", "local://person.png", "local://person", "fixture", "2026-06-20",
+            "person.png", "approved", "", "", "", "", "", "48", "0", "48", "48",
+        ])
+
+    rows = approved_rows(manifest, "people")
+    fragments = extract_fragments(rows, manifest, fragment_size=24, source_kind="people")
+
+    assert fragments
+    assert all(fragment.image.getpixel((12, 12)) == (20, 40, 220) for fragment in fragments)
+
+
+def test_people_fragments_reject_missing_face_region(tmp_path: Path) -> None:
+    Image.new("RGB", (48, 48), (20, 40, 220)).save(tmp_path / "person.png")
+    manifest = tmp_path / "people.csv"
+    with manifest.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
+            "local_path", "review_status", "location_label", "notes", "crawl_run_id",
+            "content_sha256", "perceptual_hash", "face_x", "face_y", "face_width", "face_height",
+        ])
+        writer.writerow([
+            "person", "Person", "local://person.png", "local://person", "fixture", "2026-06-20",
+            "person.png", "approved", "", "", "", "", "", "", "", "", "",
+        ])
+
+    with pytest.raises(ValueError, match="no reviewed face region"):
+        extract_fragments(approved_rows(manifest, "people"), manifest, fragment_size=24, source_kind="people")

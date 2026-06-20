@@ -8,7 +8,7 @@ import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Literal
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -21,9 +21,14 @@ from .paths import display_path
 BACKGROUND = (245, 245, 242)
 INK = (18, 18, 17)
 ACCENT = (109, 47, 38)
-PROCESS_VIDEO_STYLE = "source-fullscreen-fragment-flight"
+PROCESS_VIDEO_STYLE = "contributing-fragment-field"
 MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
-DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 240
+DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1
+ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
+ARTWORK_SOURCE_KIND: dict[ArtworkKind, Literal["people", "places"]] = {
+    "todos-somos-familiares": "people",
+    "estan-en-todas-partes": "places",
+}
 
 
 @dataclass(frozen=True)
@@ -290,7 +295,6 @@ def _process_video_frames(
 ) -> Iterable[Image.Image]:
     width, height = assembly.image.size
     tile = assembly.placements[0].image.width if assembly.placements else 24
-    source_rows_by_id = {row.id: row for row in source_rows}
     placements_by_source = _placements_by_source(assembly.placements)
     ordered_sources = _ordered_video_sources(placements_by_source, search_candidates or [])
     mosaic = Image.new("RGB", assembly.image.size, BACKGROUND)
@@ -299,80 +303,36 @@ def _process_video_frames(
     trail = search_trail or []
     frame_index = 0
     candidates = list(search_candidates or [])
-    candidate_index = 0
-    scan_frames = max(1, search_scan_frames_per_candidate)
+    del source_rows, source_manifest, search_scan_frames_per_candidate, search_candidate_display
 
     for source_id, placements in ordered_sources:
-        while candidate_index < len(candidates):
-            candidate = candidates[candidate_index]
-            candidate_index += 1
-            if candidate.source_id == source_id:
-                break
-            start_frame = frame_index
-            for frame in _candidate_scan_frames(
-                candidate,
-                assembly.image.size,
-                frames=scan_frames,
-                frame_index=frame_index,
-                fps=fps,
-            ):
-                yield frame
-                frame_index += 1
-            _record_candidate_display(
-                search_candidate_display,
-                candidate,
-                start_frame,
-                frame_index,
-                role="scan",
-            )
-
-        row = source_rows_by_id.get(source_id)
-        if row is None:
-            continue
-        source_image = load_rgb(row_file_path(row, source_manifest))
-        source_rect = _fit_rect(source_image.size, width, height)
-        source_full = _source_fullscreen_frame(source_image, source_rect, assembly.image.size, row)
         samples = _sample_placements(placements, MAX_ANIMATED_FRAGMENTS_PER_SOURCE)
-
-        matching_candidate = _candidate_for_source(source_id, candidates)
-        intro_start = frame_index
-        for _ in range(max(1, int(fps * 0.9))):
-            yield _with_url_ticker(source_full.copy(), trail, frame_index, fps)
-            frame_index += 1
-        if matching_candidate is not None:
-            _record_candidate_display(
-                search_candidate_display,
-                matching_candidate,
-                intro_start,
-                frame_index,
-                role="contributor",
-            )
-
-        highlighted = _source_fullscreen_frame(
-            source_image,
-            source_rect,
+        field, starts = _contributing_fragment_field(
+            samples,
             assembly.image.size,
-            row,
-            highlight_placements=samples,
-            fragment_size=tile,
+            seed=seed + sum(ord(char) for char in source_id),
         )
+        for _ in range(max(1, int(fps * 0.9))):
+            yield _with_url_ticker(field.copy(), trail, frame_index, fps)
+            frame_index += 1
+
+        highlighted = field.copy()
+        highlight_draw = ImageDraw.Draw(highlighted)
+        for x, y in starts:
+            highlight_draw.rectangle((x, y, x + tile, y + tile), outline=ACCENT, width=2)
         for _ in range(max(1, int(fps * 0.7))):
             yield _with_url_ticker(highlighted.copy(), trail, frame_index, fps)
             frame_index += 1
 
         for step in range(max(1, int(fps * 1.2))):
-            frame = Image.blend(source_full, assembly.target_canvas, min(0.35, (step + 1) / max(1, fps * 3)))
+            frame = Image.blend(field, assembly.target_canvas, min(0.25, (step + 1) / max(1, fps * 4)))
             draw = ImageDraw.Draw(frame)
             progress = (step + 1) / max(1, int(fps * 1.2))
             visible_count = max(1, int(len(samples) * progress))
-            for placement in samples[:visible_count]:
-                sx1 = source_rect[0] + int(placement.source_x * source_rect[2] / max(1, source_image.width))
-                sy1 = source_rect[1] + int(placement.source_y * source_rect[3] / max(1, source_image.height))
-                sx2 = sx1 + max(2, int(tile * source_rect[2] / max(1, source_image.width)))
-                sy2 = sy1 + max(2, int(tile * source_rect[3] / max(1, source_image.height)))
-                dx = int(sx1 + (placement.dest_x - sx1) * progress)
-                dy = int(sy1 + (placement.dest_y - sy1) * progress)
-                draw.rectangle((sx1, sy1, sx2, sy2), outline=ACCENT, width=2)
+            for placement, (sx, sy) in zip(samples[:visible_count], starts[:visible_count]):
+                dx = int(sx + (placement.dest_x - sx) * progress)
+                dy = int(sy + (placement.dest_y - sy) * progress)
+                draw.rectangle((sx, sy, sx + tile, sy + tile), outline=ACCENT, width=2)
                 frame.paste(placement.image, (dx, dy))
             yield _with_url_ticker(frame, trail, frame_index, fps)
             frame_index += 1
@@ -398,6 +358,34 @@ def _process_video_frames(
         yield frame
 
 
+def _contributing_fragment_field(
+    placements: list[TilePlacement],
+    size: tuple[int, int],
+    *,
+    seed: int,
+) -> tuple[Image.Image, list[tuple[int, int]]]:
+    field = Image.new("RGB", size, INK)
+    if not placements:
+        return field, []
+    tile = placements[0].image.width
+    width, height = size
+    columns = max(1, min(len(placements), math.ceil(math.sqrt(len(placements) * width / max(1, height)))))
+    rows = max(1, math.ceil(len(placements) / columns))
+    x_gap = width / columns
+    y_gap = height / rows
+    cells = [
+        (min(width - tile, int(column * x_gap + max(0, (x_gap - tile) / 2))),
+         min(height - tile, int(row * y_gap + max(0, (y_gap - tile) / 2))))
+        for row in range(rows)
+        for column in range(columns)
+    ]
+    random.Random(seed).shuffle(cells)
+    starts = cells[:len(placements)]
+    for placement, position in zip(placements, starts):
+        field.paste(placement.image, position)
+    return field, starts
+
+
 def _placements_by_source(placements: list[TilePlacement]) -> dict[str, list[TilePlacement]]:
     grouped: dict[str, list[TilePlacement]] = {}
     for placement in placements:
@@ -419,77 +407,10 @@ def _ordered_video_sources(
     return [(source_id, placements_by_source[source_id]) for source_id in ordered_ids]
 
 
-def _candidate_for_source(source_id: str, candidates: list[SearchCandidate]) -> SearchCandidate | None:
-    for candidate in candidates:
-        if candidate.source_id == source_id:
-            return candidate
-    return None
-
-
-def _record_candidate_display(
-    collector: list[dict[str, object]] | None,
-    candidate: SearchCandidate,
-    frame_start: int,
-    frame_end: int,
-    *,
-    role: str,
-) -> None:
-    if collector is None:
-        return
-    collector.append({
-        "role": role,
-        "run_id": candidate.run_id,
-        "row_id": candidate.row_id,
-        "source_id": candidate.source_id,
-        "page_url": candidate.page_url,
-        "image_url": candidate.image_url,
-        "decision": candidate.decision,
-        "cv_label": candidate.cv_label,
-        "path": candidate.path,
-        "frame_start": frame_start,
-        "frame_end": frame_end,
-    })
-
-
 def _sample_placements(placements: list[TilePlacement], limit: int) -> list[TilePlacement]:
     if len(placements) <= limit:
         return placements
     return [placements[int(index)] for index in np.linspace(0, len(placements) - 1, num=limit, dtype=int)]
-
-
-def _fit_rect(size: tuple[int, int], width: int, height: int) -> tuple[int, int, int, int]:
-    src_w, src_h = size
-    scale = min(width / max(1, src_w), height / max(1, src_h))
-    w = max(1, int(src_w * scale))
-    h = max(1, int(src_h * scale))
-    return ((width - w) // 2, (height - h) // 2, w, h)
-
-
-def _source_fullscreen_frame(
-    source: Image.Image,
-    rect: tuple[int, int, int, int],
-    size: tuple[int, int],
-    row: ManifestRow,
-    *,
-    highlight_placements: list[TilePlacement] | None = None,
-    fragment_size: int = 24,
-) -> Image.Image:
-    frame = Image.new("RGB", size, INK)
-    x, y, w, h = rect
-    resized = source.resize((w, h), Image.Resampling.LANCZOS)
-    frame.paste(resized, (x, y))
-    draw = ImageDraw.Draw(frame)
-    font = ImageFont.load_default()
-    draw.rectangle((0, 0, size[0], 28), fill=(0, 0, 0))
-    draw.text((12, 9), row.values.get("title", row.id), fill=(245, 245, 240), font=font)
-    if highlight_placements:
-        for placement in highlight_placements:
-            sx1 = x + int(placement.source_x * w / max(1, source.width))
-            sy1 = y + int(placement.source_y * h / max(1, source.height))
-            sx2 = sx1 + max(2, int(fragment_size * w / max(1, source.width)))
-            sy2 = sy1 + max(2, int(fragment_size * h / max(1, source.height)))
-            draw.rectangle((sx1, sy1, sx2, sy2), outline=ACCENT, width=2)
-    return frame
 
 
 def _with_url_ticker(frame: Image.Image, urls: list[str], frame_index: int, fps: int) -> Image.Image:
@@ -504,33 +425,6 @@ def _with_url_ticker(frame: Image.Image, urls: list[str], frame_index: int, fps:
     draw.rectangle((0, height - 24, out.width, height), fill=(0, 0, 0))
     draw.text((8, height - 17), text[:160], fill=(245, 245, 240), font=font)
     return out
-
-
-def _candidate_scan_frames(
-    candidate: SearchCandidate,
-    size: tuple[int, int],
-    *,
-    frames: int,
-    frame_index: int,
-    fps: int,
-) -> Iterable[Image.Image]:
-    width, height = size
-    path = Path(candidate.path)
-    if path.exists():
-        image = load_rgb(path)
-        rect = _fit_rect(image.size, width, height)
-        frame = Image.new("RGB", size, INK)
-        x, y, w, h = rect
-        frame.paste(image.resize((w, h), Image.Resampling.LANCZOS), (x, y))
-    else:
-        frame = Image.new("RGB", size, (35, 35, 35))
-    draw = ImageDraw.Draw(frame)
-    font = ImageFont.load_default()
-    status = f"{candidate.decision} {candidate.cv_label or ''}".strip()
-    draw.rectangle((0, 0, width, 28), fill=(0, 0, 0))
-    draw.text((12, 9), status, fill=(245, 245, 240), font=font)
-    for offset in range(frames):
-        yield _with_url_ticker(frame.copy(), [candidate.page_url], frame_index + offset, fps)
 
 
 def _composite_with_mask(target: Image.Image, mosaic: Image.Image, mask: Image.Image) -> Image.Image:
@@ -603,10 +497,14 @@ def run_stage1(
     settings: Stage1Settings | None = None,
     *,
     target_id: str | None = None,
+    artwork: ArtworkKind = "estan-en-todas-partes",
 ) -> list[Stage1Output]:
     settings = settings or Stage1Settings()
+    source_kind = ARTWORK_SOURCE_KIND[artwork]
+    if source_kind == "people" and settings.max_contribution_per_source == 0:
+        raise ValueError("people-source generation requires a positive max_contribution_per_source")
     targets = approved_rows(target_manifest, "targets", require_files=True)
-    sources = approved_rows(source_manifest, "places", require_files=True)
+    sources = approved_rows(source_manifest, source_kind, require_files=True)
     if target_id:
         targets = [row for row in targets if row.id == target_id]
         if not targets:
@@ -616,6 +514,7 @@ def run_stage1(
         source_manifest,
         fragment_size=settings.fragment_size,
         max_fragments_per_source=settings.max_fragments_per_source,
+        source_kind=source_kind,
     )
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -626,7 +525,8 @@ def run_stage1(
         still_path = root / f"{stem}.png"
         assembly.image.save(still_path)
         search_trail = _search_trail_for_sources(sources)
-        search_candidates = _search_candidates_for_sources(sources, source_manifest, search_trail)
+        available_candidates = _search_candidates_for_sources(sources, source_manifest, search_trail)
+        search_candidates = available_candidates[:settings.search_scan_max_candidates]
         search_candidate_display: list[dict[str, object]] = []
         video_path: Path | None = None
         video_format: str | None = None
@@ -647,6 +547,9 @@ def run_stage1(
             )
         sidecar_path = root / f"{stem}.json"
         sidecar = {
+            "artwork": artwork,
+            "source_kind": source_kind,
+            "source_manifest": display_path(source_manifest),
             "target_id": target.id,
             "target_name": target.values.get("name", target.id),
             "settings": asdict(settings),
@@ -654,6 +557,7 @@ def run_stage1(
             "video_path": display_path(video_path) if video_path else None,
             "video_format": video_format,
             "video_process_style": PROCESS_VIDEO_STYLE if video_path else None,
+            "source_image_display": "contributing-fragments-only" if video_path else None,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,
@@ -662,7 +566,9 @@ def run_stage1(
             "max_fragment_reuse_observed": max(assembly.fragment_usage.values()) if assembly.fragment_usage else 0,
             "per_source_animated_fragment_cap": MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
             "search_trail": search_trail,
-            "search_candidates": _search_candidates_sidecar(search_candidates, search_candidate_display, settings),
+            "search_candidates": _search_candidates_sidecar(
+                available_candidates, search_candidates, search_candidate_display, settings
+            ),
         }
         sidecar_path.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
         outputs.append(Stage1Output(target.id, display_path(still_path), display_path(sidecar_path), display_path(video_path) if video_path else None))
@@ -676,6 +582,8 @@ def _search_trail_for_sources(sources: list[ManifestRow]) -> dict[str, object]:
         return {"source": "manifest", "run_ids": [], "urls": [url for url in urls if url]}
     pages = page_trail_for_runs(Path("data/raw/crawl/cache.sqlite"), run_ids)
     urls = [page.get("url", "") for page in pages if page.get("url")]
+    if not urls:
+        urls = [row.values.get("source_page", row.values.get("source_url", "")) for row in sources]
     return {"source": "crawl-trail", "run_ids": run_ids, "urls": urls}
 
 
@@ -718,17 +626,20 @@ def _search_candidates_for_sources(
 
 
 def _search_candidates_sidecar(
-    candidates: list[SearchCandidate],
+    available: list[SearchCandidate],
+    selected: list[SearchCandidate],
     displayed: list[dict[str, object]],
     settings: Stage1Settings,
 ) -> dict[str, object]:
     return {
-        "source": "crawl-events" if any(candidate.run_id != "manifest" for candidate in candidates) else "manifest",
-        "available_count": len(candidates),
-        "local_count": sum(1 for candidate in candidates if candidate.path),
-        "selected_count": len(displayed),
-        "omitted_count": max(0, len(candidates) - len(displayed)),
+        "source": "crawl-events" if any(candidate.run_id != "manifest" for candidate in available) else "manifest",
+        "available_count": len(available),
+        "local_count": sum(1 for candidate in available if candidate.path),
+        "selected_count": len(selected),
+        "displayed_count": len(displayed),
+        "omitted_count": max(0, len(available) - len(selected)),
+        "raw_source_images_displayed": False,
         "scan_max_candidates": settings.search_scan_max_candidates,
         "scan_frames_per_candidate": settings.search_scan_frames_per_candidate,
-        "displayed": displayed[: settings.search_scan_max_candidates],
+        "displayed": displayed,
     }

@@ -97,6 +97,55 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     assert sidecar["search_trail"]["urls"]
 
 
+def test_people_artwork_uses_people_manifest_and_records_provenance(tmp_path: Path) -> None:
+    targets, _places = write_manifests(tmp_path, source_count=1)
+    people = tmp_path / "people.csv"
+    with people.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
+            "local_path", "review_status", "location_label", "notes", "crawl_run_id",
+            "content_sha256", "perceptual_hash", "face_x", "face_y", "face_width", "face_height",
+        ])
+        writer.writerow([
+            "face-1", "Face", "https://example.invalid/face.png", "https://example.invalid/page",
+            "fixture", "2026-06-20", "source-0.png", "approved", "", "", "", "", "",
+            "0", "0", "96", "96",
+        ])
+
+    output = run_stage1(
+        targets,
+        people,
+        tmp_path / "people-out",
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=2,
+            output_width=96,
+            max_contribution_per_source=16,
+        ),
+        artwork="todos-somos-familiares",
+    )[0]
+    sidecar = json.loads(Path(output.sidecar_path).read_text(encoding="utf-8"))
+
+    assert sidecar["artwork"] == "todos-somos-familiares"
+    assert sidecar["source_kind"] == "people"
+    assert sidecar["source_manifest"].endswith("people.csv")
+
+
+def test_people_artwork_rejects_unlimited_source_contribution(tmp_path: Path) -> None:
+    targets, places = write_manifests(tmp_path, source_count=1)
+
+    with pytest.raises(ValueError, match="requires a positive"):
+        run_stage1(
+            targets,
+            places,
+            tmp_path / "out",
+            Stage1Settings(max_contribution_per_source=0),
+            artwork="todos-somos-familiares",
+        )
+
+
 def test_reuse_limit_is_enforced(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
     settings = Stage1Settings(
@@ -223,7 +272,7 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
     assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])
 
 
-def test_process_video_frames_scan_non_contributing_candidates(tmp_path: Path) -> None:
+def test_process_video_frames_do_not_show_non_contributing_candidates(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
     candidate_path = tmp_path / "candidate.png"
     make_image(candidate_path, (40, 80, 130), (210, 180, 130))
@@ -272,12 +321,9 @@ def test_process_video_frames_scan_non_contributing_candidates(tmp_path: Path) -
     ))
 
     assert len(frames) == 4
-    assert displayed[0]["role"] == "scan"
-    assert displayed[0]["decision"] == "cv-rejected"
-    assert displayed[0]["frame_start"] == 0
-    assert displayed[0]["frame_end"] == 2
+    assert displayed == []
     assert frames[0].tobytes() == frames[1].tobytes()
-    assert frames[2].tobytes() != frames[0].tobytes()
+    assert frames[3].tobytes() != frames[0].tobytes()
 
 
 def test_search_candidate_sidecar_records_crawl_events_and_cap(

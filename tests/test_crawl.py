@@ -10,7 +10,7 @@ from PIL import Image
 
 import desaparecidos.crawl as crawl_module
 from desaparecidos.cache import CachedClassification, CachedImage, CrawlCache
-from desaparecidos.crawl import _best_srcset_candidate, crawl_pages
+from desaparecidos.crawl import _best_srcset_candidate, crawl_pages, crawl_pages_combined
 from desaparecidos.cv import CV_POLICY_VERSION, CVResult
 from desaparecidos.manifests import read_manifest, set_review_status
 
@@ -102,6 +102,49 @@ def test_crawl_pages_appends_pending_manifest_rows_and_trail(tmp_path: Path) -> 
     assert events[0]["decision"] == "accepted"
     assert events[0]["path"]
     assert events[0]["row_id"] == row.id
+
+
+def test_combined_crawl_downloads_once_and_writes_separate_kinds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    page = "https://example.test/page"
+    first = "https://example.test/first.png"
+    second = "https://example.test/second.png"
+    session = FakeSession({
+        page: response(f'<img src="{first}"><img src="{second}">'),
+        first: image_response(png_bytes(seed=1)),
+        second: image_response(png_bytes(seed=2)),
+    })
+
+    def classify(_image: Image.Image, kind: str) -> CVResult:
+        if kind == "people":
+            return CVResult(True, "face", 0.2, "fixture face", (20, 20, 80, 80))
+        return CVResult(True, "place-photo", 0.8, "fixture place")
+
+    monkeypatch.setattr(crawl_module, "classify_image", classify)
+    places = tmp_path / "crawled-places.csv"
+    people = tmp_path / "crawled-people.csv"
+    output_root = tmp_path / "crawl"
+
+    summary = crawl_pages_combined(
+        [page], places, people, output_root=output_root, session=session,
+        delay=0, respect_robots=False, max_images=1,
+    )
+
+    assert summary.ok is True
+    assert summary.images_seen == 1
+    assert session.count(first) == 1
+    assert session.count(second) == 0
+    assert summary.places.run_id != summary.people.run_id
+    place_rows = read_manifest(places, "places").rows
+    people_rows = read_manifest(people, "people").rows
+    assert len(place_rows) == len(people_rows) == 1
+    assert place_rows[0].values["crawl_run_id"] == summary.places.run_id
+    assert people_rows[0].values["crawl_run_id"] == summary.people.run_id
+    assert people_rows[0].values["face_width"] == "80"
+    with CrawlCache(output_root) as cache:
+        assert cache.page_trail(summary.places.run_id)[0]["url"] == page
+        assert cache.page_trail(summary.people.run_id)[0]["url"] == page
 
 
 def test_review_status_update_allows_people_approval(

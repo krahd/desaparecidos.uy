@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from .manifests import ManifestRow, row_file_path
+from .manifests import ManifestKind, ManifestRow, row_file_path
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,23 @@ def crop_from_row(image: Image.Image, row: ManifestRow) -> Image.Image:
     return image.crop((x, y, x + width, y + height))
 
 
+def source_region_from_row(image: Image.Image, row: ManifestRow, source_kind: ManifestKind) -> Image.Image:
+    if source_kind != "people":
+        return image
+    keys = ["face_x", "face_y", "face_width", "face_height"]
+    if not all(row.values.get(key) for key in keys):
+        raise ValueError(f"people source {row.id!r} has no reviewed face region")
+    try:
+        x, y, width, height = (int(float(row.values[key])) for key in keys)
+    except ValueError as exc:
+        raise ValueError(f"people source {row.id!r} has an invalid face region") from exc
+    if x < 0 or y < 0 or width <= 0 or height <= 0:
+        raise ValueError(f"people source {row.id!r} has an invalid face region")
+    if x + width > image.width or y + height > image.height:
+        raise ValueError(f"people source {row.id!r} face region exceeds the source image")
+    return image.crop((x, y, x + width, y + height))
+
+
 def descriptor_for(image: Image.Image) -> np.ndarray:
     arr = np.asarray(image.resize((32, 32), Image.Resampling.BILINEAR), dtype=np.float32)
     mean_rgb = arr.mean(axis=(0, 1)) / 255.0
@@ -55,6 +72,7 @@ def extract_fragments(
     fragment_size: int,
     stride: int | None = None,
     max_fragments_per_source: int = 240,
+    source_kind: ManifestKind = "places",
 ) -> list[Fragment]:
     if fragment_size < 8:
         raise ValueError("fragment_size must be at least 8")
@@ -64,7 +82,7 @@ def extract_fragments(
     fragments: list[Fragment] = []
 
     for row in rows:
-        image = load_rgb(row_file_path(row, manifest_path))
+        image = source_region_from_row(load_rgb(row_file_path(row, manifest_path)), row, source_kind)
         width, height = image.size
         source_fragments: list[Fragment] = []
         for y in range(0, max(1, height - fragment_size + 1), stride):

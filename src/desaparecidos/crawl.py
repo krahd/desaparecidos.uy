@@ -84,6 +84,33 @@ class CrawlSummary:
         }
 
 
+@dataclass
+class CombinedCrawlSummary:
+    pages: list[str]
+    pages_crawled: int
+    images_seen: int
+    places: CrawlSummary
+    people: CrawlSummary
+    errors: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def to_api(self) -> dict[str, object]:
+        return {
+            "ok": self.ok,
+            "pages": self.pages,
+            "pages_crawled": self.pages_crawled,
+            "images_seen": self.images_seen,
+            "errors": self.errors,
+            "results": {
+                "places": self.places.to_api(),
+                "people": self.people.to_api(),
+            },
+        }
+
+
 class PageParser(HTMLParser):
     def __init__(self, page_url: str) -> None:
         super().__init__()
@@ -302,6 +329,187 @@ def crawl_pages(
     return summary
 
 
+def crawl_pages_combined(
+    pages: list[str],
+    places_manifest: str | Path,
+    people_manifest: str | Path,
+    *,
+    output_root: str | Path = "data/raw/crawl",
+    max_images_per_page: int = 12,
+    label_prefix: str = "",
+    timeout: int = 20,
+    max_bytes: int = 15 * 1024 * 1024,
+    session: requests.Session | None = None,
+    max_depth: int = 2,
+    max_pages: int = 60,
+    max_images: int = 80,
+    cross_domain: bool = False,
+    delay: float = 0.7,
+    respect_robots: bool = True,
+    use_cv: bool = True,
+) -> CombinedCrawlSummary:
+    """Traverse once and classify every candidate independently for both source kinds."""
+    if not pages:
+        raise ValueError("at least one page URL is required")
+    if max_images_per_page < 1 or max_images_per_page > 50:
+        raise ValueError("max_images_per_page must be between 1 and 50")
+    if max_depth < 0 or max_depth > 4:
+        raise ValueError("max_depth must be between 0 and 4")
+    if max_pages < 1 or max_pages > 500:
+        raise ValueError("max_pages must be between 1 and 500")
+    if max_images < 1 or max_images > 1000:
+        raise ValueError("max_images must be between 1 and 1000")
+
+    manifest_paths = {
+        "places": Path(places_manifest).expanduser(),
+        "people": Path(people_manifest).expanduser(),
+    }
+    if manifest_paths["places"].resolve() == manifest_paths["people"].resolve():
+        raise ValueError("place and people manifests must use different paths")
+    for manifest_path in manifest_paths.values():
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_root = Path(output_root).expanduser()
+    cache_root.mkdir(parents=True, exist_ok=True)
+    clean_pages = [page.strip() for page in pages if page.strip()]
+    summaries = {
+        kind: CrawlSummary(
+            manifest=display_path(manifest_paths[kind]),
+            kind=kind,
+            pages=clean_pages,
+            run_id=_run_id(kind, clean_pages),
+        )
+        for kind in ("places", "people")
+    }
+    rows: dict[str, list[dict[str, str]]] = {"places": [], "people": []}
+    seen_urls = {
+        kind: set(_existing_source_urls(manifest_paths[kind], kind))
+        for kind in ("places", "people")
+    }
+    dedupe = {
+        kind: _existing_dedupe_values(manifest_paths[kind], kind)
+        for kind in ("places", "people")
+    }
+    client = session or requests.Session()
+    seed_domains = {urlparse(page).netloc for page in clean_pages}
+    visited_pages: set[str] = set()
+    queued_pages: set[str] = set(clean_pages)
+    candidate_urls: set[str] = set()
+    robots: dict[str, RobotFileParser] = {}
+    last_fetch: dict[str, float] = {}
+    page_ordinal = 0
+    image_ordinal = 0
+    pages_crawled = 0
+    errors: list[str] = []
+    queue: deque[tuple[str, int, str | None]] = deque((page, 0, None) for page in clean_pages)
+    settings = {
+        "combined": True,
+        "max_images_per_page": max_images_per_page,
+        "max_depth": max_depth,
+        "max_pages": max_pages,
+        "max_images": max_images,
+        "cross_domain": cross_domain,
+        "delay": delay,
+        "respect_robots": respect_robots,
+        "use_cv": use_cv,
+    }
+
+    with CrawlCache(cache_root) as cache:
+        for kind, summary in summaries.items():
+            cache.start_run(summary.run_id, kind, summary.manifest, clean_pages, settings)
+        try:
+            while queue and pages_crawled < max_pages and len(candidate_urls) < max_images:
+                page_url, depth, parent_url = queue.popleft()
+                page_url, _ = urldefrag(page_url)
+                if page_url in visited_pages:
+                    continue
+                parsed_page = urlparse(page_url)
+                if parsed_page.scheme not in {"http", "https"}:
+                    message = f"unsupported page URL: {page_url}"
+                    errors.append(message)
+                    page_ordinal += 1
+                    for summary in summaries.values():
+                        cache.put_page_event(summary.run_id, page_ordinal, page_url, depth, parent_url, None, "unsupported")
+                    continue
+                if respect_robots and not _robots_allowed(client, robots, page_url, timeout):
+                    visited_pages.add(page_url)
+                    page_ordinal += 1
+                    for summary in summaries.values():
+                        cache.put_page_event(summary.run_id, page_ordinal, page_url, depth, parent_url, None, "robots-blocked")
+                    continue
+
+                _throttle(last_fetch, parsed_page.netloc, delay)
+                status: int | None = None
+                try:
+                    page_response = client.get(page_url, timeout=timeout, headers={"User-Agent": USER_AGENT})
+                    status = getattr(page_response, "status_code", None)
+                    page_response.raise_for_status()
+                    parser = PageParser(page_url)
+                    parser.feed(page_response.text)
+                except Exception as exc:
+                    visited_pages.add(page_url)
+                    page_ordinal += 1
+                    message = f"{page_url}: {exc}"
+                    errors.append(message)
+                    for summary in summaries.values():
+                        cache.put_page_event(summary.run_id, page_ordinal, page_url, depth, parent_url, status, "error", str(exc))
+                    continue
+
+                visited_pages.add(page_url)
+                pages_crawled += 1
+                page_ordinal += 1
+                for summary in summaries.values():
+                    summary.pages_crawled = pages_crawled
+                    cache.put_page_event(summary.run_id, page_ordinal, page_url, depth, parent_url, status, "fetched")
+
+                for image_url in parser.urls[:max_images_per_page]:
+                    if image_url in candidate_urls:
+                        continue
+                    if len(candidate_urls) >= max_images:
+                        break
+                    candidate_urls.add(image_url)
+                    image_ordinal += 1
+                    for kind in ("places", "people"):
+                        summary = summaries[kind]
+                        sha_seen, phash_seen = dedupe[kind]
+                        item, row = _handle_image(
+                            client, cache, summary.run_id, image_ordinal, image_url, page_url,
+                            kind, manifest_paths[kind], summary, seen_urls[kind], sha_seen,
+                            phash_seen, len(rows[kind]) + 1, label_prefix=label_prefix,
+                            timeout=timeout, max_bytes=max_bytes, use_cv=use_cv,
+                        )
+                        if item is not None:
+                            summary.items.append(item)
+                        if row is not None:
+                            rows[kind].append(row)
+
+                if depth < max_depth:
+                    for link in parser.links:
+                        if link in visited_pages or link in queued_pages:
+                            continue
+                        if not cross_domain and urlparse(link).netloc not in seed_domains:
+                            continue
+                        queued_pages.add(link)
+                        queue.append((link, depth + 1, page_url))
+
+            for kind in ("places", "people"):
+                if rows[kind]:
+                    _append_rows(manifest_paths[kind], kind, rows[kind])
+        finally:
+            for summary in summaries.values():
+                summary.errors.extend(errors)
+                cache.finish_run(summary.run_id, summary.to_api())
+                summary.trail_path = display_path(cache.export_run_jsonl(summary.run_id))
+
+    return CombinedCrawlSummary(
+        pages=clean_pages,
+        pages_crawled=pages_crawled,
+        images_seen=len(candidate_urls),
+        places=summaries["places"],
+        people=summaries["people"],
+        errors=errors,
+    )
+
+
 def _handle_image(
     client: requests.Session,
     cache: CrawlCache,
@@ -353,19 +561,6 @@ def _handle_image(
         sha = hashlib.sha256(payload).hexdigest()
         phash = perceptual_hash(image)
 
-        duplicate = _duplicate_reason(sha, phash, seen_sha, seen_phashes)
-        if duplicate is not None:
-            summary.duplicates += 1
-            cache.put_image_event(
-                run_id, ordinal, page_url, image_url, duplicate,
-                row_id=row_id, sha256=sha, phash=phash,
-            )
-            return CrawlItem(
-                row_id, page_url, image_url, "", False, duplicate=True,
-                content_sha256=sha, perceptual_hash=phash, crawl_run_id=run_id,
-                error=duplicate,
-            ), None
-
         stored_path = cache.store_path(sha, suffix)
         exact = cache.get_by_hash(sha)
         if exact is not None and Path(exact.path).exists():
@@ -384,6 +579,18 @@ def _handle_image(
             content_type=content_type,
         )
         cache.put_image(cached_record)
+        duplicate = _duplicate_reason(sha, phash, seen_sha, seen_phashes)
+        if duplicate is not None:
+            summary.duplicates += 1
+            cache.put_image_event(
+                run_id, ordinal, page_url, image_url, duplicate,
+                row_id=row_id, sha256=sha, phash=phash, path=str(stored_path),
+            )
+            return CrawlItem(
+                row_id, page_url, image_url, "", False, duplicate=True,
+                content_sha256=sha, perceptual_hash=phash, crawl_run_id=run_id,
+                error=duplicate,
+            ), None
         cv = _classify(cache, cached_record, kind, image, use_cv)
         return _finalise(
             cache, run_id, ordinal, row_id, image_url, page_url, kind, manifest_path,

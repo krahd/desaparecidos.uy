@@ -125,7 +125,7 @@ label {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 340px;
+  grid-template-columns: 220px minmax(0, 1fr) 340px;
   grid-template-rows: 72px minmax(0, 1fr);
   height: 100vh;
 }
@@ -260,6 +260,41 @@ label {
   grid-template-rows: minmax(440px, auto) minmax(330px, 1fr) 220px;
   gap: 14px;
   overflow: auto;
+}
+
+.workspace.page-targets,
+.workspace.page-images {
+  grid-template-rows: auto minmax(420px, 1fr);
+}
+
+.workspace.page-targets .source-panel,
+.workspace.page-images .source-panel {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  min-height: 520px;
+}
+
+.workspace.page-images {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(520px, 1fr);
+}
+
+.workspace.page-todos-somos-familiares,
+.workspace.page-estan-en-todas-partes {
+  grid-template-rows: minmax(360px, 1fr) 220px;
+}
+
+.workspace.page-todos-somos-familiares .target-panel,
+.workspace.page-estan-en-todas-partes .target-panel,
+.workspace.page-todos-somos-familiares .outputs-panel,
+.workspace.page-estan-en-todas-partes .outputs-panel {
+  grid-row: 1;
+}
+
+.workspace.page-todos-somos-familiares .log-panel,
+.workspace.page-estan-en-todas-partes .log-panel {
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .stage-panel,
@@ -1077,6 +1112,14 @@ button.danger,
   line-height: 1.45;
 }
 
+.sidecar-box p,
+.section-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .empty-state {
   min-height: 120px;
   border: 1px dashed var(--line-strong);
@@ -1228,7 +1271,7 @@ button.danger,
     border-right: 0;
     border-bottom: 1px solid var(--line);
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .workspace {

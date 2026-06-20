@@ -48,6 +48,8 @@ export type GenerateResponse = {
   }>;
 };
 
+export type ArtworkKind = 'todos-somos-familiares' | 'estan-en-todas-partes';
+
 export type CrawlResponse = {
   ok: boolean;
   manifest: string;
@@ -79,6 +81,18 @@ export type CrawlResponse = {
     crawl_run_id: string;
     error?: string | null;
   }>;
+};
+
+export type CombinedCrawlResponse = {
+  ok: boolean;
+  pages: string[];
+  pages_crawled: number;
+  images_seen: number;
+  errors: string[];
+  results: {
+    places: CrawlResponse;
+    people: CrawlResponse;
+  };
 };
 
 export type PortraitCandidate = {
@@ -365,6 +379,25 @@ export function crawlPages(payload: {
   });
 }
 
+export function crawlPagesCombined(payload: {
+  pages: string[];
+  places_manifest: string;
+  people_manifest: string;
+  output_root: string;
+  max_images_per_page: number;
+  label_prefix: string;
+  max_depth: number;
+  max_pages: number;
+  max_images: number;
+  cross_domain: boolean;
+  use_cv: boolean;
+}): Promise<CombinedCrawlResponse> {
+  return request('/api/crawl/combined', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updateReviewStatus(payload: {
   manifest: string;
   kind: 'targets' | 'places' | 'people';
@@ -425,6 +458,7 @@ export function generateStage1(payload: {
   search_scan_max_candidates: number;
   make_video: boolean;
   target_id?: string;
+  artwork: ArtworkKind;
 }): Promise<GenerateResponse> {
   return request('/api/generate', {
     method: 'POST',

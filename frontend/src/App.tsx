@@ -25,7 +25,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  CrawlResponse,
+  ArtworkKind,
   ManifestRow,
   OutputItem,
   PersonRecord,
@@ -33,7 +33,7 @@ import {
   SourceRegistry,
   ValidateResponse,
   addPersonPortrait,
-  crawlPages,
+  crawlPagesCombined,
   createDemoFixtures,
   deleteOutputs,
   deleteReviewRow,
@@ -58,20 +58,47 @@ type LogEntry = {
   tone?: 'ok' | 'error';
 };
 
-type SectionId = 'targets' | 'manifests' | 'review' | 'generate' | 'outputs';
+type PageId = 'targets' | 'images' | ArtworkKind;
 type ReviewKind = 'targets' | 'places' | 'people';
-type CrawlKind = 'places' | 'people';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
 type PersonFilter = 'all' | 'missing' | 'portrait' | 'review';
 type CrawlPreset = {
   id: string;
   label: string;
-  kind: CrawlKind;
-  manifest: string;
   pages: string[];
   maxImages: number;
   labelPrefix: string;
 };
+
+type GenerationSettings = {
+  seed: number;
+  fragmentSize: number;
+  reuseLimit: number;
+  outputWidth: number;
+  maxContribution: number;
+};
+
+const defaultGenerationSettings: GenerationSettings = {
+  seed: 17,
+  fragmentSize: 24,
+  reuseLimit: 8,
+  outputWidth: 720,
+  maxContribution: 1,
+};
+
+function pageFromHash(): PageId {
+  const value = window.location.hash.replace(/^#/, '');
+  if (value === 'targets' || value === 'images' || value === 'todos-somos-familiares' || value === 'estan-en-todas-partes') {
+    return value;
+  }
+  return 'images';
+}
+
+function outputArtwork(item: OutputItem): ArtworkKind {
+  return item.sidecar.artwork === 'todos-somos-familiares'
+    ? 'todos-somos-familiares'
+    : 'estan-en-todas-partes';
+}
 
 const defaultPaths = {
   personStore: 'data/persons/disappeared.json',
@@ -81,7 +108,7 @@ const defaultPaths = {
   outputDir: 'outputs/stage1',
 };
 
-const crawlerManifestDefaults: Record<CrawlKind, string> = {
+const crawlerManifestDefaults: Record<'places' | 'people', string> = {
   places: 'data/manifests/crawled-places.csv',
   people: 'data/manifests/crawled-people.csv',
 };
@@ -90,8 +117,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'montevideo-tourism',
     label: 'Montevideo tourism',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
     pages: ['https://montevideo.gub.uy/tipo/area-tematica/turismo-y-tiempo-libre'],
     maxImages: 12,
     labelPrefix: 'Montevideo tourism',
@@ -99,8 +124,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'montevideo-events',
     label: 'Montevideo events',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
     pages: ['https://eventos.montevideo.gub.uy/'],
     maxImages: 18,
     labelPrefix: 'Montevideo event',
@@ -108,8 +131,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'mintur-news',
     label: 'MINTUR news',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
     pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
     maxImages: 12,
     labelPrefix: 'Uruguay tourism',
@@ -117,8 +138,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'descubri-montevideo',
     label: 'Descubri Montevideo',
-    kind: 'places',
-    manifest: crawlerManifestDefaults.places,
     pages: ['https://www.descubrimontevideo.uy/'],
     maxImages: 12,
     labelPrefix: 'Descubri Montevideo',
@@ -126,8 +145,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'montevideo-people-news',
     label: 'Montevideo people',
-    kind: 'people',
-    manifest: crawlerManifestDefaults.people,
     pages: ['https://montevideo.gub.uy/noticias'],
     maxImages: 12,
     labelPrefix: 'Montevideo people',
@@ -135,8 +152,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'mec-people-news',
     label: 'MEC people',
-    kind: 'people',
-    manifest: crawlerManifestDefaults.people,
     pages: ['https://www.gub.uy/ministerio-educacion-cultura/comunicacion/noticias'],
     maxImages: 12,
     labelPrefix: 'MEC people',
@@ -144,8 +159,6 @@ const crawlPresets: CrawlPreset[] = [
   {
     id: 'mintur-people-events',
     label: 'MINTUR people',
-    kind: 'people',
-    manifest: crawlerManifestDefaults.people,
     pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
     maxImages: 12,
     labelPrefix: 'MINTUR people',
@@ -252,11 +265,10 @@ export function App() {
   const [sources, setSources] = useState(() => loadStored('sources', defaultPaths.sources));
   const [people, setPeople] = useState(() => loadStored('people', defaultPaths.people));
   const [outputDir, setOutputDir] = useState(() => loadStored('outputDir', defaultPaths.outputDir));
-  const [seed, setSeed] = useState(17);
-  const [fragmentSize, setFragmentSize] = useState(24);
-  const [reuseLimit, setReuseLimit] = useState(8);
-  const [outputWidth, setOutputWidth] = useState(720);
-  const [maxContribution, setMaxContribution] = useState(1);
+  const [generationSettings, setGenerationSettings] = useState<Record<ArtworkKind, GenerationSettings>>({
+    'todos-somos-familiares': { ...defaultGenerationSettings },
+    'estan-en-todas-partes': { ...defaultGenerationSettings },
+  });
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
   const [personsResponse, setPersonsResponse] = useState<PersonsResponse | null>(null);
@@ -279,13 +291,15 @@ export function App() {
   const [selectedOutputIds, setSelectedOutputIds] = useState<Set<string>>(new Set());
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
   const [showUtilities, setShowUtilities] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionId>('manifests');
+  const [activePage, setActivePage] = useState<PageId>(() => pageFromHash());
   const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
   const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
-  const [crawlKind, setCrawlKind] = useState<CrawlKind>('places');
   const [crawlPagesText, setCrawlPagesText] = useState('');
-  const [crawlManifest, setCrawlManifest] = useState(() => (
-    loadStored('crawlManifest', crawlerManifestDefaults.places)
+  const [crawlPlacesManifest, setCrawlPlacesManifest] = useState(() => (
+    loadStored('crawlPlacesManifest', crawlerManifestDefaults.places)
+  ));
+  const [crawlPeopleManifest, setCrawlPeopleManifest] = useState(() => (
+    loadStored('crawlPeopleManifest', crawlerManifestDefaults.people)
   ));
   const [crawlMaxImages, setCrawlMaxImages] = useState(12);
   const [crawlDepth, setCrawlDepth] = useState(2);
@@ -319,6 +333,12 @@ export function App() {
     ?? allTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
   const selectedReviewCount = selectedReviewIds.size;
+  const activeArtwork = activePage === 'todos-somos-familiares' || activePage === 'estan-en-todas-partes'
+    ? activePage
+    : null;
+  const artworkOutputs = activeArtwork
+    ? outputs.filter((item) => outputArtwork(item) === activeArtwork)
+    : [];
   const filteredPersons = useMemo(() => {
     const query = personQuery.trim().toLowerCase();
     return persons.filter((person) => {
@@ -362,12 +382,22 @@ export function App() {
     }
   }, [appendLog]);
 
-  const selectWorkflow = useCallback((section: SectionId) => {
-    setActiveSection(section);
-    const target = document.getElementById(`section-${section}`)
-      ?? document.getElementById(`controls-${section}`);
-    target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const selectPage = useCallback((page: PageId) => {
+    window.location.hash = page;
+    setActivePage(page);
+    setReviewKind(page === 'targets' ? 'targets' : 'places');
   }, []);
+
+  function updateGenerationSetting<K extends keyof GenerationSettings>(
+    artwork: ArtworkKind,
+    key: K,
+    value: GenerationSettings[K],
+  ) {
+    setGenerationSettings((current) => ({
+      ...current,
+      [artwork]: { ...current[artwork], [key]: value },
+    }));
+  }
 
   const refreshPersons = useCallback(async (preferredId?: string): Promise<PersonsResponse | null> => {
     const response = await runAction(
@@ -400,7 +430,7 @@ export function App() {
   function handleNewPerson() {
     setSelectedPersonId('');
     setEditingPerson(blankPerson());
-    setActiveSection('targets');
+    selectPage('targets');
   }
 
   async function handleSavePerson() {
@@ -510,7 +540,6 @@ export function App() {
     if (firstApproved && !response.targets.rows.some((row) => row.id === targetId)) {
       setTargetId(firstApproved);
     }
-    setActiveSection('manifests');
   }
 
   async function handleCreateDemoFixtures() {
@@ -534,7 +563,7 @@ export function App() {
     setValidation(response.checked);
     setTargetId(response.checked.targets.rows.find((row) => row.approved)?.id ?? '');
     setReviewKind('places');
-    setActiveSection('review');
+    selectPage('images');
     setShowUtilities(false);
   }
 
@@ -558,7 +587,9 @@ export function App() {
     return selected;
   }
 
-  async function handleGenerate(makeVideo: boolean) {
+  async function handleGenerate(artwork: ArtworkKind, makeVideo: boolean) {
+    const settings = generationSettings[artwork];
+    const sourceManifest = artwork === 'todos-somos-familiares' ? people : sources;
     const response = await runAction(
       makeVideo ? 'Checking manifests, then generating still and video.' : 'Checking manifests, then generating still output.',
       async () => {
@@ -567,25 +598,30 @@ export function App() {
         const firstApprovedTarget = checked.targets.rows.find((row) => row.approved)?.id ?? '';
         const selectedApproved = checked.targets.rows.find((row) => row.approved && row.id === targetId)?.id ?? '';
         const selectedTargetId = selectedApproved || firstApprovedTarget;
-        if (checked.targets.approved_count === 0 || checked.sources.approved_count === 0) {
-          throw new Error('No approved target/source rows. Approve rows in Review images, or use utilities to create demo fixtures.');
+        const approvedSourceCount = artwork === 'todos-somos-familiares'
+          ? checked.people.approved_count
+          : checked.sources.approved_count;
+        if (checked.targets.approved_count === 0 || approvedSourceCount === 0) {
+          throw new Error('No approved target/source rows. Approve targets and source images before generating.');
         }
-        if (!checked.ok) {
-          throw new Error('Manifest validation failed. Review the Validation panel before generating.');
+        const sourceValidation = artwork === 'todos-somos-familiares' ? checked.people : checked.sources;
+        if (!checked.targets.ok || !sourceValidation.ok) {
+          throw new Error('The selected artwork manifest failed validation. Review the Validation panel before generating.');
         }
         return generateStage1({
           targets,
-          sources,
+          sources: sourceManifest,
           output_dir: outputDir,
-          seed,
-          fragment_size: fragmentSize,
-          reuse_limit: reuseLimit,
-          output_width: outputWidth,
-          max_contribution_per_source: maxContribution,
+          seed: settings.seed,
+          fragment_size: settings.fragmentSize,
+          reuse_limit: settings.reuseLimit,
+          output_width: settings.outputWidth,
+          max_contribution_per_source: settings.maxContribution,
           search_scan_frames_per_candidate: 2,
           search_scan_max_candidates: 120,
           make_video: makeVideo,
           target_id: selectedTargetId || undefined,
+          artwork,
         });
       },
       makeVideo ? 'Video generation finished.' : 'Still generation finished.',
@@ -596,7 +632,7 @@ export function App() {
     if (selected) {
       setViewerOutput(selected);
     }
-    setActiveSection('outputs');
+    selectPage(artwork);
   }
 
   async function handleCrawl() {
@@ -614,18 +650,18 @@ export function App() {
     }
 
     appendLog(
-      `Crawl queued: ${pages.length} seed page${pages.length === 1 ? '' : 's'} for ${crawlKind}; `
+      `Combined crawl queued: ${pages.length} seed page${pages.length === 1 ? '' : 's'}; `
       + `depth ${crawlDepth}; max ${crawlMaxPages} pages; max ${crawlMaxTotal} images; `
       + `${crawlCrossDomain ? 'cross-domain' : 'same-domain'}; CV ${crawlUseCv ? 'on' : 'off'}.`,
     );
-    appendLog(`Crawling ${crawlKind}; review remains available.`);
+    appendLog('Crawling for place and people candidates; review remains available.');
     setCrawling(true);
-    let response: CrawlResponse | null = null;
+    let response: Awaited<ReturnType<typeof crawlPagesCombined>> | null = null;
     try {
-      response = await crawlPages({
+      response = await crawlPagesCombined({
         pages,
-        kind: crawlKind,
-        manifest: crawlManifest,
+        places_manifest: crawlPlacesManifest,
+        people_manifest: crawlPeopleManifest,
         output_root: 'data/raw/crawl',
         max_images_per_page: crawlMaxImages,
         label_prefix: crawlLabelPrefix,
@@ -643,29 +679,27 @@ export function App() {
     }
     if (!response) return;
 
-    if (crawlKind === 'places') {
-      setSources(response.manifest);
-    } else {
-      setPeople(response.manifest);
-    }
-    setReviewKind(crawlKind);
-    setActiveSection('review');
+    const placesResult = response.results.places;
+    const peopleResult = response.results.people;
+    setSources(placesResult.manifest);
+    setPeople(peopleResult.manifest);
+    setReviewKind('places');
+    selectPage('images');
 
     const checked = await validateManifests({
       targets,
-      sources: crawlKind === 'places' ? response.manifest : sources,
-      people: crawlKind === 'people' ? response.manifest : people,
+      sources: placesResult.manifest,
+      people: peopleResult.manifest,
       require_files: true,
     }).catch(() => null);
     if (checked) setValidation(checked);
 
     appendLog(
-      `Crawler run ${response.run_id}: ${response.pages_crawled} pages, ${response.images_seen} images, `
-      + `${response.added} added, ${response.duplicates} duplicates, ${response.cv_rejected} CV-rejected, `
-      + `${response.from_cache} from cache.`,
-      response.added ? 'ok' : undefined,
+      `Combined crawl: ${response.pages_crawled} pages, ${response.images_seen} candidates; `
+      + `${placesResult.added} places and ${peopleResult.added} people added.`,
+      placesResult.added || peopleResult.added ? 'ok' : undefined,
     );
-    const rejected = response.items.filter(
+    const rejected = [...placesResult.items, ...peopleResult.items].filter(
       (item) => !item.cv_accept && item.cv_label && item.cv_label !== 'cv-off',
     );
     if (rejected.length > 0) {
@@ -808,18 +842,9 @@ export function App() {
     appendLog(row ? `Selected target: ${row.label}.` : 'No target selected.', row ? 'ok' : undefined);
   }
 
-  function handleCrawlKindChange(value: CrawlKind) {
-    setCrawlKind(value);
-    setCrawlManifest(crawlerManifestDefaults[value]);
-    setReviewKind(value);
-  }
-
   function handleCrawlPreset(presetId: string) {
     const preset = crawlPresets.find((candidate) => candidate.id === presetId);
     if (!preset) return;
-    setCrawlKind(preset.kind);
-    setReviewKind(preset.kind);
-    setCrawlManifest(preset.manifest);
     setCrawlPagesText(preset.pages.join('\n'));
     setCrawlMaxImages(preset.maxImages);
     setCrawlLabelPrefix(preset.labelPrefix);
@@ -838,9 +863,12 @@ export function App() {
     });
   }
 
-  async function handleDeleteOutputs(all = false) {
-    const ids = all ? [] : Array.from(selectedOutputIds);
-    const count = all ? outputs.length : ids.length;
+  async function handleDeleteOutputs(all = false, artwork?: ArtworkKind) {
+    const visibleIds = artwork
+      ? outputs.filter((item) => outputArtwork(item) === artwork).map((item) => item.id)
+      : outputs.map((item) => item.id);
+    const ids = all ? visibleIds : Array.from(selectedOutputIds).filter((id) => visibleIds.includes(id));
+    const count = ids.length;
     if (count === 0) {
       appendLog(all ? 'No generated outputs to delete.' : 'Select one or more outputs to delete.', 'error');
       return;
@@ -854,7 +882,7 @@ export function App() {
 
     const response = await runAction(
       all ? 'Deleting all generated outputs.' : `Deleting ${count} selected generated output${count === 1 ? '' : 's'}.`,
-      () => deleteOutputs({ output_dir: outputDir, ids, all }),
+      () => deleteOutputs({ output_dir: outputDir, ids, all: false }),
       'Output deletion finished.',
     );
     if (!response) return;
@@ -872,7 +900,28 @@ export function App() {
   useEffect(() => saveStored('sources', sources), [sources]);
   useEffect(() => saveStored('people', people), [people]);
   useEffect(() => saveStored('outputDir', outputDir), [outputDir]);
-  useEffect(() => saveStored('crawlManifest', crawlManifest), [crawlManifest]);
+  useEffect(() => saveStored('crawlPlacesManifest', crawlPlacesManifest), [crawlPlacesManifest]);
+  useEffect(() => saveStored('crawlPeopleManifest', crawlPeopleManifest), [crawlPeopleManifest]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const page = pageFromHash();
+      setActivePage(page);
+      setReviewKind(page === 'targets' ? 'targets' : 'places');
+    };
+    window.addEventListener('hashchange', onHashChange);
+    if (!window.location.hash) window.location.hash = activePage;
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [activePage]);
+
+  useEffect(() => {
+    if (!activeArtwork) return;
+    const first = outputs.find((item) => outputArtwork(item) === activeArtwork) ?? null;
+    setSelectedOutput((current) => (
+      current && outputArtwork(current) === activeArtwork ? current : first
+    ));
+    setSelectedOutputIds(new Set());
+  }, [activeArtwork, outputs]);
 
   // The review grid shows a different row set per kind; drop any stale selection.
   useEffect(() => setSelectedReviewIds(new Set()), [reviewKind]);
@@ -910,7 +959,7 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>desaparecidos.uy</h1>
-          <p>Stage 1 local workspace: Están en todas partes</p>
+          <p>Active works: Todos somos familiares + Están en todas partes · Seguimos buscando is future work</p>
         </div>
         <div className="topbar-actions">
           <button className="icon-button" onClick={() => setShowUtilities(true)} title="Utilities">
@@ -927,41 +976,35 @@ export function App() {
         <WorkflowItem
           icon={<UserRound />}
           title="Targets"
-          active={activeSection === 'targets'}
+          active={activePage === 'targets'}
           detail={`${personsResponse?.summary.missing_count ?? 0} incomplete`}
-          onSelect={() => selectWorkflow('targets')}
-        />
-        <WorkflowItem
-          icon={<FileCheck2 />}
-          title="Manifests"
-          active={activeSection === 'manifests'}
-          detail={`${validation?.targets.row_count ?? 0} targets`}
-          onSelect={() => selectWorkflow('manifests')}
+          onSelect={() => selectPage('targets')}
         />
         <WorkflowItem
           icon={<LayoutGrid />}
-          title="Review images"
-          active={activeSection === 'review'}
-          detail={`${approvedSources.length} approved places`}
-          onSelect={() => selectWorkflow('review')}
+          title="Images"
+          active={activePage === 'images'}
+          detail={`${approvedSources.length} places · ${validation?.people.approved_count ?? 0} people`}
+          onSelect={() => selectPage('images')}
         />
         <WorkflowItem
-          icon={<Play />}
-          title="Generate"
-          active={activeSection === 'generate'}
-          detail={`block ${fragmentSize}px`}
-          onSelect={() => selectWorkflow('generate')}
+          icon={<UserRound />}
+          title="Todos somos familiares"
+          active={activePage === 'todos-somos-familiares'}
+          detail={`${outputs.filter((item) => outputArtwork(item) === 'todos-somos-familiares').length} outputs`}
+          onSelect={() => selectPage('todos-somos-familiares')}
         />
         <WorkflowItem
-          icon={<ImageIcon />}
-          title="Outputs"
-          active={activeSection === 'outputs'}
-          detail={`${outputs.length} sidecars`}
-          onSelect={() => selectWorkflow('outputs')}
+          icon={<Globe2 />}
+          title="Están en todas partes"
+          active={activePage === 'estan-en-todas-partes'}
+          detail={`${outputs.filter((item) => outputArtwork(item) === 'estan-en-todas-partes').length} outputs`}
+          onSelect={() => selectPage('estan-en-todas-partes')}
         />
       </aside>
 
-      <main className="workspace">
+      <main className={`workspace page-${activePage}`}>
+        {activePage === 'targets' && (
         <section className="stage-panel targets-admin-panel" id="section-targets">
           <div className="panel-title">
             <span>Target administration</span>
@@ -1299,10 +1342,16 @@ export function App() {
             </div>
           </div>
         </section>
+        )}
 
+        {activeArtwork && (
         <section className="stage-panel target-panel" id="section-generate">
           <div className="panel-title">
-            <span>Target portrait</span>
+            <span>
+              {activeArtwork === 'todos-somos-familiares'
+                ? 'Todos somos familiares · target portrait'
+                : 'Están en todas partes · target portrait'}
+            </span>
             <select
               value={activeTarget?.id ?? ''}
               onChange={(event) => handleTargetSelect(event.target.value)}
@@ -1326,12 +1375,15 @@ export function App() {
             <span>{activeTarget?.values.source_page || 'source page pending'}</span>
           </div>
         </section>
+        )}
 
+        {(activePage === 'targets' || activePage === 'images') && (
         <section className="stage-panel source-panel" id="section-review">
           <div className="panel-title">
             <span>Review images</span>
             <div className="panel-actions">
               <div className="segmented">
+                {activePage === 'targets' && (
                 <button
                   className={reviewKind === 'targets' ? 'selected' : ''}
                   onClick={() => setReviewKind('targets')}
@@ -1339,6 +1391,9 @@ export function App() {
                 >
                   Targets
                 </button>
+                )}
+                {activePage === 'images' && (
+                  <>
                 <button
                   className={reviewKind === 'places' ? 'selected' : ''}
                   onClick={() => setReviewKind('places')}
@@ -1353,6 +1408,8 @@ export function App() {
                 >
                   People
                 </button>
+                  </>
+                )}
               </div>
               <button
                 className="text-button"
@@ -1405,7 +1462,9 @@ export function App() {
             ))}
           </div>
         </section>
+        )}
 
+        {activeArtwork && (
         <section className="stage-panel outputs-panel" id="section-outputs">
           <div className="panel-title">
             <span>Generated outputs</span>
@@ -1413,14 +1472,14 @@ export function App() {
               <button
                 className="text-button"
                 onClick={() => selectedOutput && setViewerOutput(selectedOutput)}
-                disabled={busy || !selectedOutput}
+                disabled={busy || !selectedOutput || outputArtwork(selectedOutput) !== activeArtwork}
               >
                 <Maximize2 size={14} /> View
               </button>
               <button
                 className="text-button"
-                onClick={() => setSelectedOutputIds(new Set(outputs.map((item) => item.id)))}
-                disabled={busy || outputs.length === 0}
+                onClick={() => setSelectedOutputIds(new Set(artworkOutputs.map((item) => item.id)))}
+                disabled={busy || artworkOutputs.length === 0}
               >
                 <CheckSquare size={14} /> Select all
               </button>
@@ -1433,15 +1492,15 @@ export function App() {
               </button>
               <button
                 className="text-button danger"
-                onClick={() => void handleDeleteOutputs(false)}
+                onClick={() => void handleDeleteOutputs(false, activeArtwork)}
                 disabled={busy || selectedOutputCount === 0}
               >
                 <Trash2 size={14} /> Delete selected
               </button>
               <button
                 className="icon-button danger"
-                onClick={() => void handleDeleteOutputs(true)}
-                disabled={busy || outputs.length === 0}
+                onClick={() => void handleDeleteOutputs(true, activeArtwork)}
+                disabled={busy || artworkOutputs.length === 0}
                 title="Delete all outputs"
               >
                 <Trash2 size={16} />
@@ -1452,8 +1511,8 @@ export function App() {
             </div>
           </div>
           <div className="output-list">
-            {outputs.length === 0 && <EmptyState text="No generated outputs found." />}
-            {outputs.map((item) => (
+            {artworkOutputs.length === 0 && <EmptyState text="No generated outputs found for this artwork." />}
+            {artworkOutputs.map((item) => (
               <article
                 className={`output-thumb ${selectedOutput?.id === item.id ? 'selected' : ''} ${selectedOutputIds.has(item.id) ? 'checked' : ''}`}
                 key={item.id}
@@ -1480,7 +1539,9 @@ export function App() {
             ))}
           </div>
         </section>
+        )}
 
+        {activeArtwork && (
         <section className="stage-panel log-panel">
           <div className="panel-title">
             <span>Progress log</span>
@@ -1494,24 +1555,32 @@ export function App() {
             ))}
           </div>
         </section>
+        )}
       </main>
 
       <aside className="inspector">
+        {(activePage === 'targets' || activePage === 'images') && (
         <section id="controls-manifests">
           <div className="section-heading-row">
-            <h2>Manifests</h2>
+            <h2>{activePage === 'targets' ? 'Target data' : 'Image manifests'}</h2>
             <button className="icon-button" onClick={() => setShowUtilities(true)} title="Utilities">
               <Settings size={15} />
             </button>
           </div>
-          <label>
-            Person store
-            <input value={personStore} onChange={(event) => setPersonStore(event.target.value)} />
-          </label>
-          <label>
-            Targets
-            <input value={targets} onChange={(event) => setTargets(event.target.value)} />
-          </label>
+          {activePage === 'targets' && (
+            <>
+              <label>
+                Person store
+                <input value={personStore} onChange={(event) => setPersonStore(event.target.value)} />
+              </label>
+              <label>
+                Targets manifest
+                <input value={targets} onChange={(event) => setTargets(event.target.value)} />
+              </label>
+            </>
+          )}
+          {activePage === 'images' && (
+            <>
           <label>
             Places
             <input value={sources} onChange={(event) => setSources(event.target.value)} />
@@ -1520,6 +1589,8 @@ export function App() {
             People
             <input value={people} onChange={(event) => setPeople(event.target.value)} />
           </label>
+            </>
+          )}
           <div className="button-row">
             <button onClick={() => void handleValidate(false)} disabled={busy}>
               <FileCheck2 size={16} /> Validate
@@ -1529,7 +1600,9 @@ export function App() {
             </button>
           </div>
         </section>
+        )}
 
+        {activePage === 'images' && (
         <section className="crawler-box">
           <h2>Crawler</h2>
           <label>
@@ -1544,13 +1617,6 @@ export function App() {
             </select>
           </label>
           <label>
-            Kind
-            <select value={crawlKind} onChange={(event) => handleCrawlKindChange(event.target.value as CrawlKind)}>
-              <option value="places">Places</option>
-              <option value="people">People</option>
-            </select>
-          </label>
-          <label>
             Page URLs
             <textarea
               value={crawlPagesText}
@@ -1560,8 +1626,12 @@ export function App() {
             />
           </label>
           <label>
-            Manifest
-            <input value={crawlManifest} onChange={(event) => setCrawlManifest(event.target.value)} />
+            Crawled places manifest
+            <input value={crawlPlacesManifest} onChange={(event) => setCrawlPlacesManifest(event.target.value)} />
+          </label>
+          <label>
+            Crawled people manifest
+            <input value={crawlPeopleManifest} onChange={(event) => setCrawlPeopleManifest(event.target.value)} />
           </label>
           <div className="form-grid">
             <label>
@@ -1628,71 +1698,82 @@ export function App() {
             </label>
           </div>
           <button onClick={() => void handleCrawl()} disabled={crawling}>
-            {crawling ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl pages
+            {crawling ? <RefreshCw size={16} className="spin" /> : <Globe2 size={16} />} Crawl places + people
           </button>
         </section>
+        )}
 
+        {activeArtwork && (
         <section id="controls-generate">
-          <h2>Generation</h2>
+          <h2>{activeArtwork === 'todos-somos-familiares' ? 'Face-fragment generation' : 'Place-fragment generation'}</h2>
+          <p className="section-note">
+            Only fragments that contribute to the portrait appear in the process video. Complete source photographs are never shown.
+          </p>
           <label>
             Output directory
             <input value={outputDir} onChange={(event) => setOutputDir(event.target.value)} />
           </label>
           <label className="slider-label">
-            <span>Block size: {fragmentSize}px</span>
+            <span>Block size: {generationSettings[activeArtwork].fragmentSize}px</span>
             <input
               type="range"
               min={8}
               max={128}
               step={4}
-              value={fragmentSize}
-              onChange={(event) => setFragmentSize(Number(event.target.value))}
+              value={generationSettings[activeArtwork].fragmentSize}
+              onChange={(event) => updateGenerationSetting(activeArtwork, 'fragmentSize', Number(event.target.value))}
             />
           </label>
           <label className="slider-label">
-            <span>Max tiles per source: {maxContribution === 0 ? 'unlimited' : maxContribution}</span>
+            <span>Max tiles per source: {generationSettings[activeArtwork].maxContribution === 0 ? 'unlimited' : generationSettings[activeArtwork].maxContribution}</span>
             <input
               type="range"
-              min={0}
+              min={activeArtwork === 'todos-somos-familiares' ? 1 : 0}
               max={320}
               step={1}
-              value={maxContribution}
-              onChange={(event) => setMaxContribution(Number(event.target.value))}
+              value={generationSettings[activeArtwork].maxContribution}
+              onChange={(event) => updateGenerationSetting(activeArtwork, 'maxContribution', Number(event.target.value))}
             />
           </label>
           <div className="form-grid">
             <label>
               Seed
-              <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value))} />
+              <input type="number" value={generationSettings[activeArtwork].seed} onChange={(event) => updateGenerationSetting(activeArtwork, 'seed', Number(event.target.value))} />
             </label>
             <label>
               Reuse limit
-              <input type="number" min={1} value={reuseLimit} onChange={(event) => setReuseLimit(Number(event.target.value))} />
+              <input type="number" min={1} value={generationSettings[activeArtwork].reuseLimit} onChange={(event) => updateGenerationSetting(activeArtwork, 'reuseLimit', Number(event.target.value))} />
             </label>
             <label>
               Width
-              <input type="number" min={120} value={outputWidth} onChange={(event) => setOutputWidth(Number(event.target.value))} />
+              <input type="number" min={120} value={generationSettings[activeArtwork].outputWidth} onChange={(event) => updateGenerationSetting(activeArtwork, 'outputWidth', Number(event.target.value))} />
             </label>
           </div>
           <div className="button-row stacked">
-            <button className="primary" onClick={() => void handleGenerate(false)} disabled={busy}>
+            <button className="primary" onClick={() => void handleGenerate(activeArtwork, false)} disabled={busy}>
               <Play size={16} /> Generate still
             </button>
-            <button onClick={() => void handleGenerate(true)} disabled={busy}>
+            <button onClick={() => void handleGenerate(activeArtwork, true)} disabled={busy}>
               <Video size={16} /> Generate video
             </button>
           </div>
         </section>
+        )}
 
         <section className="status-box">
           <h2>Validation</h2>
           <ValidationSummary validation={validation} />
         </section>
 
+        {activeArtwork && (
         <section className="sidecar-box">
-          <h2>Sidecar</h2>
+          <h2>Output metadata (JSON sidecar)</h2>
+          <p>
+            A sidecar is the JSON file beside each PNG/MP4. It records the artwork, inputs, generation settings, source usage, and crawl provenance without changing the media file.
+          </p>
           <pre>{selectedOutput ? JSON.stringify(selectedOutput.sidecar, null, 2) : 'No output selected.'}</pre>
         </section>
+        )}
       </aside>
 
       {viewerOutput && <OutputViewer item={viewerOutput} onClose={() => setViewerOutput(null)} />}

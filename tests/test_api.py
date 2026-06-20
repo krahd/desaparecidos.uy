@@ -97,8 +97,9 @@ def test_generate_endpoint_defaults_to_one_contribution(monkeypatch: pytest.Monk
         settings: object,
         *,
         target_id: str | None = None,
+        artwork: str = "estan-en-todas-partes",
     ) -> list[object]:
-        del target_manifest, source_manifest, output_dir, target_id
+        del target_manifest, source_manifest, output_dir, target_id, artwork
         captured["cap"] = getattr(settings, "max_contribution_per_source")
         return []
 
@@ -134,8 +135,9 @@ def test_generate_endpoint_preserves_zero_as_unlimited(monkeypatch: pytest.Monke
         settings: object,
         *,
         target_id: str | None = None,
+        artwork: str = "estan-en-todas-partes",
     ) -> list[object]:
-        del target_manifest, source_manifest, output_dir, target_id
+        del target_manifest, source_manifest, output_dir, target_id, artwork
         captured["cap"] = getattr(settings, "max_contribution_per_source")
         return []
 
@@ -172,8 +174,9 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
         settings: object,
         *,
         target_id: str | None = None,
+        artwork: str = "estan-en-todas-partes",
     ) -> list[object]:
-        del target_manifest, source_manifest, output_dir, target_id
+        del target_manifest, source_manifest, output_dir, target_id, artwork
         captured["cap"] = getattr(settings, "max_contribution_per_source")
         captured["scan_frames"] = getattr(settings, "search_scan_frames_per_candidate")
         captured["scan_max"] = getattr(settings, "search_scan_max_candidates")
@@ -363,6 +366,37 @@ def test_crawl_endpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_combined_crawl_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeCombinedSummary:
+        def to_api(self) -> dict[str, object]:
+            return {
+                "ok": True,
+                "pages": ["https://example.test/page"],
+                "pages_crawled": 1,
+                "images_seen": 1,
+                "errors": [],
+                "results": {
+                    "places": {"manifest": "data/manifests/crawled-places.csv", "added": 1},
+                    "people": {"manifest": "data/manifests/crawled-people.csv", "added": 1},
+                },
+            }
+
+    monkeypatch.setattr(api_module, "crawl_pages_combined", lambda *_args, **_kwargs: FakeCombinedSummary())
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/crawl/combined",
+        json={
+            "pages": ["https://example.test/page"],
+            "places_manifest": "data/manifests/crawled-places.csv",
+            "people_manifest": "data/manifests/crawled-people.csv",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["images_seen"] == 1
 
 
 def test_persons_endpoints_save_list_and_export(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

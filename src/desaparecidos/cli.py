@@ -18,8 +18,7 @@ def _print_json(value: object) -> None:
 
 
 def _normalise_contribution_cap(value: int) -> int:
-    """Map legacy 0/unset CLI values to the active ethical default cap."""
-    return value if value > 0 else DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
+    return max(0, value)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,13 +50,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
         help=(
             "maximum output tiles any single source image may contribute; "
-            f"0 is treated as the ethical default ({DEFAULT_MAX_CONTRIBUTION_PER_SOURCE}), "
-            "not as unlimited"
+            "0 means unlimited for place generation and is rejected for people generation"
         ),
     )
     run.add_argument("--search-scan-frames-per-candidate", type=int, default=2)
     run.add_argument("--search-scan-max-candidates", type=int, default=120)
     run.add_argument("--target-id")
+    run.add_argument(
+        "--artwork",
+        choices=["todos-somos-familiares", "estan-en-todas-partes"],
+        default="estan-en-todas-partes",
+    )
     run.add_argument("--video", action="store_true")
 
     outputs = subparsers.add_parser("outputs", help="List generated outputs.")
@@ -108,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
             args.output,
             settings,
             target_id=args.target_id,
+            artwork=args.artwork,
         )
         _print_json({"ok": True, "outputs": [output.__dict__ for output in outputs]})
         return 0

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .crawl import crawl_pages
+from .crawl import crawl_pages, crawl_pages_combined
 from .demo import create_demo_fixtures
 from .download import download_manifest
 from .manifests import (
@@ -32,9 +32,7 @@ from .persons import (
     set_selected_portrait,
     upsert_person,
 )
-from .pipeline import DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
-
-DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 240
+from .pipeline import ArtworkKind, DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
 
 
 class ValidateRequest(BaseModel):
@@ -63,12 +61,29 @@ class GenerateRequest(BaseModel):
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     make_video: bool = False
     target_id: str | None = None
+    artwork: ArtworkKind = "estan-en-todas-partes"
 
 
 class CrawlRequest(BaseModel):
     pages: list[str]
     kind: ManifestKind
     manifest: str
+    output_root: str = "data/raw/crawl"
+    max_images_per_page: int = Field(default=12, ge=1, le=50)
+    label_prefix: str = ""
+    max_depth: int = Field(default=2, ge=0, le=4)
+    max_pages: int = Field(default=60, ge=1, le=500)
+    max_images: int = Field(default=80, ge=1, le=1000)
+    cross_domain: bool = False
+    delay: float = Field(default=0.7, ge=0, le=10)
+    respect_robots: bool = True
+    use_cv: bool = True
+
+
+class CombinedCrawlRequest(BaseModel):
+    pages: list[str]
+    places_manifest: str = "data/manifests/crawled-places.csv"
+    people_manifest: str = "data/manifests/crawled-people.csv"
     output_root: str = "data/raw/crawl"
     max_images_per_page: int = Field(default=12, ge=1, le=50)
     label_prefix: str = ""
@@ -156,8 +171,7 @@ class PersonExportTargetsRequest(BaseModel):
 
 
 def _normalise_contribution_cap(value: int) -> int:
-    """Map legacy 0/unset GUI values to the active ethical default cap."""
-    return value if value > 0 else DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
+    return max(0, value)
 
 
 def create_app() -> FastAPI:
@@ -338,6 +352,28 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return summary.to_api()
 
+    @app.post("/api/crawl/combined")
+    def crawl_combined(request: CombinedCrawlRequest) -> dict[str, object]:
+        try:
+            summary = crawl_pages_combined(
+                request.pages,
+                safe_project_path(request.places_manifest),
+                safe_project_path(request.people_manifest),
+                output_root=safe_project_path(request.output_root),
+                max_images_per_page=request.max_images_per_page,
+                label_prefix=request.label_prefix,
+                max_depth=request.max_depth,
+                max_pages=request.max_pages,
+                max_images=request.max_images,
+                cross_domain=request.cross_domain,
+                delay=request.delay,
+                respect_robots=request.respect_robots,
+                use_cv=request.use_cv,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return summary.to_api()
+
     @app.post("/api/review")
     def review(request: ReviewRequest) -> dict[str, Any]:
         try:
@@ -398,6 +434,7 @@ def create_app() -> FastAPI:
                 request.output_dir,
                 settings,
                 target_id=request.target_id,
+                artwork=request.artwork,
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

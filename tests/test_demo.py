@@ -24,7 +24,13 @@ def test_demo_fixtures_use_local_provenance_and_generate(tmp_path: Path) -> None
         targets,
         sources,
         tmp_path / "outputs",
-        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=720),
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=1,
+            output_width=720,
+            max_contribution_per_source=0,
+        ),
     )
 
     assert Path(outputs[0].still_path).exists()

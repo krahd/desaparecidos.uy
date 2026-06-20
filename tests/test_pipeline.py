@@ -11,7 +11,12 @@ import pytest
 
 from desaparecidos.images import extract_fragments
 from desaparecidos.manifests import approved_rows
-from desaparecidos.pipeline import Stage1Settings, assemble_target_with_trace, run_stage1
+from desaparecidos.pipeline import (
+    DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
+    Stage1Settings,
+    assemble_target_with_trace,
+    run_stage1,
+)
 from desaparecidos import pipeline as pipeline_module
 
 
@@ -64,9 +69,20 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def test_stage1_settings_default_contribution_cap_is_one() -> None:
+    assert DEFAULT_MAX_CONTRIBUTION_PER_SOURCE == 1
+    assert Stage1Settings().max_contribution_per_source == 1
+
+
 def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path)
-    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=2, output_width=96)
+    settings = Stage1Settings(
+        seed=17,
+        fragment_size=24,
+        reuse_limit=2,
+        output_width=96,
+        max_contribution_per_source=0,
+    )
 
     first = run_stage1(targets, places, tmp_path / "out-a", settings)[0]
     second = run_stage1(targets, places, tmp_path / "out-b", settings)[0]
@@ -97,7 +113,13 @@ def test_reuse_limit_is_enforced(tmp_path: Path) -> None:
 
 def test_reuse_limit_applies_per_fragment_not_per_source(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
-    settings = Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96)
+    settings = Stage1Settings(
+        seed=17,
+        fragment_size=24,
+        reuse_limit=1,
+        output_width=96,
+        max_contribution_per_source=0,
+    )
 
     output = run_stage1(targets, places, tmp_path / "out", settings)[0]
 
@@ -147,7 +169,13 @@ def test_assembly_trace_records_fragment_destinations(tmp_path: Path) -> None:
         target_row,
         targets,
         fragments,
-        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=1,
+            output_width=96,
+            max_contribution_per_source=0,
+        ),
     )
 
     assert assembly.image.size == (96, 96)
@@ -167,7 +195,13 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
         target_row,
         targets,
         fragments,
-        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=1,
+            output_width=96,
+            max_contribution_per_source=0,
+        ),
     )
 
     frames = list(itertools.islice(
@@ -200,7 +234,13 @@ def test_process_video_frames_scan_non_contributing_candidates(tmp_path: Path) -
         target_row,
         targets,
         fragments,
-        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=1,
+            output_width=96,
+            max_contribution_per_source=0,
+        ),
     )
     displayed: list[dict[str, object]] = []
     candidates = [
@@ -285,6 +325,7 @@ def test_search_candidate_sidecar_records_crawl_events_and_cap(
             fragment_size=24,
             reuse_limit=4,
             output_width=96,
+            max_contribution_per_source=0,
             search_scan_max_candidates=1,
         ),
     )[0]
@@ -320,7 +361,13 @@ def test_process_video_outro_fades_through_text_and_ends_black(tmp_path: Path) -
         target_row,
         targets,
         fragments,
-        Stage1Settings(seed=17, fragment_size=24, reuse_limit=1, output_width=96),
+        Stage1Settings(
+            seed=17,
+            fragment_size=24,
+            reuse_limit=1,
+            output_width=96,
+            max_contribution_per_source=0,
+        ),
     )
 
     frames = list(pipeline_module._process_video_frames(

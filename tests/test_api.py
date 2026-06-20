@@ -48,6 +48,7 @@ def test_health_and_validate(tmp_path: Path) -> None:
     client = TestClient(create_app())
 
     assert client.get("/api/health").json()["ok"] is True
+    assert client.get("/api/config").json()["default_max_contribution_per_source"] == 1
     response = client.post(
         "/api/validate",
         json={"targets": str(targets), "sources": str(sources), "require_files": True},
@@ -83,6 +84,81 @@ def test_generate_endpoint(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert (tmp_path / "outputs").exists()
+
+
+def test_generate_endpoint_defaults_to_one_contribution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, sources = write_fixture(tmp_path)
+    captured: dict[str, int] = {}
+
+    def fake_run_stage1(
+        target_manifest: str,
+        source_manifest: str,
+        output_dir: str,
+        settings: object,
+        *,
+        target_id: str | None = None,
+    ) -> list[object]:
+        del target_manifest, source_manifest, output_dir, target_id
+        captured["cap"] = getattr(settings, "max_contribution_per_source")
+        return []
+
+    monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "targets": str(targets),
+            "sources": str(sources),
+            "output_dir": str(tmp_path / "outputs"),
+            "seed": 17,
+            "fragment_size": 16,
+            "reuse_limit": 100,
+            "output_width": 120,
+            "make_video": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["cap"] == 1
+
+
+def test_generate_endpoint_preserves_zero_as_unlimited(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    targets, sources = write_fixture(tmp_path)
+    captured: dict[str, int] = {}
+
+    def fake_run_stage1(
+        target_manifest: str,
+        source_manifest: str,
+        output_dir: str,
+        settings: object,
+        *,
+        target_id: str | None = None,
+    ) -> list[object]:
+        del target_manifest, source_manifest, output_dir, target_id
+        captured["cap"] = getattr(settings, "max_contribution_per_source")
+        return []
+
+    monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "targets": str(targets),
+            "sources": str(sources),
+            "output_dir": str(tmp_path / "outputs"),
+            "seed": 17,
+            "fragment_size": 16,
+            "reuse_limit": 100,
+            "output_width": 120,
+            "max_contribution_per_source": 0,
+            "make_video": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["cap"] == 0
 
 
 def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -23,6 +23,7 @@ INK = (18, 18, 17)
 ACCENT = (109, 47, 38)
 PROCESS_VIDEO_STYLE = "source-fullscreen-fragment-flight"
 MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
+DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,7 @@ class Stage1Settings:
     reuse_limit: int = 8
     output_width: int = 720
     max_fragments_per_source: int = 240
-    max_contribution_per_source: int = 0  # 0 means unlimited tiles per source image
+    max_contribution_per_source: int = DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
     search_scan_frames_per_candidate: int = 2
     search_scan_max_candidates: int = 120
     make_video: bool = False
@@ -143,8 +144,11 @@ def assemble_target_with_trace(
         raise ValueError(error)
 
     # Vectorised nearest-fragment matcher over the shuffled order: build the
-    # descriptor matrix once, then per tile mask out fragments that have hit the
-    # reuse limit or whose source has hit the contribution cap and take argmin.
+    # 6-D hand-designed colour/contrast/edge descriptor matrix once, then per
+    # tile mask out fragments that have hit the reuse limit or whose source has
+    # hit the contribution cap and take the L2 nearest neighbour. This is
+    # intentionally modest: no learned embeddings, identity model, or smoothing
+    # stage is used in Stage 1.
     descriptors = np.stack([fragment.descriptor for fragment in shuffled]).astype(np.float32)
     source_keys: dict[str, int] = {}
     source_of = np.empty(len(shuffled), dtype=np.intp)

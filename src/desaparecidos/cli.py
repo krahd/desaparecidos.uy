@@ -10,7 +10,7 @@ from .api import create_app
 from .download import download_manifest
 from .manifests import validate_manifest
 from .outputs import list_outputs
-from .pipeline import Stage1Settings, run_stage1
+from .pipeline import DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
 
 
 def _print_json(value: object) -> None:
@@ -40,7 +40,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fragment-size", type=int, default=24)
     run.add_argument("--reuse-limit", type=int, default=8)
     run.add_argument("--output-width", type=int, default=720)
-    run.add_argument("--max-contribution-per-source", type=int, default=0)
+    run.add_argument(
+        "--max-contribution-per-source",
+        type=int,
+        default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
+        help=(
+            "maximum output tiles any single source image may contribute; "
+            "use 0 for unlimited"
+        ),
+    )
     run.add_argument("--search-scan-frames-per-candidate", type=int, default=2)
     run.add_argument("--search-scan-max-candidates", type=int, default=120)
     run.add_argument("--target-id")

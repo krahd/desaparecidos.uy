@@ -137,6 +137,8 @@ For **Seguimos buscando**, source acquisition should favour self-captured footag
 
 The source image field is decomposed into fragments. These fragments may be rectangular patches, irregular patches, texture samples, colour fields, edge fields, or other visual units.
 
+The current Stage 1 implementation is intentionally simple: it extracts non-overlapping square fragments, 24 pixels by default, with a default ceiling of 240 extracted fragments per source image. It also defaults to allowing only one output tile from any single source image, while `0` remains an explicit unlimited setting for controlled tests or special runs. This coarse tile structure and conservative source cap help keep the reconstruction visibly assembled and prevent the system from drifting toward a seamless simulation of restoration.
+
 In **Todos somos familiares**, fragment extraction should be designed to reduce identifiability. The system may store face-derived fragments, but the project’s internal rule is that it does not identify, classify, or represent the living persons whose publicly available images may have contributed visual fragments. It treats the web as a dispersed visual field, not as a biometric archive.
 
 Possible privacy-preserving design choices include:
@@ -145,7 +147,7 @@ Possible privacy-preserving design choices include:
 - storing fragments rather than complete portraits wherever feasible;
 - limiting the size of contiguous fragments;
 - avoiding large recognizable crops of eyes, mouths, or full facial structures;
-- preventing any single source image from contributing too much to any final portrait;
+- preventing any single source image from contributing too much to any final portrait through explicit source-level caps;
 - keeping source identity separated from visual fragments;
 - documenting and enforcing deletion policies for raw source material;
 - excluding minors, private contexts, sensitive contexts, and images connected to health, criminal justice, education, or political participation unless explicit permission exists.
@@ -154,9 +156,11 @@ These constraints are not merely compliance measures. They support the work’s 
 
 ### 5.4. Matching and assembly
 
-The reconstruction process compares regions of the target portrait with fragments from the source field. Matching may use colour, luminance, gradient, edge direction, texture, local contrast, spatial composition, perceptual similarity, learned embeddings, or combinations of these methods. The system should not require semantic identification of source persons or places.
+The running Stage 1 matcher compares regions of the target portrait with fragments from the source field using a hand-designed six-dimensional descriptor: mean red, green, and blue values; luminance contrast; horizontal edge energy; and vertical edge energy. It then performs deterministic L2 nearest-neighbour selection over the available fragments, masking fragments that have reached their per-fragment reuse limit and sources that have reached the active per-source contribution cap. It does not currently use perceptual similarity models, learned embeddings, face embeddings, semantic segmentation, or diffusion-based image synthesis for matching.
 
-The assembly should remain visible as assembly. The final image should not fully conceal the fragments. The viewer should be able to perceive that the face is made from elsewhere: from other faces, from walls, from streets, from surfaces, from the country.
+Learned embeddings or more sophisticated perceptual metrics may be explored later as explicitly labelled extensions, but they should not be described as part of the current system. The present implementation is deliberately impoverished. Its modest descriptor cannot infer semantic correspondences, smooth identity, or produce photorealistic restoration. It matches low-level colour, contrast, and edge structure only.
+
+The assembly should remain visible as assembly. The final image should not fully conceal the fragments. The viewer should be able to perceive that the face is made from elsewhere: from other faces, from walls, from streets, from surfaces, from the country. In the present system, this is not only a curatorial aspiration; it is supported by coarse tiles, the restricted descriptor, explicit source-contribution limits, and the absence of smoothing or learned identity transfer.
 
 The system should allow multiple reconstructions of the same person. This variability is conceptually important. It prevents the work from producing a definitive substitute image. Each output is one possible temporary apparition, not a replacement for the historical photograph.
 

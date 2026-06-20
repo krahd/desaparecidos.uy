@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-19 16:28 GMT-3
+Last updated: 2026-06-19 21:57 GMT-3
 
 ## Project purpose
 
@@ -223,7 +223,7 @@ git diff --check
 - Store face-region metadata for accepted `people` rows for manual review only; `people` rows now require a detected face and no fallback face box is generated.
 - Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate Stage 1 stills and MP4 process videos from approved targets and approved places.
-- Cap source contribution with `max_contribution_per_source`; `0` means unlimited.
+- Cap source contribution with `max_contribution_per_source`; the default is `1` output tile per source image, while `0` remains explicit unlimited use.
 - Control output block size through the GUI `Block size` slider wired to `fragment_size`.
 - Record settings, source usage, source sequence, search trail URLs/run ids, search candidate counts/frame references, and video process metadata in sidecars.
 - Keep a fast capped search-candidate scan and URL ticker overlays on search/assembly frames, followed by a readable commemorative outro.
@@ -253,13 +253,14 @@ git diff --check
 - Combined URL ticker videos with the restored commemorative outro.
 - Reintroduced OpenCV face/scene gating while keeping people ingestion non-identifying and review-gated.
 - Updated `.gitignore`, `README.md`, `AGENTS.md`, and this status report for the current workflow.
+- Selectively adopted the useful source-cap/matcher documentation ideas from PR #1 without merging its failing pipeline rewrite: Python/API/CLI/GUI now default `max_contribution_per_source` to `1`, and `0` remains explicit unlimited use.
 
 ## Tests and verification status
 
-Latest local verification (target corpus administration and prior crawler/video work):
+Latest local verification (source-cap default update and prior crawler/video work):
 
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 92 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m pytest -q`: passed, 96 tests, 1 upstream Starlette/httpx deprecation warning.
 - `npm --prefix frontend run build`: passed (tsc + vite, no type errors).
 - `zsh -n start.sh`: exited successfully with the known `nice(5)` permission warnings.
 - `git diff --check`: passed.
@@ -315,7 +316,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
 - Crawler CV cache entries are versioned; old decisions are recomputed rather than silently reused after policy changes.
 - Download controls are hidden from the primary GUI because they are no longer central to the workflow, but API/CLI support remains for automation.
-- `max_contribution_per_source=0` means unlimited for backwards compatibility and explicitness.
+- `max_contribution_per_source` defaults to `1` so a source image cannot dominate by default; `0` remains explicit unlimited use for controlled tests or special runs.
 - Fast search-candidate scan frames and URL ticker frames are preserved during the search/assembly sequence; outro cards remain readable and untickered.
 
 ## Documentation alignment notes
@@ -325,4 +326,4 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-19 16:28 GMT-3
+Last updated: 2026-06-19 21:57 GMT-3

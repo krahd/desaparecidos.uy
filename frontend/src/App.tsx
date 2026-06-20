@@ -222,7 +222,7 @@ export function App() {
   const [fragmentSize, setFragmentSize] = useState(24);
   const [reuseLimit, setReuseLimit] = useState(8);
   const [outputWidth, setOutputWidth] = useState(720);
-  const [maxContribution, setMaxContribution] = useState(0);
+  const [maxContribution, setMaxContribution] = useState(1);
   const [targetId, setTargetId] = useState('');
   const [validation, setValidation] = useState<ValidateResponse | null>(null);
   const [personsResponse, setPersonsResponse] = useState<PersonsResponse | null>(null);

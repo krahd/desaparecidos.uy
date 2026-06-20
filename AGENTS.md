@@ -141,6 +141,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `data/manifests/people.csv`: tracked empty template for internal Stage 2 contemporary people-source review.
 - `data/manifests/crawled-*.csv`: ignored crawler-produced review manifests, including `crawled-places.csv` and `crawled-people.csv`.
 - `data/persons/disappeared.json`: canonical disappeared-person target corpus store, tracked after review; it drives the target administration GUI and derived target manifest export.
+- `data/persons/metadata-overrides.csv`: tracked, reviewed per-field metadata corrections with source ids and references; apply it with `scripts/apply_person_metadata_overrides.py --write`.
 - `data/raw/`: ignored downloaded or local source imagery.
 - `data/raw/crawl/`: ignored crawler cache — content-addressed image store under `store/` plus a SQLite index (`cache.sqlite`).
 - `data/processed/`: ignored processed local derivatives, including 3:4 target portrait copies generated from `doc/fotos-desaparecidos/`.
@@ -152,6 +153,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
 - `scripts/audit_target_corpus.py`: target-corpus audit command for selected-portrait coverage, portrait-review needs, missing fields, portrait source counts, and unresolved person records.
+- `scripts/apply_person_metadata_overrides.py`: applies reviewed metadata corrections from `data/persons/metadata-overrides.csv`, preserving `field_sources`, `field_source_refs`, and source paths.
 - `scripts/suggest_local_portrait_matches.py`: review-only matcher from `data/manifests/local-targets.csv` / `doc/fotos-desaparecidos` to canonical person records; it may append candidates but must not auto-select portraits.
 - `start.sh`: launcher script for the local GUI.
 
@@ -167,6 +169,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - Preserve exact and perceptual dedupe so repeated image variants do not become repeated manifest rows.
 - Keep `targets` for disappeared-person portraits only. Contemporary public images of people belong in `people` manifests for internal Stage 2 review and must not be treated as disappeared-person targets.
 - Keep target administration in the person store first. `targets.csv` is a generation-compatible export, not the canonical person database.
+- Keep death metadata distinct from disappearance metadata. Use `date_of_death` and `place_of_death` for killed cases; only use disappearance fields when the source actually supports disappearance/detention data. Derived target manifests may fall back to death date/place for display/export compatibility.
 - Treat local portrait filename matches as candidate evidence only. Raw-only candidates must not become selected portraits until reviewed and processed into `assets/targets/disappeared/selected/`.
 - Do not add identity-seeking behaviour, face/name matching, or biometric identification for contemporary people images.
 - Treat public availability as insufficient consent for arbitrary processing. For contemporary people imagery, exclude minors, private contexts, and sensitive contexts such as schools, hospitals, prisons, shelters, protests, funerals, religious ceremonies, political meetings, health, criminal justice, and education unless explicit permission exists.

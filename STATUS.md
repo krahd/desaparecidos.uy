@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-20 00:44 GMT-3
+Last updated: 2026-06-20 00:56 GMT-3
 
 ## Project purpose
 
@@ -14,6 +14,7 @@ The repository now combines the current crawler/search-trail work with the newer
 - target administration APIs and a GUI screen for missing-field review, portrait-review filtering, record editing, portrait candidate download, selected portrait processing, and target-manifest export;
 - reviewed selected 3:4 target portrait derivatives under trackable `assets/targets/disappeared/selected/`, while raw downloads and rejected candidates remain ignored;
 - a first full imported corpus pass: 204 person records, 202 selected portrait derivatives, 321 total portrait candidates, 118 review-only local alternate portrait candidates, and two unresolved public-portrait gaps (`camuyrano-bottini-mario`, `gadea-hernandez-liborio`) recorded in person notes after trusted-source and web checks;
+- reviewed source-backed metadata overrides in `data/persons/metadata-overrides.csv`, applied to the canonical store with per-field `field_sources` and `field_source_refs`;
 - `people` manifest support for internal Stage 2 contemporary people-source review.
 - crawler run/page/image trail persistence in SQLite plus JSONL run exports;
 - exact SHA-256 and perceptual duplicate rejection;
@@ -197,6 +198,7 @@ git diff --check
 - `scripts/import_sitios_memoria.py`: Sitios de Memoria importer; conservative `field-fotografia` portrait selection and per-field provenance.
 - `scripts/apply_portrait_overrides.py`: replaces a person's portrait from an authoritative override source and records portrait provenance.
 - `scripts/audit_target_corpus.py`: reports selected portrait coverage, portrait-review needs, missing metadata fields, portrait source counts, and unresolved target-person records.
+- `scripts/apply_person_metadata_overrides.py`: applies reviewed per-field metadata corrections from `data/persons/metadata-overrides.csv` and records source ids/references.
 - `scripts/suggest_local_portrait_matches.py`: compares the older local portrait corpus against canonical person names and can append strong matches as review-only candidates.
 - `frontend/src/App.tsx`: restored black GUI workflow plus target administration screen.
 - `data/sources.json`: tracked registry of authoritative sources and review-only candidate corpora for disappeared-person fields and portraits.
@@ -217,7 +219,7 @@ git diff --check
 - Serve person-store APIs for list/get/save/delete, source registry, search-plan links, portrait candidate download, selected portrait processing/selection, and target manifest export.
 - Review rows for all three manifest kinds: per-row approve/reject/reset/delete, plus checkbox selection with Select all, Select none, Approve selected, and Delete selected.
 - Import disappeared-person metadata and portraits from Sitios de Memoria into the canonical store with conservative portrait selection (only the `field-fotografia` image) and `portrait_status` of `ok`/`missing`; record per-field provenance in `field_sources` against `data/sources.json`.
-- Audit the target corpus from the command line with `scripts/audit_target_corpus.py`; the current audit reports 204 records, 202 selected portraits, 321 portrait candidates, 119 records needing portrait review, 187 records with at least one required-field gap, and two unresolved portrait gaps.
+- Audit the target corpus from the command line with `scripts/audit_target_corpus.py`; the current audit reports 204 records, 202 selected portraits, 321 portrait candidates, 119 records needing portrait review, 187 records with at least one required-field gap, zero missing birth dates, zero missing loss dates, and two unresolved portrait gaps.
 - Suggest review-only local portrait alternatives with `scripts/suggest_local_portrait_matches.py`; the current pass added 118 high-confidence local candidates from `doc/fotos-desaparecidos` without changing selected portraits or `targets.csv`.
 - Crawl ordinary contemporary Uruguay pages for place and people candidates from the GUI.
 - Record every crawled page URL in crawl order with depth, parent, status, error, and fetch time.
@@ -266,19 +268,21 @@ git diff --check
 - Set generated target CSV writers to LF line endings so regenerated `targets.csv` passes `git diff --check`.
 - Added `scripts/suggest_local_portrait_matches.py` and a `local-fotos-desaparecidos` source-registry entry. Ran it with `--write --min-score 0.85`, adding 118 local review-only portrait candidates; raw-only candidates are no longer auto-selected during person-store normalisation.
 - Added computed `portrait_review` metadata to person records returned by the API, exposed a Targets-screen Review filter and candidate dimensions/confidence/status, and added `--portrait-review-only` to the audit command.
+- Added `place_of_death` and `field_source_refs` to the canonical person model/API/Targets screen. Death date/place now satisfy the curation loss-date/loss-place audit fields for killed cases without fabricating disappearance data, and target-manifest export falls back to reviewed death metadata when no separate disappearance location exists.
+- Added tracked `data/persons/metadata-overrides.csv` plus `scripts/apply_person_metadata_overrides.py`. Applied eleven official Investigación Histórica corrections: D’Elía and O’Neill birth/place/disappearance fields, country of disappearance for both, and reviewed death places for Barry, Mata, and Camuyrano.
 
 ## Tests and verification status
 
-Latest local verification (target corpus portrait-review work):
+Latest local verification (target corpus metadata override work):
 
+- `.venv/bin/python scripts/apply_person_metadata_overrides.py --write --json`: passed; applied eleven source-backed corrections.
+- `.venv/bin/python -c "from desaparecidos.persons import export_targets_manifest; print(export_targets_manifest())"`: passed; wrote 202 derived target rows from 204 person records and skipped the two known missing-portrait records.
+- `.venv/bin/python scripts/audit_target_corpus.py --json`: passed; current missing-field summary is `place_of_birth: 4`, `place_of_disappearance: 131`, `remains_status: 164`, `selected_portrait: 2`, with zero missing `date_of_birth` and zero missing `date_of_disappearance` under the loss-date policy.
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `.venv/bin/python -m pytest -q`: passed, 102 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m pytest -q`: passed, 104 tests, 1 upstream Starlette/httpx deprecation warning.
 - `npm --prefix frontend run build`: passed.
 - `zsh -n start.sh`: exited successfully with the known `nice(5)` permission warnings.
 - `git diff --check`: passed.
-- `.venv/bin/python scripts/audit_target_corpus.py --json`: passed when parsed with a Python summary helper; summary values were `204 202 321 119 187 2` (`total_records`, `selected_portraits`, `portrait_candidates`, `portrait_review_count`, `records_with_gaps`, missing selected portraits).
-- `.venv/bin/python scripts/audit_target_corpus.py --portrait-review-only --limit 8`: passed; listed the first records with higher-resolution local alternatives.
-- `.venv/bin/python scripts/suggest_local_portrait_matches.py --write --min-score 0.85 --limit 8`: passed; added 118 review-only candidates, selected portrait count stayed 202, and no candidates matched the two unresolved portrait gaps.
 - Live/trusted-source checks performed: full Sitios import, Madres y Familiares portrait downloads for five records, Parque de la Memoria Abeledo override download, direct Madres list/API/guessed URL checks for unresolved portraits, broad web searches for Camuyrano/Gadea, and local official PDF text search.
 
 Previous full local verification (source-cap default update and prior crawler/video work, before current corpus import):
@@ -303,7 +307,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 - Full browser-pixel verification remains blocked until Playwright or Safari WebDriver is repaired locally.
 - `zsh -n start.sh` reports `nice(5)` permission warnings even though syntax validation exits successfully.
 - The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
-- The target corpus is not yet complete: 187 of 204 records still have at least one required-field gap under the current strict missing-field policy, mostly `remains_status` and `place_of_disappearance`.
+- The target corpus is not yet complete: 187 of 204 records still have at least one required-field gap under the current strict missing-field policy, mostly `remains_status` and `place_of_disappearance`. Birth-date and loss-date gaps are currently resolved; four birthplace gaps remain.
 - Two selected portraits remain unresolved after the current public/trusted-source audit: `camuyrano-bottini-mario` and `gadea-hernandez-liborio`.
 - The older `data/manifests/local-targets.csv`/`doc/fotos-desaparecidos` corpus has 142 approved local portraits. A name-match pass added 118 review-only candidates to canonical records, and the target-admin GUI now flags records needing portrait review, but the candidates remain unselected until reviewed and processed.
 - People crawling is for internal review-gated source-corpus exploration only. It performs no identity matching and must not be used as a disappeared-person identification workflow.
@@ -314,7 +318,7 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 ## Pending tasks
 
 - Resolve or explicitly close the two remaining missing portrait gaps with trusted sources only; do not use unverified web images as selected portraits.
-- Continue filling missing person metadata, prioritising `remains_status`, `place_of_disappearance`, `place_of_birth`, and the remaining missing disappearance/birth dates.
+- Continue filling missing person metadata, prioritising `remains_status`, `place_of_disappearance`, and the four remaining missing birthplaces.
 - Review the 119 records flagged by `portrait_review` / the Targets Review filter; select and process only the local candidates that are verified as better portraits.
 - Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
 - Run a full manual GUI smoke in a browser once browser automation is available.
@@ -340,6 +344,8 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 
 - `targets` remain only the disappeared-person portrait corpus.
 - `data/persons/disappeared.json` is the canonical disappeared-person data store; `targets.csv` is a derived generation manifest.
+- `data/persons/metadata-overrides.csv` is the tracked correction ledger for source-backed metadata fixes that should survive re-imports.
+- Death metadata stays separate from disappearance metadata. For killed cases with no separate disappearance date/place, audit/export uses `date_of_death`/`place_of_death` as the loss date/place rather than copying them into disappearance fields.
 - Reviewed selected target portrait derivatives are allowed under `assets/targets/disappeared/selected/`; raw downloads and temporary candidates remain ignored.
 - Raw-only portrait candidates are never selected automatically. Local filename matches are candidate evidence, not identity/provenance proof.
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
@@ -351,9 +357,9 @@ Browser-rendered Playwright/Safari smoke is not complete in this environment: th
 
 ## Documentation alignment notes
 
-- `README.md` describes the current GUI, target administration screen, target corpus audit and local portrait suggestion commands, portrait-review filtering, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
-- `AGENTS.md` records current safety invariants, the canonical person-store/selected-portrait corpus exceptions, local portrait candidate review policy, strict people/place CV expectations, and non-identification requirements.
+- `README.md` describes the current GUI, target administration screen, target corpus audit, metadata override command, local portrait suggestion commands, portrait-review filtering, crawler, people review gate, hidden download controls, Utilities modal, contribution cap, block-size slider, stricter CV gates, and search-scan/URL-ticker videos.
+- `AGENTS.md` records current safety invariants, the canonical person-store/metadata-override/selected-portrait corpus exceptions, local portrait candidate review policy, strict people/place CV expectations, and non-identification requirements.
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-20 00:44 GMT-3
+Last updated: 2026-06-20 00:56 GMT-3

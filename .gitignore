@@ -26,6 +26,7 @@ data/processed/
 data/persons/*
 !data/persons/.gitkeep
 !data/persons/disappeared.json
+!data/persons/metadata-overrides.csv
 data/manifests/demo-*.csv
 data/manifests/crawled-*.csv
 data/manifests/local-*.csv

@@ -99,6 +99,17 @@ export type PortraitCandidate = {
   notes: string;
 };
 
+export type PortraitReview = {
+  needs_review: boolean;
+  reason: string;
+  selected_area: number;
+  best_alternative_area: number;
+  candidate_count: number;
+  review_candidate_count: number;
+  best_alternative_id: string;
+  best_alternative_source: string;
+};
+
 export type PersonRecord = {
   id: string;
   slug: string;
@@ -107,23 +118,35 @@ export type PersonRecord = {
   family_names: string;
   date_of_birth: string;
   place_of_birth: string;
+  age_at_disappearance: number | string;
+  nationality: string[];
+  occupations: string[];
+  union_militancy: string[];
+  political_militancy: string[];
   date_of_disappearance: string;
   date_of_detention: string;
+  date_of_death: string;
+  place_of_death: string;
+  country_of_detention: string;
   place_of_disappearance: string;
   country_of_disappearance: string;
   places_of_detention: string[];
   remains_status: 'found' | 'not_found' | 'unknown';
   date_of_remains_found: string;
   place_of_remains_found: string;
+  date_of_identification: string;
+  victim_type: string;
   short_bio: string;
   notes: string;
   source_page: string;
   sources: string[];
   field_sources: Record<string, string>;
+  field_source_refs: Record<string, string>;
   portrait_status: string;
   portrait_candidates: PortraitCandidate[];
   selected_portrait_id: string;
   selected_portrait?: PortraitCandidate | null;
+  portrait_review: PortraitReview;
   review_status: 'pending' | 'approved' | 'rejected';
   missing_fields: string[];
   created_at: string;
@@ -137,6 +160,7 @@ export type PersonsResponse = {
     count: number;
     missing_count: number;
     weak_portrait_count: number;
+    portrait_review_count: number;
     approved_count: number;
   };
   required_fields: string[];

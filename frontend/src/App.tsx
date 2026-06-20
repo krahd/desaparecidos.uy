@@ -62,7 +62,7 @@ type SectionId = 'targets' | 'manifests' | 'review' | 'generate' | 'outputs';
 type ReviewKind = 'targets' | 'places' | 'people';
 type CrawlKind = 'places' | 'people';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
-type PersonFilter = 'all' | 'missing' | 'portrait';
+type PersonFilter = 'all' | 'missing' | 'portrait' | 'review';
 type CrawlPreset = {
   id: string;
   label: string;
@@ -184,23 +184,44 @@ function blankPerson(): PersonRecord {
     family_names: '',
     date_of_birth: '',
     place_of_birth: '',
+    age_at_disappearance: '',
+    nationality: [],
+    occupations: [],
+    union_militancy: [],
+    political_militancy: [],
     date_of_disappearance: '',
     date_of_detention: '',
+    date_of_death: '',
+    place_of_death: '',
+    country_of_detention: '',
     place_of_disappearance: '',
     country_of_disappearance: '',
     places_of_detention: [],
     remains_status: 'unknown',
     date_of_remains_found: '',
     place_of_remains_found: '',
+    date_of_identification: '',
+    victim_type: '',
     short_bio: '',
     notes: '',
     source_page: '',
     sources: [],
     field_sources: {},
+    field_source_refs: {},
     portrait_status: 'missing',
     portrait_candidates: [],
     selected_portrait_id: '',
     selected_portrait: null,
+    portrait_review: {
+      needs_review: false,
+      reason: '',
+      selected_area: 0,
+      best_alternative_area: 0,
+      candidate_count: 0,
+      review_candidate_count: 0,
+      best_alternative_id: '',
+      best_alternative_source: '',
+    },
     review_status: 'pending',
     missing_fields: [],
     created_at: now,
@@ -210,6 +231,19 @@ function blankPerson(): PersonRecord {
 
 function copyPerson(person: PersonRecord): PersonRecord {
   return JSON.parse(JSON.stringify(person)) as PersonRecord;
+}
+
+function candidateDimensions(candidate: { width: number | string; height: number | string }): string {
+  const width = Number(candidate.width || 0);
+  const height = Number(candidate.height || 0);
+  return width > 0 && height > 0 ? `${width}x${height}` : 'size pending';
+}
+
+function portraitReviewLabel(reason: string): string {
+  if (reason === 'missing-selected-portrait') return 'missing selected portrait';
+  if (reason === 'higher-resolution-alternative') return 'higher-resolution candidate';
+  if (reason === 'alternative-candidate') return 'alternate candidate';
+  return 'portrait review';
 }
 
 export function App() {
@@ -290,11 +324,13 @@ export function App() {
     return persons.filter((person) => {
       if (personFilter === 'missing' && person.missing_fields.length === 0) return false;
       if (personFilter === 'portrait' && person.selected_portrait?.processed_path) return false;
+      if (personFilter === 'review' && !person.portrait_review?.needs_review) return false;
       if (!query) return true;
       return [
         person.full_name,
         person.place_of_birth,
         person.place_of_disappearance,
+        person.place_of_death,
         person.notes,
       ].some((value) => value.toLowerCase().includes(query));
     });
@@ -947,6 +983,7 @@ export function App() {
                 <strong>{personsResponse?.summary.count ?? 0}</strong>
                 <span>{personsResponse?.summary.missing_count ?? 0} incomplete</span>
                 <span>{personsResponse?.summary.weak_portrait_count ?? 0} need portraits</span>
+                <span>{personsResponse?.summary.portrait_review_count ?? 0} portrait reviews</span>
               </div>
               <label className="search-label">
                 <Search size={14} />
@@ -966,6 +1003,9 @@ export function App() {
                 <button className={personFilter === 'portrait' ? 'selected' : ''} onClick={() => setPersonFilter('portrait')}>
                   Portrait
                 </button>
+                <button className={personFilter === 'review' ? 'selected' : ''} onClick={() => setPersonFilter('review')}>
+                  Review
+                </button>
               </div>
               <div className="person-list">
                 {filteredPersons.length === 0 && <EmptyState text="No target records match the current filter." />}
@@ -979,7 +1019,9 @@ export function App() {
                     <strong>{person.full_name}</strong>
                     <span>
                       {person.missing_fields.length === 0
-                        ? 'complete'
+                        ? person.portrait_review?.needs_review
+                          ? portraitReviewLabel(person.portrait_review.reason)
+                          : 'complete'
                         : `missing ${person.missing_fields.join(', ')}`}
                     </span>
                   </button>
@@ -1044,10 +1086,38 @@ export function App() {
                           />
                         </label>
                         <label>
+                          Date of detention
+                          <input
+                            value={editingPerson.date_of_detention}
+                            onChange={(event) => updateEditingPerson('date_of_detention', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Date of death
+                          <input
+                            value={editingPerson.date_of_death}
+                            onChange={(event) => updateEditingPerson('date_of_death', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Place of death
+                          <input
+                            value={editingPerson.place_of_death}
+                            onChange={(event) => updateEditingPerson('place_of_death', event.target.value)}
+                          />
+                        </label>
+                        <label>
                           Place of disappearance
                           <input
                             value={editingPerson.place_of_disappearance}
                             onChange={(event) => updateEditingPerson('place_of_disappearance', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Country of detention
+                          <input
+                            value={editingPerson.country_of_detention}
+                            onChange={(event) => updateEditingPerson('country_of_detention', event.target.value)}
                           />
                         </label>
                         <label>
@@ -1060,6 +1130,20 @@ export function App() {
                             <option value="not_found">Not found</option>
                             <option value="found">Found</option>
                           </select>
+                        </label>
+                        <label>
+                          Date remains found
+                          <input
+                            value={editingPerson.date_of_remains_found}
+                            onChange={(event) => updateEditingPerson('date_of_remains_found', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Place remains found
+                          <input
+                            value={editingPerson.place_of_remains_found}
+                            onChange={(event) => updateEditingPerson('place_of_remains_found', event.target.value)}
+                          />
                         </label>
                         <label>
                           Source page
@@ -1111,17 +1195,38 @@ export function App() {
                           <EmptyState text="No selected portrait." />
                         )}
                       </div>
+                      <div className={`portrait-review-box ${editingPerson.portrait_review.needs_review ? 'needs-review' : ''}`}>
+                        <strong>
+                          {editingPerson.portrait_review.needs_review
+                            ? portraitReviewLabel(editingPerson.portrait_review.reason)
+                            : 'selected portrait current'}
+                        </strong>
+                        <span>
+                          {editingPerson.portrait_review.candidate_count} candidates, {editingPerson.portrait_review.review_candidate_count} alternates
+                        </span>
+                        {editingPerson.portrait_review.best_alternative_id && (
+                          <span>
+                            best alternate: {editingPerson.portrait_review.best_alternative_id} ({editingPerson.portrait_review.best_alternative_source || 'source pending'})
+                          </span>
+                        )}
+                      </div>
                       <div className="candidate-list">
                         {editingPerson.portrait_candidates.length === 0 && <EmptyState text="No portrait candidates recorded." />}
                         {editingPerson.portrait_candidates.map((candidate) => {
                           const localPath = candidate.processed_path || candidate.raw_path;
                           const isSelected = candidate.id === editingPerson.selected_portrait_id;
+                          const isBestAlternative = candidate.id === editingPerson.portrait_review.best_alternative_id;
                           return (
-                            <article className={`candidate-card ${isSelected ? 'selected' : ''}`} key={candidate.id}>
+                            <article className={`candidate-card ${isSelected ? 'selected' : ''} ${isBestAlternative ? 'review-candidate' : ''}`} key={candidate.id}>
                               {localPath ? <img src={fileUrl(localPath)} alt="" /> : <div />}
                               <div>
                                 <strong>{candidate.source_name || candidate.source_id || candidate.id}</strong>
                                 <span>{candidate.source_page || candidate.source_url}</span>
+                                <span>
+                                  {candidateDimensions(candidate)}
+                                  {candidate.confidence ? ` | ${candidate.confidence}` : ''}
+                                </span>
+                                <span>{candidate.status || 'candidate'}{isSelected ? ' | selected' : ''}{isBestAlternative ? ' | review' : ''}</span>
                               </div>
                               <div className="candidate-actions">
                                 <button

@@ -35,6 +35,15 @@ REQUIRED_PERSON_FIELDS = (
     "remains_status",
     "selected_portrait",
 )
+EMBEDDED_FIELD_ALIASES = {
+    "Fecha de muerte": "date_of_death",
+}
+EMBEDDED_LABEL_SOURCE_FIELDS = (
+    "country_of_detention",
+    "places_of_detention",
+    "country_of_disappearance",
+    "place_of_disappearance",
+)
 
 
 def slugify(value: str) -> str:
@@ -57,6 +66,44 @@ def utc_now() -> str:
 
 def clean_text(value: object) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def normalise_source_date(value: str) -> str:
+    value = value.strip()
+    match = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", value)
+    if match:
+        day, month, year = match.groups()
+        return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+    match = re.fullmatch(r"(\d{1,2})/(\d{4})", value)
+    if match:
+        month, year = match.groups()
+        return f"{int(year):04d}-{int(month):02d}"
+    return value
+
+
+def split_embedded_labelled_fields(value: object) -> tuple[object, dict[str, str]]:
+    if isinstance(value, list):
+        tokens = [clean_text(item) for item in value if clean_text(item)]
+        return_list = True
+    else:
+        text = clean_text(value)
+        if not text:
+            return [] if isinstance(value, list) else "", {}
+        tokens = [clean_text(part) for part in text.split("|") if clean_text(part)]
+        return_list = False
+    cleaned: list[str] = []
+    extracted: dict[str, str] = {}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        target_field = EMBEDDED_FIELD_ALIASES.get(token)
+        if target_field and index + 1 < len(tokens):
+            extracted[target_field] = normalise_source_date(tokens[index + 1])
+            index += 2
+            continue
+        cleaned.append(token)
+        index += 1
+    return (cleaned if return_list else " | ".join(cleaned)), extracted
 
 
 def ensure_list(value: object) -> list[str]:
@@ -117,9 +164,61 @@ def selected_candidate(person: dict[str, Any]) -> dict[str, Any] | None:
             if candidate.get("id") == selected_id:
                 return candidate
     for candidate in candidates:
-        if candidate.get("processed_path") or candidate.get("raw_path"):
+        if candidate.get("processed_path"):
             return candidate
     return None
+
+
+def _candidate_area(candidate: dict[str, Any] | None) -> int:
+    if not candidate:
+        return 0
+    try:
+        width = int(candidate.get("width") or 0)
+        height = int(candidate.get("height") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(width, 0) * max(height, 0)
+
+
+def portrait_review_summary(person: dict[str, Any]) -> dict[str, Any]:
+    selected = selected_candidate(person)
+    candidates = list(person.get("portrait_candidates") or [])
+    selected_area = _candidate_area(selected)
+    best_alternative: dict[str, Any] | None = None
+    best_area = 0
+    review_candidate_count = 0
+    for candidate in candidates:
+        if selected and candidate.get("id") == selected.get("id"):
+            continue
+        if not candidate.get("raw_path") and not candidate.get("processed_path"):
+            continue
+        review_candidate_count += 1
+        area = _candidate_area(candidate)
+        if area > best_area:
+            best_area = area
+            best_alternative = candidate
+    if selected is None:
+        reason = "missing-selected-portrait"
+        needs_review = True
+    elif best_alternative is not None and (selected_area == 0 or best_area >= selected_area * 1.5):
+        reason = "higher-resolution-alternative"
+        needs_review = True
+    elif best_alternative is not None:
+        reason = "alternative-candidate"
+        needs_review = True
+    else:
+        reason = ""
+        needs_review = False
+    return {
+        "needs_review": needs_review,
+        "reason": reason,
+        "selected_area": selected_area,
+        "best_alternative_area": best_area,
+        "candidate_count": len(candidates),
+        "review_candidate_count": review_candidate_count,
+        "best_alternative_id": best_alternative.get("id") if best_alternative else "",
+        "best_alternative_source": best_alternative.get("source_id") if best_alternative else "",
+    }
 
 
 def missing_fields(person: dict[str, Any]) -> list[str]:
@@ -130,6 +229,14 @@ def missing_fields(person: dict[str, Any]) -> list[str]:
             if candidate is None or not candidate.get("processed_path"):
                 missing.append(field)
             continue
+        if field == "date_of_disappearance":
+            if not clean_text(person.get("date_of_disappearance")) and not clean_text(person.get("date_of_death")):
+                missing.append(field)
+            continue
+        if field == "place_of_disappearance":
+            if not clean_text(person.get("place_of_disappearance")) and not clean_text(person.get("place_of_death")):
+                missing.append(field)
+            continue
         value = clean_text(person.get(field))
         if not value or (field == "remains_status" and value == "unknown"):
             missing.append(field)
@@ -137,6 +244,19 @@ def missing_fields(person: dict[str, Any]) -> list[str]:
 
 
 def normalise_person(raw: dict[str, Any]) -> dict[str, Any]:
+    raw = dict(raw)
+    field_sources = dict(raw.get("field_sources") or {})
+    for field in EMBEDDED_LABEL_SOURCE_FIELDS:
+        cleaned, extracted = split_embedded_labelled_fields(raw.get(field))
+        if extracted:
+            raw[field] = cleaned
+            source_id = field_sources.get(field)
+            for extracted_field, extracted_value in extracted.items():
+                if not clean_text(raw.get(extracted_field)):
+                    raw[extracted_field] = extracted_value
+                if source_id and extracted_field not in field_sources:
+                    field_sources[extracted_field] = source_id
+
     full_name = clean_text(raw.get("full_name") or raw.get("name"))
     person_id = clean_text(raw.get("id") or raw.get("slug") or slugify(full_name))
     if not full_name:
@@ -153,7 +273,7 @@ def normalise_person(raw: dict[str, Any]) -> dict[str, Any]:
     selected_id = clean_text(raw.get("selected_portrait_id"))
     if not selected_id:
         for candidate in candidates:
-            if candidate.get("processed_path") or candidate.get("raw_path"):
+            if candidate.get("processed_path"):
                 selected_id = candidate["id"]
                 break
     review_status = clean_text(raw.get("review_status")).lower() or "pending"
@@ -167,19 +287,30 @@ def normalise_person(raw: dict[str, Any]) -> dict[str, Any]:
         "family_names": clean_text(raw.get("family_names")),
         "date_of_birth": clean_text(raw.get("date_of_birth")),
         "place_of_birth": clean_text(raw.get("place_of_birth")),
+        "age_at_disappearance": raw.get("age_at_disappearance") or "",
+        "nationality": ensure_list(raw.get("nationality")),
+        "occupations": ensure_list(raw.get("occupations")),
+        "union_militancy": ensure_list(raw.get("union_militancy")),
+        "political_militancy": ensure_list(raw.get("political_militancy")),
         "date_of_disappearance": date_of_disappearance,
         "date_of_detention": clean_text(raw.get("date_of_detention")),
+        "date_of_death": clean_text(raw.get("date_of_death")),
+        "place_of_death": clean_text(raw.get("place_of_death")),
+        "country_of_detention": clean_text(raw.get("country_of_detention")),
         "place_of_disappearance": clean_text(raw.get("place_of_disappearance")),
         "country_of_disappearance": clean_text(raw.get("country_of_disappearance")),
         "places_of_detention": ensure_list(raw.get("places_of_detention")),
         "remains_status": infer_remains_status(raw),
         "date_of_remains_found": clean_text(raw.get("date_of_remains_found")),
         "place_of_remains_found": clean_text(raw.get("place_of_remains_found")),
+        "date_of_identification": clean_text(raw.get("date_of_identification")),
+        "victim_type": clean_text(raw.get("victim_type")),
         "short_bio": clean_text(raw.get("short_bio")),
         "notes": clean_text(raw.get("notes")),
         "source_page": clean_text(raw.get("source_page")),
         "sources": ensure_list(raw.get("sources")),
-        "field_sources": dict(raw.get("field_sources") or {}),
+        "field_sources": field_sources,
+        "field_source_refs": dict(raw.get("field_source_refs") or {}),
         "portrait_status": clean_text(raw.get("portrait_status")) or ("ok" if candidates else "missing"),
         "portrait_candidates": candidates,
         "selected_portrait_id": selected_id,
@@ -219,6 +350,7 @@ def person_to_api(person: dict[str, Any]) -> dict[str, Any]:
     api_person = dict(person)
     api_person["missing_fields"] = missing_fields(person)
     api_person["selected_portrait"] = candidate
+    api_person["portrait_review"] = portrait_review_summary(person)
     return api_person
 
 
@@ -232,6 +364,7 @@ def person_summary(people: list[dict[str, Any]]) -> dict[str, Any]:
         "count": len(people),
         "missing_count": len(missing),
         "weak_portrait_count": len(weak_portraits),
+        "portrait_review_count": sum(1 for person in people if portrait_review_summary(person)["needs_review"]),
         "approved_count": sum(1 for person in people if person.get("review_status") == "approved"),
     }
 
@@ -511,11 +644,15 @@ def target_row_from_person(person: dict[str, Any], manifest_path: Path, approved
             "birth_date": clean_text(person.get("date_of_birth")),
             "disappearance_date": clean_text(
                 person.get("date_of_disappearance") or person.get("date_of_detention")
+                or person.get("date_of_death")
             ),
-            "disappearance_place": clean_text(person.get("place_of_disappearance")),
+            "disappearance_place": clean_text(
+                person.get("place_of_disappearance") or person.get("place_of_death")
+            ),
             "notes": (
                 "Derived from canonical disappeared-person store; "
-                "target portrait is historical reference material, not source-corpus imagery."
+                "target portrait is historical reference material, not source-corpus imagery. "
+                "For killed cases with no separate disappearance location, the exported date/place may use death metadata."
             ),
         }
     )
@@ -536,7 +673,7 @@ def export_targets_manifest(
     ]
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=TARGET_FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=TARGET_FIELDS, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)

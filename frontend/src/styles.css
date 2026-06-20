@@ -343,7 +343,7 @@ label {
 }
 
 .person-summary strong {
-  grid-row: span 2;
+  grid-row: span 3;
   font-size: 28px;
   line-height: 1;
 }
@@ -490,6 +490,32 @@ label {
   display: block;
 }
 
+.portrait-review-box {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px;
+  background: var(--surface);
+}
+
+.portrait-review-box.needs-review {
+  border-color: var(--accent);
+  background: rgba(185, 83, 74, 0.08);
+}
+
+.portrait-review-box strong {
+  font-size: 12px;
+}
+
+.portrait-review-box span {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .candidate-list {
   display: grid;
   gap: 8px;
@@ -508,6 +534,11 @@ label {
 
 .candidate-card.selected {
   border-color: var(--accent);
+}
+
+.candidate-card.review-candidate {
+  border-color: var(--line-strong);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .candidate-card img,

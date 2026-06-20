@@ -1,5 +1,5 @@
 {
-  "description": "Authoritative sources for disappeared-person records and portraits. Each person record in data/persons/*.json carries a 'field_sources' map whose values are the 'id' fields below, recording which source is authoritative for each field (including 'portrait'). Curate this list as better sources are confirmed.",
+  "description": "Sources and candidate corpora for disappeared-person records and portraits. Each person record in data/persons/*.json carries a 'field_sources' map whose values are the 'id' fields below, recording which source is authoritative for each selected field (including 'portrait'). Candidate-only sources may appear in portrait_candidates but must not become field_sources until reviewed and selected.",
   "sources": [
     {
       "id": "sitios-de-memoria",
@@ -36,6 +36,15 @@
       "licence": "Public official report; verify reuse before public release",
       "trust": { "metadata": "high", "portrait": "medium" },
       "notes": "Official government investigation with per-person fichas (photo, personal data, detention and disappearance data). The bound tomos are mirrored locally under doc/."
+    },
+    {
+      "id": "local-fotos-desaparecidos",
+      "name": "Local tracked fotos-desaparecidos portrait corpus",
+      "url": "doc/fotos-desaparecidos",
+      "kind": "portrait-candidate",
+      "licence": "Unknown; pending provenance review",
+      "trust": { "metadata": "unknown", "portrait": "candidate" },
+      "notes": "Tracked local portrait files supplied with the project. Use as review-only candidate imagery; do not treat filename matches as authoritative identity or provenance evidence."
     }
   ]
 }

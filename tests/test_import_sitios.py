@@ -32,6 +32,10 @@ POSTER_ONLY_PAGE = """
 <div class="field field--name-field-nombres"><p>Nombre</p><p>Horacio Adolfo</p></div>
 <div class="field field--name-field-apellidos"><p>Apellido</p><p>Abeledo Sotuyo</p></div>
 <div class="field field--name-field-nacimiento"><p>Fecha de nacimiento</p><p>25/07/1953</p></div>
+<div class="field field--name-field-secuestro-pais"><p>País de secuestro/detención</p><p>Argentina</p></div>
+<div class="field field--name-field-muerte"><p>Fecha de muerte</p><p>30/08/1975</p></div>
+<div class="field field--name-field-hallazgo"><p>Lugar de hallazgo de restos</p><p>Playa Blancarena</p></div>
+<div class="field field--name-field-identificacion"><p>Fecha de identificación</p><p>2011</p></div>
 <div class="field field--name-field-victima-de"><p>Víctima de</p><p>Desaparición forzada</p></div>
 <h2>Obras de interés (1)</h2>
 <p>El tiempo pasa (2013)</p>
@@ -98,3 +102,7 @@ def test_fields_stop_before_works_section() -> None:
     # "Víctima de" must not slurp the "Obras de interés" / footer text.
     assert fields.get("victim_type") == "Desaparición forzada"
     assert fields.get("date_of_birth") == "1953-07-25"
+    assert fields.get("country_of_detention") == "Argentina"
+    assert fields.get("date_of_death") == "1975-08-30"
+    assert fields.get("place_of_remains_found") == "Playa Blancarena"
+    assert fields.get("date_of_identification") == "2011"

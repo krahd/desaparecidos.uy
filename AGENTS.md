@@ -148,9 +148,11 @@ Each repository should keep this section useful. Replace the placeholders below 
 - `data/raw/crawl/runs/`: ignored JSONL crawl-trail exports used by generated process videos.
 - `assets/targets/disappeared/selected/`: reviewed selected 3:4 portrait derivatives for the target corpus; raw downloads and generated candidates remain ignored.
 - `data/persons/disappeared-sitios-de-memoria.*`, `assets/targets/disappeared/raw/`, `assets/targets/disappeared/processed/`, and `data/manifests/targets-sitios-de-memoria.csv`: ignored legacy/importer working outputs.
-- `data/sources.json`: tracked registry of authoritative sources; person records reference its ids in their `field_sources` provenance map.
+- `data/sources.json`: tracked registry of authoritative sources and review-only candidate corpora; person records reference authoritative ids in their `field_sources` provenance map.
 - `outputs/stage1/`: ignored generated stills, videos, and sidecar metadata.
 - `scripts/`: local helper scripts.
+- `scripts/audit_target_corpus.py`: target-corpus audit command for selected-portrait coverage, portrait-review needs, missing fields, portrait source counts, and unresolved person records.
+- `scripts/suggest_local_portrait_matches.py`: review-only matcher from `data/manifests/local-targets.csv` / `doc/fotos-desaparecidos` to canonical person records; it may append candidates but must not auto-select portraits.
 - `start.sh`: launcher script for the local GUI.
 
 ### 5.3:  Safety invariants
@@ -165,6 +167,7 @@ Each repository should keep this section useful. Replace the placeholders below 
 - Preserve exact and perceptual dedupe so repeated image variants do not become repeated manifest rows.
 - Keep `targets` for disappeared-person portraits only. Contemporary public images of people belong in `people` manifests for internal Stage 2 review and must not be treated as disappeared-person targets.
 - Keep target administration in the person store first. `targets.csv` is a generation-compatible export, not the canonical person database.
+- Treat local portrait filename matches as candidate evidence only. Raw-only candidates must not become selected portraits until reviewed and processed into `assets/targets/disappeared/selected/`.
 - Do not add identity-seeking behaviour, face/name matching, or biometric identification for contemporary people images.
 - Treat public availability as insufficient consent for arbitrary processing. For contemporary people imagery, exclude minors, private contexts, and sensitive contexts such as schools, hospitals, prisons, shelters, protests, funerals, religious ceremonies, political meetings, health, criminal justice, and education unless explicit permission exists.
 - Computer-vision gating must require real detected faces for `targets` and `people`; do not use fallback face boxes. `places` gating must prefer photo-like non-face scene material and reject obvious graphics, logos/posters, prominent faces, and noise-like textures. CV never auto-approves rows and never identifies people.

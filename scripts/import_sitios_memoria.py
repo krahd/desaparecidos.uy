@@ -60,10 +60,12 @@ FIELD_ALIASES = {
     "Fecha de secuestro/detención": "date_of_detention",
     "País de secuestro/detención": "country_of_detention",
     "Lugar(es) de detención": "places_of_detention",
+    "Fecha de muerte": "date_of_death",
     "Lugar de muerte o desaparición": "place_of_disappearance",
     "País de muerte o desaparición": "country_of_disappearance",
     "Fecha de hallazgo de restos": "date_of_remains_found",
     "Lugar de hallazgo de restos": "place_of_remains_found",
+    "Fecha de identificación": "date_of_identification",
     "Víctima de": "victim_type",
 }
 LIST_FIELD_MAP = {
@@ -84,7 +86,13 @@ LIST_LIKE_FIELDS = {
     "union_militancy",
     "places_of_detention",
 }
-DATE_FIELDS = {"date_of_birth", "date_of_detention", "date_of_remains_found"}
+DATE_FIELDS = {
+    "date_of_birth",
+    "date_of_detention",
+    "date_of_death",
+    "date_of_remains_found",
+    "date_of_identification",
+}
 
 
 @dataclass
@@ -432,8 +440,13 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
     full_name = first_nonempty(row, ["Nombre", "nombre", "full_name", "Persona"])
     if not full_name:
         full_name = slug.replace("-", " ").title()
-    page_html = request_text(page_url)
-    page_fields, bio = extract_fields(page_html)
+    page_html = ""
+    page_error = ""
+    try:
+        page_html = request_text(page_url)
+    except (HTTPError, URLError, TimeoutError) as exc:
+        page_error = str(exc)
+    page_fields, bio = extract_fields(page_html) if page_html else ({}, None)
     fields: dict[str, object] = {}
     for source_key, target_key in LIST_FIELD_MAP.items():
         if row.get(source_key):
@@ -441,18 +454,32 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
     fields.update({k: v for k, v in page_fields.items() if v not in (None, "", [])})
     if fields.get("given_names") and fields.get("family_names"):
         full_name = f"{fields['given_names']} {fields['family_names']}"
-    record = PersonRecord(slug=slug, full_name=full_name, source_page=page_url, fields=fields, short_bio=bio, sources=[page_url, LIST_URL])
+    if page_error:
+        fields["notes"] = (
+            f"Sitios de Memoria person page unavailable during import: {page_url} "
+            f"({page_error}). Metadata and portrait candidate imported from the Sitios export row."
+        )
+    record = PersonRecord(
+        slug=slug,
+        full_name=full_name,
+        source_page=page_url if page_html else LIST_URL,
+        fields=fields,
+        short_bio=bio,
+        sources=[source for source in [page_url if page_html else "", LIST_URL] if source],
+    )
     # Provenance: every metadata field imported here comes from Sitios de Memoria.
     record.field_sources = {key: SITIOS_SOURCE_ID for key in fields}
     # Conservative portrait selection: at most the single header-block portrait,
     # or none at all when the page only carries works/materials imagery.
-    portrait_urls = select_portrait_urls(page_html, page_url)
+    portrait_urls = select_portrait_urls(page_html, page_url) if page_html else []
+    if not portrait_urls and row.get("Foto"):
+        portrait_urls = [urljoin(BASE_URL, row["Foto"])]
     record.portrait_status = "ok" if portrait_urls else "missing"
     if portrait_urls:
         record.field_sources["portrait"] = SITIOS_SOURCE_ID
     if portrait_urls and (args.download_images or args.process_images):
         url = portrait_urls[0]
-        candidate = ImageCandidate(source_url=url, source_page=page_url)
+        candidate = ImageCandidate(source_url=url, source_page=page_url if page_html else LIST_URL)
         try:
             raw_path, digest = download_portrait(url, args.raw_dir / slug, "01", args.overwrite)
             candidate.raw_path = str(raw_path.relative_to(args.repo_root))
@@ -480,11 +507,12 @@ def write_people_csv(path: Path, records: list[PersonRecord]) -> None:
     columns = [
         "slug", "full_name", "date_of_birth", "place_of_birth", "age_at_disappearance",
         "nationality", "occupations", "union_militancy", "political_militancy", "date_of_detention",
-        "country_of_detention", "places_of_detention", "country_of_disappearance", "place_of_disappearance",
+        "country_of_detention", "places_of_detention", "date_of_death",
+        "country_of_disappearance", "place_of_disappearance",
         "date_of_remains_found", "place_of_remains_found", "victim_type", "source_page", "short_bio",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for record in records:
             row = {key: record.as_dict().get(key, "") for key in columns}
@@ -502,7 +530,7 @@ def write_target_manifest(path: Path, records: list[PersonRecord], approved_targ
         if (row := target_row_from_person(person, path, approved_targets)) is not None
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=TARGET_FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=TARGET_FIELDS, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow(row)

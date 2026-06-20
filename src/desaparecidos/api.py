@@ -34,6 +34,8 @@ from .persons import (
 )
 from .pipeline import DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
 
+DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 240
+
 
 class ValidateRequest(BaseModel):
     targets: str = "data/manifests/targets.csv"
@@ -151,6 +153,11 @@ class PersonExportTargetsRequest(BaseModel):
     store: str = "data/persons/disappeared.json"
     manifest: str = "data/manifests/targets.csv"
     approved: bool = False
+
+
+def _normalise_contribution_cap(value: int) -> int:
+    """Map legacy 0/unset GUI values to the active ethical default cap."""
+    return value if value > 0 else DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
 
 
 def create_app() -> FastAPI:
@@ -379,7 +386,7 @@ def create_app() -> FastAPI:
             fragment_size=request.fragment_size,
             reuse_limit=request.reuse_limit,
             output_width=request.output_width,
-            max_contribution_per_source=request.max_contribution_per_source,
+            max_contribution_per_source=_normalise_contribution_cap(request.max_contribution_per_source),
             search_scan_frames_per_candidate=request.search_scan_frames_per_candidate,
             search_scan_max_candidates=request.search_scan_max_candidates,
             make_video=request.make_video,

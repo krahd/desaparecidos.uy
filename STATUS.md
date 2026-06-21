@@ -1,24 +1,26 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-20 14:45 GMT-3
+Last updated: 2026-06-20 20:29 GMT-3
 
 ## Project purpose
 
-`desaparecidos.uy` is a local-first computational memorial artwork triptych about detained-disappeared persons connected to Uruguay: **Todos somos familiares**, **Están en todas partes**, and **Seguimos buscando**. The current implementation actively supports the first two artworks on separate pages; **Seguimos buscando** remains future work. The system is not an archive, forensic tool, biometric system, deepfake, resurrection medium, or identity-matching workflow.
+`desaparecidos.uy` is a local-first computational memorial artwork triptych about detained-disappeared persons connected to Uruguay: **Todos somos familiares**, **Están en todas partes**, and **Seguimos buscando**. All three artworks now have separate functional workspaces. The system is not an archive, forensic tool, biometric system, deepfake, resurrection medium, or identity-matching workflow.
 
 ## Current implementation state
 
 The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, preprocessing, and target-admin features. The branch keeps:
 
 - canonical disappeared-person target records in `data/persons/disappeared.json`;
-- target administration APIs and a GUI screen for missing-field review, portrait-review filtering, record editing, portrait candidate download, selected portrait processing, and target-manifest export;
+- target administration APIs and a GUI screen for incomplete-record review, portrait-review filtering, linked person/portrait selection, unsaved-edit confirmation, record editing, portrait candidate download, selected portrait processing, and explicit target-manifest export;
 - reviewed selected 3:4 target portrait derivatives under trackable `assets/targets/disappeared/selected/`, while raw downloads and rejected candidates remain ignored;
 - a first full imported corpus pass: 204 person records, 202 selected portrait derivatives, 321 total portrait candidates, 118 review-only local alternate portrait candidates, and two unresolved public-portrait gaps (`camuyrano-bottini-mario`, `gadea-hernandez-liborio`) recorded in person notes after trusted-source and web checks;
 - reviewed source-backed metadata overrides in `data/persons/metadata-overrides.csv`, applied to the canonical store with per-field `field_sources` and `field_source_refs`;
-- four functional hash-routed GUI pages for Targets, Images, Todos somos familiares, and Están en todas partes;
+- five functional hash-routed GUI pages for Targets, Images, Todos somos familiares, Están en todas partes, and Seguimos buscando;
 - combined single-traversal crawling with separate place/people classification, manifests, run ids, trails, review states, and per-kind dedupe;
 - artwork-aware still/video generation: approved face-region fragments for Todos somos familiares and approved place fragments for Están en todas partes;
 - fragment-field process videos that never display complete source photographs or non-contributing raw candidates;
+- provider-neutral traversal storage with a Mapillary adapter, manual/GeoJSON/GPX/autonomous route authoring, bounded local frame acquisition, manual frame approval, and deterministic Seguimos buscando rendering;
+- traversal overlay, alternating-phase, and split-screen compositions for single targets or artist-ordered target sequences, with only already-traversed approved frames contributing fragments;
 - `people` manifest support for internal contemporary people-source review and generation;
 - crawler run/page/image trail persistence in SQLite plus JSONL run exports;
 - exact SHA-256 and perceptual duplicate rejection;
@@ -42,7 +44,7 @@ The restored current-state features include:
 
 ## Active focus
 
-The active focus combines target corpus curation with the first two artwork workflows: review-gated people/place acquisition, provenance-preserving source separation, and fragment-only generation that keeps contemporary source persons non-identifiable in outputs.
+The active focus combines target corpus curation with all three artwork workflows: review-gated people/place acquisition, reviewed street-level traversal acquisition, provenance-preserving source separation, and fragment assembly that keeps source use auditable.
 
 ## Architecture overview
 
@@ -58,26 +60,26 @@ The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls 
   </defs>
   <rect x="35" y="42" width="170" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
   <text x="120" y="68" text-anchor="middle" font-size="15" fill="#111">React/Vite GUI</text>
-  <text x="120" y="90" text-anchor="middle" font-size="12" fill="#333">four routed workspaces</text>
+  <text x="120" y="90" text-anchor="middle" font-size="12" fill="#333">five routed workspaces</text>
   <rect x="35" y="150" width="170" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
   <text x="120" y="180" text-anchor="middle" font-size="15" fill="#111">CLI tools</text>
   <text x="120" y="202" text-anchor="middle" font-size="12" fill="#333">validate, crawl, run</text>
   <rect x="270" y="92" width="170" height="92" rx="8" fill="#f4f4f0" stroke="#333"/>
   <text x="355" y="126" text-anchor="middle" font-size="15" fill="#111">FastAPI backend</text>
-  <text x="355" y="148" text-anchor="middle" font-size="12" fill="#333">review, dual crawl, generate</text>
+  <text x="355" y="148" text-anchor="middle" font-size="12" fill="#333">review, crawl, traverse, generate</text>
   <rect x="505" y="32" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
   <text x="590" y="62" text-anchor="middle" font-size="15" fill="#111">Persons + manifests</text>
   <text x="590" y="84" text-anchor="middle" font-size="12" fill="#333">targets, places, people</text>
   <rect x="505" y="134" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="590" y="164" text-anchor="middle" font-size="15" fill="#111">Crawler cache</text>
-  <text x="590" y="186" text-anchor="middle" font-size="12" fill="#333">SQLite, store, JSONL</text>
+  <text x="590" y="164" text-anchor="middle" font-size="15" fill="#111">Acquisition caches</text>
+  <text x="590" y="186" text-anchor="middle" font-size="12" fill="#333">crawl + traversal frames</text>
   <rect x="505" y="236" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
-  <text x="590" y="266" text-anchor="middle" font-size="15" fill="#111">Local corpus</text>
-  <text x="590" y="288" text-anchor="middle" font-size="12" fill="#333">doc and processed files</text>
+  <text x="590" y="266" text-anchor="middle" font-size="15" fill="#111">Corpus + providers</text>
+  <text x="590" y="288" text-anchor="middle" font-size="12" fill="#333">local files + Mapillary API</text>
   <rect x="760" y="92" width="170" height="92" rx="8" fill="#f4f4f0" stroke="#333"/>
   <text x="845" y="124" text-anchor="middle" font-size="15" fill="#111">Pipeline</text>
-  <text x="845" y="142" text-anchor="middle" font-size="12" fill="#333">two artwork modes</text>
-  <text x="845" y="164" text-anchor="middle" font-size="12" fill="#333">fragment-only video</text>
+  <text x="845" y="142" text-anchor="middle" font-size="12" fill="#333">three artwork modes</text>
+  <text x="845" y="164" text-anchor="middle" font-size="12" fill="#333">review-gated video</text>
   <rect x="760" y="236" width="170" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
   <text x="845" y="266" text-anchor="middle" font-size="15" fill="#111">Outputs</text>
   <text x="845" y="288" text-anchor="middle" font-size="12" fill="#333">PNG, MP4, JSON</text>
@@ -94,11 +96,11 @@ The application remains localhost-only. The GUI talks to FastAPI, FastAPI calls 
 
 ## Execution and data flow
 
-The current data flow shares one bounded crawl traversal, then keeps place and people decisions separate through review and generation. Both artwork modes display only fragments that contribute to the reconstructed target; complete source photographs and non-contributing raw candidates remain out of generated video frames.
+The first two artworks share one bounded crawl and keep place/people decisions separate. Seguimos buscando uses a separate provider-neutral route workflow: route discovery, local acquisition, manual frame approval, then deterministic offline rendering. Only approved frames already reached in the traversal can contribute to the current portrait state.
 
-<svg width="1180" height="470" viewBox="0 0 1180 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
+<svg width="1180" height="590" viewBox="0 0 1180 590" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">Current corpus, crawler, review, and video flow</title>
-  <desc id="flow-desc">Person records export reviewed targets; one crawler traversal classifies candidates into separate place and people manifests; approved rows feed the corresponding fragment-only artwork generator.</desc>
+  <desc id="flow-desc">Person records export reviewed targets; one crawler classifies candidates into place and people manifests; a separate Mapillary route workflow acquires and reviews street frames; approved inputs feed all three artwork generators.</desc>
   <defs>
     <marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
@@ -148,6 +150,27 @@ The current data flow shares one bounded crawl traversal, then keeps place and p
   <line x1="950" y1="339" x2="1000" y2="339" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
   <path d="M480 78 L970 78 L970 174 L1000 174" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
   <path d="M970 78 L970 312 L1000 312" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <rect x="30" y="455" width="190" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="125" y="483" text-anchor="middle" font-size="14" fill="#111">Route authoring</text>
+  <text x="125" y="505" text-anchor="middle" font-size="12" fill="#333">map, GeoJSON/GPX, region</text>
+  <rect x="290" y="455" width="190" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="385" y="483" text-anchor="middle" font-size="14" fill="#111">Mapillary discovery</text>
+  <text x="385" y="505" text-anchor="middle" font-size="12" fill="#333">ordered sequence metadata</text>
+  <rect x="550" y="455" width="190" height="72" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="645" y="483" text-anchor="middle" font-size="14" fill="#111">Traversal cache</text>
+  <text x="645" y="505" text-anchor="middle" font-size="12" fill="#333">pending local frames</text>
+  <rect x="790" y="455" width="160" height="72" rx="8" fill="#f4f4f0" stroke="#333"/>
+  <text x="870" y="483" text-anchor="middle" font-size="14" fill="#111">Frame review</text>
+  <text x="870" y="505" text-anchor="middle" font-size="12" fill="#333">manual approval</text>
+  <rect x="1000" y="445" width="160" height="92" rx="8" fill="#eef7ee" stroke="#333"/>
+  <text x="1080" y="476" text-anchor="middle" font-size="14" fill="#111">Seguimos buscando</text>
+  <text x="1080" y="500" text-anchor="middle" font-size="12" fill="#333">traversal + fragments</text>
+  <text x="1080" y="522" text-anchor="middle" font-size="12" fill="#333">PNG, MP4, JSON</text>
+  <line x1="220" y1="491" x2="290" y2="491" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="480" y1="491" x2="550" y2="491" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="740" y1="491" x2="790" y2="491" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <line x1="950" y1="491" x2="1000" y2="491" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
+  <path d="M480 78 L1170 78 L1170 420 L1080 420 L1080 445" fill="none" stroke="#555" stroke-width="2" marker-end="url(#flow-arrow)"/>
 </svg>
 
 ## Setup and run instructions
@@ -182,6 +205,7 @@ git diff --check
 ## Configuration and environment variables
 
 - `VITE_API_BASE` can point the frontend at a non-default local API during development.
+- `MAPILLARY_ACCESS_TOKEN` enables backend Mapillary sequence discovery. It is used only in the authorisation header and is never persisted or returned to the browser.
 - The backend and GUI must remain bound to localhost unless explicitly changed.
 - `ffmpeg` with H.264/libx264 support is required for browser-playable MP4 video generation.
 - OpenCV is provided by `opencv-python-headless` and is used only for local CV filtering; no remote model or identity service is involved.
@@ -192,6 +216,7 @@ git diff --check
 - `pyproject.toml`: Python package and CLI metadata.
 - `src/desaparecidos/api.py`: FastAPI routes.
 - `src/desaparecidos/pipeline.py`: Stage 1 assembly, sidecars, still/video rendering, URL ticker, outro.
+- `src/desaparecidos/traversals.py`: provider-neutral route model, GeoJSON/GPX parsing, Mapillary adapter, acquisition/review store, and third-artwork renderer.
 - `src/desaparecidos/crawl.py`: bounded crawler, presets-compatible ingestion, dedupe, CV decisions, manifest row creation.
 - `src/desaparecidos/cache.py`: ignored SQLite/file cache plus crawl run/page/image trail persistence.
 - `src/desaparecidos/cv.py`: local non-identity CV filters and perceptual hash helpers.
@@ -203,7 +228,8 @@ git diff --check
 - `scripts/audit_target_corpus.py`: reports selected portrait coverage, portrait-review needs, missing metadata fields, portrait source counts, and unresolved target-person records.
 - `scripts/apply_person_metadata_overrides.py`: applies reviewed per-field metadata corrections from `data/persons/metadata-overrides.csv` and records source ids/references.
 - `scripts/suggest_local_portrait_matches.py`: compares the older local portrait corpus against canonical person names and can append strong matches as review-only candidates.
-- `frontend/src/App.tsx`: black four-page hash-routed GUI for targets, images, and the first two artworks.
+- `frontend/src/App.tsx`: black five-page hash-routed GUI and linked target administration/review selection.
+- `frontend/src/SeguimosBuscando.tsx` and `frontend/src/TraversalMap.tsx`: third-artwork route authoring, acquisition/review, generation controls, and MapLibre map.
 - `data/sources.json`: tracked registry of authoritative sources and review-only candidate corpora for disappeared-person fields and portraits.
 - `data/persons/disappeared.json`: canonical target-person metadata/provenance store.
 - `assets/targets/disappeared/selected/`: trackable reviewed 3:4 selected portrait derivatives.
@@ -218,7 +244,7 @@ git diff --check
 ## Current capabilities
 
 - Validate `targets`, `places`, and `people` manifests.
-- Administer target-person records in the GUI: search, filter missing information or portrait-review needs, edit biographical/remains fields, add explicit online portrait candidates, process selected portraits to 3:4, and export the derived target manifest.
+- Administer target-person records in the GUI: search, filter incomplete information or portrait-review needs, edit biographical/remains fields, link person and portrait-review selection by canonical id, add explicit online portrait candidates, process selected portraits to 3:4, and explicitly export the derived target manifest.
 - Serve person-store APIs for list/get/save/delete, source registry, search-plan links, portrait candidate download, selected portrait processing/selection, and target manifest export.
 - Review rows for all three manifest kinds: per-row approve/reject/reset/delete, plus checkbox selection with Select all, Select none, Approve selected, and Delete selected.
 - Import disappeared-person metadata and portraits from Sitios de Memoria into the canonical store with conservative portrait selection (only the `field-fotografia` image) and `portrait_status` of `ok`/`missing`; record per-field provenance in `field_sources` against `data/sources.json`.
@@ -233,6 +259,7 @@ git diff --check
 - Store face-region metadata for accepted `people` rows for manual review only; `people` rows now require a detected face and no fallback face box is generated.
 - Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate stills and MP4 process videos for **Todos somos familiares** from approved face regions and for **Están en todas partes** from approved place images.
+- Discover and cache Mapillary routes for **Seguimos buscando**, approve frames manually, and render single-target or ordered multi-target traversal videos in overlay, alternating, or split-screen composition.
 - Show only patches that contribute to the reconstruction in process videos; never introduce complete source photographs or non-contributing raw candidates.
 - Cap source contribution with `max_contribution_per_source`; the default is `1`, place generation permits explicit `0`/unlimited use, and people generation requires a positive cap.
 - Control output block size through the GUI `Block size` slider wired to `fragment_size`.
@@ -241,7 +268,15 @@ git diff --check
 
 ## Recent changes
 
-- Replaced the scrolling dashboard with four functional hash-routed pages: Targets, Images, Todos somos familiares, and Están en todas partes. Seguimos buscando is explicitly marked as future work.
+- Fixed direct `#targets` reload so the target review manifest is active immediately; Images retains its last Places/People review tab.
+- Corrected target administration/Review images linkage for both image clicks and selection checkboxes. It resolves exact canonical ids first, then unique matching portrait source URLs or local portrait filenames for persisted legacy manifests; unmatched rows remain review-only. Counterpart scrolling and unsaved-edit confirmation remain enforced.
+- Fixed cross-panel target selections such as Basualdo Noguera disappearing under an active administration filter/query: hidden selections now reset the browser to All with an empty query. The Target administration panel now has a viewport-bounded body so its titlebar/actions remain fixed while the list and editor scroll internally.
+- Renamed visible target curation terminology from “Missing” to “Incomplete” while retaining backend `missing_fields` and `missing_count` compatibility keys.
+- Added the fifth **Seguimos buscando** workspace with MapLibre route authoring, GeoJSON/GPX import, autonomous region/duration discovery, Mapillary acquisition, contact-sheet frame review, ordered targets, three composition modes, and artwork-filtered outputs.
+- Added provider-neutral traversal APIs and `run-traversal` CLI support. Traversal JSON records route geometry, provider attribution, ordered frames, checksums, CV flags, review states, sequence jumps, and internal release state under ignored `data/raw/traversals/`.
+- Added deterministic third-artwork rendering and sidecars. Only approved frames already encountered in route order can contribute fragments; disconnected sequences use direct jump cuts.
+- Added MapLibre GL JS as the required interactive-map production dependency and upgraded Vite/Vitest tooling to secure current versions; `npm audit` reports zero vulnerabilities.
+- Previously replaced the scrolling dashboard with functional hash-routed workspaces; the current fifth page completes the triptych navigation.
 - Added `POST /api/crawl/combined`: one traversal and cached download per unique candidate now produces independent place/people CV decisions, manifests, run ids, trails, and review rows under one overall candidate cap. The legacy single-kind endpoint remains available.
 - Added artwork-aware API/pipeline/CLI generation. Todos somos familiares requires approved people rows with valid face boxes and extracts fragments only from the reviewed face region; Están en todas partes consumes approved place rows. Sidecars record the artwork, source kind, and source manifest, and legacy outputs default to Están en todas partes in the GUI.
 - Replaced full-source and raw-candidate video frames with a deterministic contributing-fragment field for both artworks. Only patches actually placed in the target are displayed and animated.
@@ -282,14 +317,16 @@ git diff --check
 
 ## Tests and verification status
 
-Latest local verification (four-page, combined-crawl, two-artwork work):
+Latest local verification (five-page, traversal, and linked-target work):
 
-- `.venv/bin/python -m pytest -q`: passed, 110 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m pytest -q`: passed, 120 tests, 1 upstream Starlette/httpx deprecation warning.
 - `.venv/bin/python -m compileall src tests scripts`: passed.
-- `npm --prefix frontend run build`: passed (`tsc` and Vite production build).
+- `npm --prefix frontend test`: passed, 7 route/linkage/filter tests.
+- `npm --prefix frontend run build`: passed (`tsc` and Vite 8 production build); the bundle-size advisory remains informational.
+- `npm --prefix frontend audit --audit-level=moderate`: passed, zero vulnerabilities.
 - `zsh -n start.sh`: exited successfully with the known `nice(5)` permission warnings.
 - `git diff --check`: passed.
-- Built-frontend HTTP smoke on `127.0.0.1:5174`: `/` and all four hash URLs returned the Vite `index.html` with HTTP 200. Hash navigation interaction remains browser-unverified for the reasons below.
+- Browser-rendered interaction and live Mapillary acquisition have not yet been run; the automated route-state test covers the direct `#targets` reload regression.
 
 Previous target corpus metadata override verification:
 
@@ -318,11 +355,13 @@ Earlier verification retained from the current branch reconciliation:
 - Git: confirmed the 348MB zip blob is gone from all refs (`git rev-list --objects --all` has no match) and `.git` is ~577MB.
 - Local smoke: backend health on `127.0.0.1:8766` passed; built frontend served from `frontend/dist` on `127.0.0.1:5174` returned HTTP 200; static checks confirmed black CSS background, no primary `Download` panel text in the React app, Utilities modal demo controls, crawler `places/people`, and both generation sliders.
 
-Browser-rendered smoke is not complete in this environment: the Browser plugin is unavailable, neither the project nor the existing temporary tool directory contains a Playwright executable, the previously documented Homebrew `playwright` executable points to a missing Python 3.11 interpreter, and `safaridriver --enable` requires an interactive password. No browser dependency was added solely for this check.
+Browser-rendered smoke is not complete in this environment: the Browser plugin is unavailable, the Homebrew `playwright` executable points to a missing Python 3.11 interpreter, and Safari WebDriver rejected session creation because “Allow remote automation” is disabled (`safaridriver --enable` requires an interactive password). No browser dependency was added solely for this check.
 
 ## Known issues, risks, and limitations
 
 - Full browser-pixel verification remains blocked until Playwright or Safari WebDriver is repaired locally.
+- Live Mapillary discovery/acquisition remains unverified without a configured `MAPILLARY_ACCESS_TOKEN`; provider calls are mocked in automated tests.
+- The production frontend bundle is about 1.23 MB before gzip because MapLibre is currently loaded with the main application; Vite reports an informational chunk-size warning.
 - `zsh -n start.sh` reports `nice(5)` permission warnings even though syntax validation exits successfully.
 - The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
 - The target corpus is not yet complete: 187 of 204 records still have at least one required-field gap under the current strict missing-field policy, mostly `remains_status` and `place_of_disappearance`. Birth-date and loss-date gaps are currently resolved; four birthplace gaps remain.
@@ -340,6 +379,8 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - Review the 119 records flagged by `portrait_review` / the Targets Review filter; select and process only the local candidates that are verified as better portraits.
 - Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
 - Run a full manual GUI smoke in a browser once browser automation is available.
+- Configure a research Mapillary token, acquire a short Uruguay route, review the contact sheet, and inspect all three third-artwork composition modes before exhibition use.
+- Complete university legal review of Mapillary/OpenStreetMap attribution and any public-release terms; current traversal sidecars remain `internal_unreviewed`.
 - Review the merged `doc/DDHH/` archive additions and `doc/writings/` publication materials for repository size and publication-readiness policy if needed.
 - Keep checking that crawler presets stay mundane and contemporary rather than memory/archive oriented.
 - Continue improving CV thresholds only with manual review evidence from real crawl runs.
@@ -350,12 +391,13 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - Compare trusted source portraits and reviewed local portraits to choose the best selected portrait per person.
 - Use the Utilities modal only for synthetic fixture workflows; keep primary GUI space dedicated to the real artwork workflow.
 - Use crawled page trails and local image-candidate events as provenance evidence; generated frames show only contributing fragments.
+- Use the Seguimos buscando page to validate route density, autonomous selection, and pacing with real Uruguay sequence coverage.
 
 ## Longer-term steps
 
 - Add a reliable automated browser smoke suite for the GUI.
 - Continue strengthening internal people-source privacy tooling without identity matching.
-- Implement **Seguimos buscando** only after its traversal-specific interaction and source policy are designed; it is not part of the current runtime.
+- Add a Google Street View adapter only if later legal and technical review justifies it; keep the provider-neutral traversal contract unchanged.
 - Decide whether future gallery installation should run the live crawler/search process or replay documented crawl trails.
 - Revisit crawler persistence policy after the review workflow stabilises.
 
@@ -368,7 +410,9 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - Reviewed selected target portrait derivatives are allowed under `assets/targets/disappeared/selected/`; raw downloads and temporary candidates remain ignored.
 - Raw-only portrait candidates are never selected automatically. Local filename matches are candidate evidence, not identity/provenance proof.
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
-- The GUI has separate generation pages for the first two artworks. The artwork identifier, rather than a free source selector, determines whether a request consumes `people` or `places` rows.
+- Each artwork has a separate generation page. For the first two, the artwork identifier rather than a free source selector determines whether a request consumes `people` or `places` rows.
+- Seguimos buscando uses a separate traversal contract rather than overloading place manifests. Mapillary is the first adapter; provider tokens stay backend-only, acquisition is bounded, every participating frame requires manual approval, and rendering is deterministic from the local cache.
+- Target-manifest export remains explicit. Linking target administration and image review changes selection/highlighting only and never silently rewrites `targets.csv`.
 - A combined crawl shares traversal/download work but assigns separate run ids and trails so downstream artwork provenance cannot mix the two source kinds.
 - People fragments come only from a valid reviewed face box. Both artwork videos display contributing fragments only; complete source and rejected/non-contributing candidate images remain out of generated frames.
 - Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
@@ -379,9 +423,9 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 
 ## Documentation alignment notes
 
-- `README.md` describes the four routed workspaces, combined dual classification, separate artwork generation, face-region-only people fragments, fragment-only videos, contribution policy, and JSON sidecars.
+- `README.md` describes the five routed workspaces, incomplete-record terminology, linked target selection, combined dual classification, three artwork workflows, traversal configuration, contribution policy, and JSON sidecars.
 - `AGENTS.md` records current safety invariants, the canonical person-store/metadata-override/selected-portrait corpus exceptions, local portrait candidate review policy, strict people/place CV expectations, and non-identification requirements.
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-20 14:45 GMT-3
+Last updated: 2026-06-20 20:29 GMT-3

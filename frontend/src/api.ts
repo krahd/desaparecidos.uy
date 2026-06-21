@@ -48,7 +48,52 @@ export type GenerateResponse = {
   }>;
 };
 
-export type ArtworkKind = 'todos-somos-familiares' | 'estan-en-todas-partes';
+export type ArtworkKind = 'todos-somos-familiares' | 'estan-en-todas-partes' | 'seguimos-buscando';
+export type FragmentArtworkKind = Exclude<ArtworkKind, 'seguimos-buscando'>;
+export type RouteGeometry = {
+  type: 'LineString' | 'MultiLineString' | 'Polygon';
+  coordinates: number[][] | number[][][];
+};
+
+export type TraversalFrame = {
+  id: string;
+  ordinal: number;
+  provider_id: string;
+  sequence_id: string;
+  longitude: number;
+  latitude: number;
+  compass_angle: number;
+  captured_at?: number | string | null;
+  local_path: string;
+  review_status: 'pending' | 'approved' | 'rejected';
+  cv_label: string;
+  cv_reason: string;
+  cv_accept?: boolean;
+  sequence_jump: boolean;
+};
+
+export type Traversal = {
+  id: string;
+  name: string;
+  artwork: 'seguimos-buscando';
+  provider: string;
+  mode: 'manual' | 'import' | 'autonomous';
+  geometry: RouteGeometry;
+  duration_seconds: number;
+  gap_policy: 'direct-jump-cut';
+  release_status: 'internal_unreviewed';
+  attribution: string;
+  created_at: string;
+  updated_at: string;
+  frames: TraversalFrame[];
+  summary?: {
+    frame_count: number;
+    approved_count: number;
+    pending_count: number;
+    rejected_count: number;
+  };
+  acquisition?: { attempted: number; acquired: number; errors: string[]; completed_at: string };
+};
 
 export type CrawlResponse = {
   ok: boolean;
@@ -464,6 +509,62 @@ export function generateStage1(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function listTraversals(root = 'data/raw/traversals'): Promise<{ ok: boolean; items: Traversal[] }> {
+  return request(`/api/traversals?root=${encodeURIComponent(root)}`);
+}
+
+export function discoverTraversal(payload: {
+  name: string;
+  mode: 'manual' | 'import' | 'autonomous';
+  geometry?: RouteGeometry;
+  import_content?: string;
+  import_format?: 'geojson' | 'gpx';
+  duration_seconds: number;
+  max_frames: number;
+  root?: string;
+}): Promise<{ ok: boolean; traversal: Traversal }> {
+  return request('/api/traversals/discover', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function acquireTraversal(payload: {
+  traversal_id: string;
+  max_frames: number;
+  root?: string;
+}): Promise<{ ok: boolean; traversal: Traversal }> {
+  return request('/api/traversals/acquire', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function reviewTraversalFrames(payload: {
+  traversal_id: string;
+  frame_ids: string[];
+  review_status: 'pending' | 'approved' | 'rejected';
+  root?: string;
+}): Promise<{ ok: boolean; traversal: Traversal }> {
+  const { traversal_id, ...body } = payload;
+  return request(`/api/traversals/${encodeURIComponent(traversal_id)}/frames/review`, {
+    method: 'POST', body: JSON.stringify(body),
+  });
+}
+
+export function generateTraversal(payload: {
+  traversal_id: string;
+  targets: string;
+  output_dir: string;
+  traversal_root?: string;
+  target_ids: string[];
+  target_mode: 'single' | 'sequence';
+  composition: 'overlay' | 'alternate' | 'split';
+  duration_seconds: number;
+  fps: number;
+  seed: number;
+  fragment_size: number;
+  output_width: number;
+  reuse_limit: number;
+  max_contribution_per_source: number;
+}): Promise<GenerateResponse> {
+  return request('/api/generate/traversal', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function listOutputs(outputDir: string): Promise<{ items: OutputItem[] }> {

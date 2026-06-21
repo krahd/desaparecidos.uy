@@ -33,6 +33,20 @@ from .persons import (
     upsert_person,
 )
 from .pipeline import ArtworkKind, DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
+from .traversals import (
+    CompositionMode,
+    TargetMode,
+    TraversalMode,
+    TraversalRenderSettings,
+    acquire_traversal,
+    discover_traversal,
+    list_traversals,
+    load_traversal,
+    normalise_geojson,
+    parse_route_import,
+    render_traversal,
+    review_traversal_frames,
+)
 
 
 class ValidateRequest(BaseModel):
@@ -168,6 +182,46 @@ class PersonExportTargetsRequest(BaseModel):
     store: str = "data/persons/disappeared.json"
     manifest: str = "data/manifests/targets.csv"
     approved: bool = False
+
+
+class TraversalDiscoverRequest(BaseModel):
+    name: str = "Uruguay traversal"
+    mode: TraversalMode = "manual"
+    geometry: dict[str, Any] | None = None
+    import_content: str = ""
+    import_format: Literal["geojson", "gpx"] | None = None
+    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    max_frames: int = Field(default=600, ge=1, le=1200)
+    root: str = "data/raw/traversals"
+
+
+class TraversalAcquireRequest(BaseModel):
+    traversal_id: str
+    root: str = "data/raw/traversals"
+    max_frames: int = Field(default=600, ge=1, le=600)
+
+
+class TraversalReviewRequest(BaseModel):
+    frame_ids: list[str]
+    review_status: Literal["approved", "pending", "rejected"]
+    root: str = "data/raw/traversals"
+
+
+class TraversalGenerateRequest(BaseModel):
+    traversal_id: str
+    targets: str = "data/manifests/targets.csv"
+    output_dir: str = "outputs/stage1"
+    traversal_root: str = "data/raw/traversals"
+    target_ids: list[str]
+    target_mode: TargetMode = "single"
+    composition: CompositionMode = "overlay"
+    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    fps: int = Field(default=12, ge=1, le=60)
+    seed: int = 17
+    fragment_size: int = Field(default=24, ge=8, le=128)
+    output_width: int = Field(default=720, ge=120, le=4096)
+    reuse_limit: int = Field(default=10000, ge=1, le=100000)
+    max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
 
 
 def _normalise_contribution_cap(value: int) -> int:
@@ -414,6 +468,92 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"ok": validation.ok, "manifest": validation.to_api()}
+
+    @app.get("/api/traversals")
+    def traversals(root: str = "data/raw/traversals") -> dict[str, Any]:
+        try:
+            return {"ok": True, "items": list_traversals(safe_project_path(root))}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/traversals/{traversal_id}")
+    def traversal(traversal_id: str, root: str = "data/raw/traversals") -> dict[str, Any]:
+        try:
+            return {"ok": True, "traversal": load_traversal(traversal_id, safe_project_path(root))}
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/traversals/discover")
+    def traversal_discover(request: TraversalDiscoverRequest) -> dict[str, Any]:
+        try:
+            if request.import_format:
+                geometry = parse_route_import(request.import_content, request.import_format)
+            elif request.geometry:
+                geometry = normalise_geojson(request.geometry)
+            else:
+                raise ValueError("route geometry or imported GeoJSON/GPX is required")
+            result = discover_traversal(
+                name=request.name,
+                mode=request.mode,
+                geometry=geometry,
+                duration_seconds=request.duration_seconds,
+                root=safe_project_path(request.root),
+                max_frames=request.max_frames,
+            )
+            return {"ok": True, "traversal": result}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/traversals/acquire")
+    def traversal_acquire(request: TraversalAcquireRequest) -> dict[str, Any]:
+        try:
+            result = acquire_traversal(
+                request.traversal_id,
+                root=safe_project_path(request.root),
+                max_frames=request.max_frames,
+            )
+            return {"ok": True, "traversal": result}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/traversals/{traversal_id}/frames/review")
+    def traversal_review(traversal_id: str, request: TraversalReviewRequest) -> dict[str, Any]:
+        try:
+            result = review_traversal_frames(
+                traversal_id,
+                request.frame_ids,
+                request.review_status,
+                root=safe_project_path(request.root),
+            )
+            return {"ok": True, "traversal": result}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/generate/traversal")
+    def generate_traversal(request: TraversalGenerateRequest) -> dict[str, Any]:
+        settings = TraversalRenderSettings(
+            composition=request.composition,
+            target_mode=request.target_mode,
+            duration_seconds=request.duration_seconds,
+            fps=request.fps,
+            seed=request.seed,
+            fragment_size=request.fragment_size,
+            output_width=request.output_width,
+            reuse_limit=request.reuse_limit,
+            max_contribution_per_source=request.max_contribution_per_source,
+        )
+        try:
+            generated = render_traversal(
+                request.traversal_id,
+                safe_project_path(request.targets),
+                safe_project_path(request.output_dir),
+                request.target_ids,
+                settings,
+                root=safe_project_path(request.traversal_root),
+            )
+            return {"ok": True, "outputs": [output.__dict__ for output in generated]}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:

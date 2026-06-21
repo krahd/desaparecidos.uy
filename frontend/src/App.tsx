@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ArtworkKind,
+  FragmentArtworkKind,
   ManifestRow,
   OutputItem,
   PersonRecord,
@@ -51,6 +52,15 @@ import {
   updateReviewStatusBulk,
   validateManifests,
 } from './api';
+import { SeguimosBuscando } from './SeguimosBuscando';
+import {
+  linkedPersonForTarget,
+  linkedPersonNeedsReveal,
+  linkedTargetForPerson,
+  pageFromHashValue,
+  reviewKindForPage,
+} from './routing';
+import type { PageId, ReviewKind } from './routing';
 
 type LogEntry = {
   at: string;
@@ -58,10 +68,8 @@ type LogEntry = {
   tone?: 'ok' | 'error';
 };
 
-type PageId = 'targets' | 'images' | ArtworkKind;
-type ReviewKind = 'targets' | 'places' | 'people';
 type ReviewStatus = 'approved' | 'pending' | 'rejected';
-type PersonFilter = 'all' | 'missing' | 'portrait' | 'review';
+type PersonFilter = 'all' | 'incomplete' | 'portrait' | 'review';
 type CrawlPreset = {
   id: string;
   label: string;
@@ -87,22 +95,22 @@ const defaultGenerationSettings: GenerationSettings = {
 };
 
 function pageFromHash(): PageId {
-  const value = window.location.hash.replace(/^#/, '');
-  if (value === 'targets' || value === 'images' || value === 'todos-somos-familiares' || value === 'estan-en-todas-partes') {
-    return value;
-  }
-  return 'images';
+  return pageFromHashValue(window.location.hash);
 }
 
 function outputArtwork(item: OutputItem): ArtworkKind {
-  return item.sidecar.artwork === 'todos-somos-familiares'
-    ? 'todos-somos-familiares'
-    : 'estan-en-todas-partes';
+  if (item.sidecar.artwork === 'todos-somos-familiares') return 'todos-somos-familiares';
+  if (item.sidecar.artwork === 'seguimos-buscando') return 'seguimos-buscando';
+  return 'estan-en-todas-partes';
+}
+
+function initialReviewKind(): ReviewKind {
+  return reviewKindForPage(pageFromHash());
 }
 
 const defaultPaths = {
   personStore: 'data/persons/disappeared.json',
-  targets: 'data/manifests/local-targets.csv',
+  targets: 'data/manifests/targets.csv',
   sources: 'data/manifests/places.csv',
   people: 'data/manifests/people.csv',
   outputDir: 'outputs/stage1',
@@ -253,7 +261,7 @@ function candidateDimensions(candidate: { width: number | string; height: number
 }
 
 function portraitReviewLabel(reason: string): string {
-  if (reason === 'missing-selected-portrait') return 'missing selected portrait';
+  if (reason === 'missing-selected-portrait') return 'incomplete selected portrait';
   if (reason === 'higher-resolution-alternative') return 'higher-resolution candidate';
   if (reason === 'alternative-candidate') return 'alternate candidate';
   return 'portrait review';
@@ -265,7 +273,7 @@ export function App() {
   const [sources, setSources] = useState(() => loadStored('sources', defaultPaths.sources));
   const [people, setPeople] = useState(() => loadStored('people', defaultPaths.people));
   const [outputDir, setOutputDir] = useState(() => loadStored('outputDir', defaultPaths.outputDir));
-  const [generationSettings, setGenerationSettings] = useState<Record<ArtworkKind, GenerationSettings>>({
+  const [generationSettings, setGenerationSettings] = useState<Record<FragmentArtworkKind, GenerationSettings>>({
     'todos-somos-familiares': { ...defaultGenerationSettings },
     'estan-en-todas-partes': { ...defaultGenerationSettings },
   });
@@ -275,6 +283,8 @@ export function App() {
   const [sourceRegistry, setSourceRegistry] = useState<SourceRegistry | null>(null);
   const [selectedPersonId, setSelectedPersonId] = useState('');
   const [editingPerson, setEditingPerson] = useState<PersonRecord | null>(null);
+  const [personDirty, setPersonDirty] = useState(false);
+  const [unlinkedReviewLabel, setUnlinkedReviewLabel] = useState('');
   const [personQuery, setPersonQuery] = useState('');
   const [personFilter, setPersonFilter] = useState<PersonFilter>('all');
   const [portraitForm, setPortraitForm] = useState({
@@ -292,7 +302,8 @@ export function App() {
   const [viewerOutput, setViewerOutput] = useState<OutputItem | null>(null);
   const [showUtilities, setShowUtilities] = useState(false);
   const [activePage, setActivePage] = useState<PageId>(() => pageFromHash());
-  const [reviewKind, setReviewKind] = useState<ReviewKind>('places');
+  const [reviewKind, setReviewKind] = useState<ReviewKind>(() => initialReviewKind());
+  const [imageReviewKind, setImageReviewKind] = useState<'places' | 'people'>('places');
   const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
   const [crawlPagesText, setCrawlPagesText] = useState('');
   const [crawlPlacesManifest, setCrawlPlacesManifest] = useState(() => (
@@ -333,7 +344,10 @@ export function App() {
     ?? allTargets[0];
   const selectedOutputCount = selectedOutputIds.size;
   const selectedReviewCount = selectedReviewIds.size;
-  const activeArtwork = activePage === 'todos-somos-familiares' || activePage === 'estan-en-todas-partes'
+  const activeArtwork = activePage === 'todos-somos-familiares' || activePage === 'estan-en-todas-partes' || activePage === 'seguimos-buscando'
+    ? activePage
+    : null;
+  const fragmentArtwork: FragmentArtworkKind | null = activePage === 'todos-somos-familiares' || activePage === 'estan-en-todas-partes'
     ? activePage
     : null;
   const artworkOutputs = activeArtwork
@@ -342,7 +356,7 @@ export function App() {
   const filteredPersons = useMemo(() => {
     const query = personQuery.trim().toLowerCase();
     return persons.filter((person) => {
-      if (personFilter === 'missing' && person.missing_fields.length === 0) return false;
+      if (personFilter === 'incomplete' && person.missing_fields.length === 0) return false;
       if (personFilter === 'portrait' && person.selected_portrait?.processed_path) return false;
       if (personFilter === 'review' && !person.portrait_review?.needs_review) return false;
       if (!query) return true;
@@ -385,11 +399,12 @@ export function App() {
   const selectPage = useCallback((page: PageId) => {
     window.location.hash = page;
     setActivePage(page);
-    setReviewKind(page === 'targets' ? 'targets' : 'places');
-  }, []);
+    if (page === 'targets') setReviewKind('targets');
+    if (page === 'images') setReviewKind(imageReviewKind);
+  }, [imageReviewKind]);
 
   function updateGenerationSetting<K extends keyof GenerationSettings>(
-    artwork: ArtworkKind,
+    artwork: FragmentArtworkKind,
     key: K,
     value: GenerationSettings[K],
   ) {
@@ -414,22 +429,55 @@ export function App() {
     const selected = response.people.find((person) => person.id === nextId) ?? response.people[0] ?? null;
     setSelectedPersonId(selected?.id ?? '');
     setEditingPerson(selected ? copyPerson(selected) : null);
+    setPersonDirty(false);
     return response;
   }, [personStore, runAction, selectedPersonId]);
 
   function updateEditingPerson(field: keyof PersonRecord, value: PersonRecord[keyof PersonRecord]) {
     setEditingPerson((current) => (current ? { ...current, [field]: value } : current));
+    setPersonDirty(true);
   }
 
-  function handlePersonSelect(personId: string) {
+  function confirmDiscardPersonEdits(): boolean {
+    return !personDirty || window.confirm('Discard unsaved changes to the current target record?');
+  }
+
+  function scrollLinkedSelection(personId?: string, reviewId?: string) {
+    window.setTimeout(() => {
+      if (personId) {
+        document.querySelector(`[data-person-id="${CSS.escape(personId)}"]`)?.scrollIntoView({ block: 'nearest' });
+      }
+      if (reviewId) {
+        document.querySelector(`[data-review-id="${CSS.escape(reviewId)}"]`)?.scrollIntoView({ block: 'nearest' });
+      }
+    }, 0);
+  }
+
+  function handlePersonSelect(personId: string, preferredTargetId?: string): boolean {
+    if (personId !== selectedPersonId && !confirmDiscardPersonEdits()) return false;
     const selected = persons.find((person) => person.id === personId) ?? null;
+    const linkedTarget = preferredTargetId
+      ? allTargets.find((target) => target.id === preferredTargetId) ?? null
+      : selected ? linkedTargetForPerson(allTargets, selected) : null;
+    if (selected && linkedPersonNeedsReveal(filteredPersons.map((person) => person.id), selected.id)) {
+      setPersonFilter('all');
+      setPersonQuery('');
+    }
     setSelectedPersonId(selected?.id ?? '');
     setEditingPerson(selected ? copyPerson(selected) : null);
+    setPersonDirty(false);
+    setUnlinkedReviewLabel('');
+    setTargetId(linkedTarget?.id ?? '');
+    scrollLinkedSelection(selected?.id, linkedTarget?.id);
+    return true;
   }
 
   function handleNewPerson() {
+    if (!confirmDiscardPersonEdits()) return;
     setSelectedPersonId('');
     setEditingPerson(blankPerson());
+    setPersonDirty(false);
+    setUnlinkedReviewLabel('');
     selectPage('targets');
   }
 
@@ -587,7 +635,7 @@ export function App() {
     return selected;
   }
 
-  async function handleGenerate(artwork: ArtworkKind, makeVideo: boolean) {
+  async function handleGenerate(artwork: FragmentArtworkKind, makeVideo: boolean) {
     const settings = generationSettings[artwork];
     const sourceManifest = artwork === 'todos-somos-familiares' ? people : sources;
     const response = await runAction(
@@ -758,13 +806,14 @@ export function App() {
     }
   }
 
-  function toggleReviewSelection(id: string) {
+  function toggleReviewSelection(row: ManifestRow) {
+    if (row.kind === 'targets' && !handlePickReview(row)) return;
     setSelectedReviewIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(row.id)) {
+        next.delete(row.id);
       } else {
-        next.add(id);
+        next.add(row.id);
       }
       return next;
     });
@@ -820,11 +869,25 @@ export function App() {
     }
   }
 
-  function handlePickReview(row: ManifestRow) {
+  function handlePickReview(row: ManifestRow): boolean {
     if (row.kind === 'targets') {
+      const linkedPerson = linkedPersonForTarget(persons, row);
+      if (linkedPerson) {
+        if (!handlePersonSelect(linkedPerson.id, row.id)) return false;
+        appendLog(`Opened ${linkedPerson.full_name} from “${row.label}”.`, 'ok');
+        return true;
+      }
+      // No person record references this portrait: surface it instead of
+      // leaving the editor silently unchanged.
+      if (selectedPersonId && !confirmDiscardPersonEdits()) return false;
+      setSelectedPersonId('');
+      setEditingPerson(null);
+      setPersonDirty(false);
+      setUnlinkedReviewLabel(row.label);
       setTargetId(row.id);
-      appendLog(`Target portrait set to ${row.label}${row.approved ? '' : ' (pending)'}.`, 'ok');
-      return;
+      scrollLinkedSelection(undefined, row.id);
+      appendLog(`No target record is linked to “${row.label}”. Create one or match its portrait.`, 'error');
+      return true;
     }
     setViewerOutput({
       id: row.id,
@@ -834,11 +897,17 @@ export function App() {
       sidecar_path: '',
       sidecar: {},
     });
+    return true;
   }
 
   function handleTargetSelect(value: string) {
-    setTargetId(value);
     const row = allTargets.find((target) => target.id === value);
+    const linkedPerson = row ? linkedPersonForTarget(persons, row) : null;
+    if (linkedPerson) {
+      if (!handlePersonSelect(linkedPerson.id, value)) return;
+    } else {
+      setTargetId(value);
+    }
     appendLog(row ? `Selected target: ${row.label}.` : 'No target selected.', row ? 'ok' : undefined);
   }
 
@@ -907,12 +976,13 @@ export function App() {
     const onHashChange = () => {
       const page = pageFromHash();
       setActivePage(page);
-      setReviewKind(page === 'targets' ? 'targets' : 'places');
+      if (page === 'targets') setReviewKind('targets');
+      if (page === 'images') setReviewKind(imageReviewKind);
     };
     window.addEventListener('hashchange', onHashChange);
     if (!window.location.hash) window.location.hash = activePage;
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [activePage]);
+  }, [activePage, imageReviewKind]);
 
   useEffect(() => {
     if (!activeArtwork) return;
@@ -946,6 +1016,7 @@ export function App() {
         const first = response.people[0] ?? null;
         setSelectedPersonId(first?.id ?? '');
         setEditingPerson(first ? copyPerson(first) : null);
+        setPersonDirty(false);
       })
       .catch(() => undefined);
     listPersonSources()
@@ -959,7 +1030,7 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>desaparecidos.uy</h1>
-          <p>Active works: Todos somos familiares + Están en todas partes · Seguimos buscando is future work</p>
+          <p>Active works: Todos somos familiares · Están en todas partes · Seguimos buscando</p>
         </div>
         <div className="topbar-actions">
           <button className="icon-button" onClick={() => setShowUtilities(true)} title="Utilities">
@@ -1001,6 +1072,13 @@ export function App() {
           detail={`${outputs.filter((item) => outputArtwork(item) === 'estan-en-todas-partes').length} outputs`}
           onSelect={() => selectPage('estan-en-todas-partes')}
         />
+        <WorkflowItem
+          icon={<Search />}
+          title="Seguimos buscando"
+          active={activePage === 'seguimos-buscando'}
+          detail={`${outputs.filter((item) => outputArtwork(item) === 'seguimos-buscando').length} outputs`}
+          onSelect={() => selectPage('seguimos-buscando')}
+        />
       </aside>
 
       <main className={`workspace page-${activePage}`}>
@@ -1040,8 +1118,8 @@ export function App() {
                 <button className={personFilter === 'all' ? 'selected' : ''} onClick={() => setPersonFilter('all')}>
                   All
                 </button>
-                <button className={personFilter === 'missing' ? 'selected' : ''} onClick={() => setPersonFilter('missing')}>
-                  Missing
+                <button className={personFilter === 'incomplete' ? 'selected' : ''} onClick={() => setPersonFilter('incomplete')}>
+                  Incomplete
                 </button>
                 <button className={personFilter === 'portrait' ? 'selected' : ''} onClick={() => setPersonFilter('portrait')}>
                   Portrait
@@ -1056,6 +1134,7 @@ export function App() {
                   <button
                     type="button"
                     key={person.id}
+                    data-person-id={person.id}
                     className={`person-row ${selectedPersonId === person.id ? 'selected' : ''}`}
                     onClick={() => handlePersonSelect(person.id)}
                   >
@@ -1065,15 +1144,21 @@ export function App() {
                         ? person.portrait_review?.needs_review
                           ? portraitReviewLabel(person.portrait_review.reason)
                           : 'complete'
-                        : `missing ${person.missing_fields.join(', ')}`}
+                        : `incomplete: ${person.missing_fields.join(', ')}`}
                     </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="person-editor">
-              {!editingPerson && <EmptyState text="Load or create a target person record." />}
+            <div className="person-editor" data-editor-person-id={editingPerson?.id ?? ''}>
+              {!editingPerson && (
+                <EmptyState
+                  text={unlinkedReviewLabel
+                    ? `No target record is linked to “${unlinkedReviewLabel}”. Use “New record” to create one, or add this portrait to an existing record.`
+                    : 'Load or create a target person record.'}
+                />
+              )}
               {editingPerson && (
                 <>
                   <div className="person-editor-header">
@@ -1213,7 +1298,7 @@ export function App() {
                         />
                       </label>
                       <div className="missing-fields">
-                        <strong>Missing information</strong>
+                        <strong>Incomplete information</strong>
                         {editingPerson.missing_fields.length === 0 ? (
                           <span className="status-pill approved">complete</span>
                         ) : (
@@ -1344,11 +1429,11 @@ export function App() {
         </section>
         )}
 
-        {activeArtwork && (
+        {fragmentArtwork && (
         <section className="stage-panel target-panel" id="section-generate">
           <div className="panel-title">
             <span>
-              {activeArtwork === 'todos-somos-familiares'
+              {fragmentArtwork === 'todos-somos-familiares'
                 ? 'Todos somos familiares · target portrait'
                 : 'Están en todas partes · target portrait'}
             </span>
@@ -1396,14 +1481,14 @@ export function App() {
                   <>
                 <button
                   className={reviewKind === 'places' ? 'selected' : ''}
-                  onClick={() => setReviewKind('places')}
+                  onClick={() => { setReviewKind('places'); setImageReviewKind('places'); }}
                   disabled={busy}
                 >
                   Places
                 </button>
                 <button
                   className={reviewKind === 'people' ? 'selected' : ''}
-                  onClick={() => setReviewKind('people')}
+                  onClick={() => { setReviewKind('people'); setImageReviewKind('people'); }}
                   disabled={busy}
                 >
                   People
@@ -1462,6 +1547,15 @@ export function App() {
             ))}
           </div>
         </section>
+        )}
+
+        {activePage === 'seguimos-buscando' && (
+          <SeguimosBuscando
+            targets={allTargets}
+            targetManifest={targets}
+            outputDir={outputDir}
+            onGenerated={async (preferredPath) => { await refreshOutputs(preferredPath); }}
+          />
         )}
 
         {activeArtwork && (
@@ -1703,9 +1797,9 @@ export function App() {
         </section>
         )}
 
-        {activeArtwork && (
+        {fragmentArtwork && (
         <section id="controls-generate">
-          <h2>{activeArtwork === 'todos-somos-familiares' ? 'Face-fragment generation' : 'Place-fragment generation'}</h2>
+          <h2>{fragmentArtwork === 'todos-somos-familiares' ? 'Face-fragment generation' : 'Place-fragment generation'}</h2>
           <p className="section-note">
             Only fragments that contribute to the portrait appear in the process video. Complete source photographs are never shown.
           </p>
@@ -1714,46 +1808,46 @@ export function App() {
             <input value={outputDir} onChange={(event) => setOutputDir(event.target.value)} />
           </label>
           <label className="slider-label">
-            <span>Block size: {generationSettings[activeArtwork].fragmentSize}px</span>
+            <span>Block size: {generationSettings[fragmentArtwork].fragmentSize}px</span>
             <input
               type="range"
               min={8}
               max={128}
               step={4}
-              value={generationSettings[activeArtwork].fragmentSize}
-              onChange={(event) => updateGenerationSetting(activeArtwork, 'fragmentSize', Number(event.target.value))}
+              value={generationSettings[fragmentArtwork].fragmentSize}
+              onChange={(event) => updateGenerationSetting(fragmentArtwork, 'fragmentSize', Number(event.target.value))}
             />
           </label>
           <label className="slider-label">
-            <span>Max tiles per source: {generationSettings[activeArtwork].maxContribution === 0 ? 'unlimited' : generationSettings[activeArtwork].maxContribution}</span>
+            <span>Max tiles per source: {generationSettings[fragmentArtwork].maxContribution === 0 ? 'unlimited' : generationSettings[fragmentArtwork].maxContribution}</span>
             <input
               type="range"
-              min={activeArtwork === 'todos-somos-familiares' ? 1 : 0}
+              min={fragmentArtwork === 'todos-somos-familiares' ? 1 : 0}
               max={320}
               step={1}
-              value={generationSettings[activeArtwork].maxContribution}
-              onChange={(event) => updateGenerationSetting(activeArtwork, 'maxContribution', Number(event.target.value))}
+              value={generationSettings[fragmentArtwork].maxContribution}
+              onChange={(event) => updateGenerationSetting(fragmentArtwork, 'maxContribution', Number(event.target.value))}
             />
           </label>
           <div className="form-grid">
             <label>
               Seed
-              <input type="number" value={generationSettings[activeArtwork].seed} onChange={(event) => updateGenerationSetting(activeArtwork, 'seed', Number(event.target.value))} />
+              <input type="number" value={generationSettings[fragmentArtwork].seed} onChange={(event) => updateGenerationSetting(fragmentArtwork, 'seed', Number(event.target.value))} />
             </label>
             <label>
               Reuse limit
-              <input type="number" min={1} value={generationSettings[activeArtwork].reuseLimit} onChange={(event) => updateGenerationSetting(activeArtwork, 'reuseLimit', Number(event.target.value))} />
+              <input type="number" min={1} value={generationSettings[fragmentArtwork].reuseLimit} onChange={(event) => updateGenerationSetting(fragmentArtwork, 'reuseLimit', Number(event.target.value))} />
             </label>
             <label>
               Width
-              <input type="number" min={120} value={generationSettings[activeArtwork].outputWidth} onChange={(event) => updateGenerationSetting(activeArtwork, 'outputWidth', Number(event.target.value))} />
+              <input type="number" min={120} value={generationSettings[fragmentArtwork].outputWidth} onChange={(event) => updateGenerationSetting(fragmentArtwork, 'outputWidth', Number(event.target.value))} />
             </label>
           </div>
           <div className="button-row stacked">
-            <button className="primary" onClick={() => void handleGenerate(activeArtwork, false)} disabled={busy}>
+            <button className="primary" onClick={() => void handleGenerate(fragmentArtwork, false)} disabled={busy}>
               <Play size={16} /> Generate still
             </button>
-            <button onClick={() => void handleGenerate(activeArtwork, true)} disabled={busy}>
+            <button onClick={() => void handleGenerate(fragmentArtwork, true)} disabled={busy}>
               <Video size={16} /> Generate video
             </button>
           </div>
@@ -1826,7 +1920,7 @@ function ReviewCard({
   busy: boolean;
   selected?: boolean;
   checked: boolean;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (row: ManifestRow) => void;
   onReview: (row: ManifestRow, status: ReviewStatus) => void;
   onPick: (row: ManifestRow) => void;
   onDelete: (row: ManifestRow) => void;
@@ -1834,12 +1928,12 @@ function ReviewCard({
   const status = row.values.review_status || 'pending';
   const pickTitle = row.kind === 'targets' ? 'Use as target portrait' : 'View image';
   return (
-    <article className={`review-card ${status} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`} key={row.id}>
+    <article data-review-id={row.id} className={`review-card ${status} ${selected ? 'selected' : ''} ${checked ? 'checked' : ''}`} key={row.id}>
       <label className="review-select" title="Select row">
         <input
           type="checkbox"
           checked={checked}
-          onChange={() => onToggleSelect(row.id)}
+          onChange={() => onToggleSelect(row)}
         />
         {checked ? <CheckSquare size={15} /> : <Square size={15} />}
       </label>

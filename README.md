@@ -12,14 +12,14 @@ The triptych is:
 
 The full draft project statement is in [doc/desaparecidos-uy-project-description.md](doc/desaparecidos-uy-project-description.md).
 
-## Stage 1: Están en todas partes
+## Current implementation
 
-Stage 1 implements the place-based prototype. Public target portraits are reconstructed from fragments extracted from curated images of Uruguayan places, surfaces, streets, landscapes, and material environments.
+The runtime supports the three artwork workspaces. Public target portraits are reconstructed from reviewed people or place fragments in the first two works, while the third combines reviewed street-level traversal imagery with progressively available fragments.
 
 The prototype provides:
 
 - manifest-driven target, place-source, and internal people-source ingestion;
-- a canonical disappeared-person JSON store for target curation, missing-field review, portrait candidate provenance, and target-manifest export;
+- a canonical disappeared-person JSON store for target curation, incomplete-record review, portrait candidate provenance, and target-manifest export;
 - local target-portrait preprocessing that trims white scan borders/caption margins and writes 3:4 processed copies;
 - provenance and checksum recording for downloaded files;
 - review gates before imagery can be used;
@@ -32,6 +32,7 @@ The prototype provides:
 - deterministic, vectorised fragment matching using a deliberately modest six-dimensional colour/contrast/edge descriptor and L2 nearest-neighbour search;
 - an active default per-source contribution cap so no single source image can dominate a generated portrait;
 - separate generation workspaces for **Todos somos familiares** and **Están en todas partes**;
+- a provider-neutral street-level traversal workflow for **Seguimos buscando**, with Mapillary discovery, local acquisition, frame review, and deterministic offline video rendering;
 - still PNG outputs and optional browser-playable H.264 MP4 process videos that show only contributing fragments, a bottom URL ticker, and a commemorative outro;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
@@ -50,11 +51,15 @@ The launcher creates or reuses a local Python environment, installs Python and f
 
 If the GUI reports that the server is not the FastAPI backend, close the old launcher window and run `./start.sh` again. The launcher prints the exact backend and frontend URLs it selected.
 
-The GUI has four hash-routed workspaces: **Targets**, **Images**, **Todos somos familiares**, and **Están en todas partes**. The first two artworks have separate generation pages and output galleries; **Seguimos buscando** remains future work. Browser back/forward and refresh preserve the selected workspace.
+The GUI has five hash-routed workspaces: **Targets**, **Images**, **Todos somos familiares**, **Están en todas partes**, and **Seguimos buscando**. Each artwork has its own generation page and filtered output gallery. Browser back/forward and refresh preserve the selected workspace.
 
-The **Targets** screen edits `data/persons/disappeared.json`. It lists disappeared-person records, filters records with missing information, edits full name, birth/disappearance/remains fields, stores source/provenance notes, downloads explicit portrait candidates by URL, processes the selected candidate into a white-border-trimmed 3:4 portrait, and exports the derived `targets.csv` manifest. Online acquisition is controlled: trusted sources in `data/sources.json` are preferred, general web results are candidate evidence only, and arbitrary web images are never made authoritative without review.
+The **Targets** screen edits `data/persons/disappeared.json`. It lists disappeared-person records, filters **Incomplete** records, edits full name, birth/disappearance/remains fields, stores source/provenance notes, downloads explicit portrait candidates by URL, processes the selected candidate into a white-border-trimmed 3:4 portrait, and explicitly exports the derived `targets.csv` manifest. “Incomplete” means one or more required curation fields are absent; it does not describe the person's disappeared status. Target administration and target-image review link exact canonical IDs and legacy rows with matching portrait provenance. Clicking a review image or its selection checkbox selects and scrolls to the corresponding person, and selecting a person selects and scrolls to the corresponding review image. A cross-panel selection clears a filter/query that would otherwise hide the selected person. Unsaved editor changes require confirmation before another target is selected. The Target administration toolbar stays fixed while its person/editor content scrolls.
 
 The **Images** workspace crawls every page once for both `places` and `people`, downloads each candidate once, applies the two CV policies independently, and appends accepted candidates to separate pending manifests. Manual approval remains mandatory. `targets` remain the disappeared-person portrait corpus. The `/api/download` route and CLI download command still exist, but the primary GUI no longer shows a download panel. Synthetic demo fixture controls are in the compact Utilities modal.
+
+The **Seguimos buscando** workspace authors a route interactively, imports GeoJSON/GPX, or selects an autonomous region and duration. The backend discovers Mapillary sequence metadata, caches a bounded set of frames under ignored `data/raw/traversals/`, and requires manual frame approval. Rendering follows captured sequence order, inserts direct jump cuts across sequence gaps, and supports traversal overlay, alternating traversal/assembly, and split-screen composition. Single-target and ordered multi-target videos are supported. Only approved frames already encountered in the traversal can contribute fragments to the current portrait state.
+
+The provider-neutral traversal API is `GET /api/traversals`, `GET /api/traversals/{id}`, `POST /api/traversals/discover`, `POST /api/traversals/acquire`, `POST /api/traversals/{id}/frames/review`, and `POST /api/generate/traversal`. Route records and third-artwork sidecars use `artwork: "seguimos-buscando"`; older sidecars without an artwork continue to display as **Están en todas partes**.
 
 The GUI remembers the target, place, people, output, and crawl manifest paths across sessions. Crawler presets use mundane contemporary Uruguay sources such as Montevideo tourism/events/news and `gub.uy` public news pages rather than memory-site pages.
 
@@ -78,6 +83,14 @@ npm --prefix frontend install
 ```
 
 Installing the package pulls in `opencv-python-headless`, used for crawler face/scene gating; no model download is required.
+
+Mapillary route discovery requires a backend-only access token:
+
+```bash
+export MAPILLARY_ACCESS_TOKEN='...'
+```
+
+The token is sent only in the Mapillary API authorisation header and is never stored in route metadata, browser state, output sidecars, or logs. The frontend uses MapLibre GL JS with attributed OpenStreetMap tiles for route authoring; MapLibre is the production dependency added for the interactive map.
 
 Video generation requires `ffmpeg` with H.264/libx264 support. On macOS with Homebrew:
 
@@ -107,6 +120,7 @@ python -m desaparecidos download --manifest data/manifests/places.csv --kind pla
 python -m desaparecidos download --manifest data/manifests/people.csv --kind people
 python -m desaparecidos run-stage1 --artwork estan-en-todas-partes --targets data/manifests/targets.csv --sources data/manifests/places.csv --output outputs/stage1 --seed 17 --max-contribution-per-source 1
 python -m desaparecidos run-stage1 --artwork todos-somos-familiares --targets data/manifests/targets.csv --sources data/manifests/people.csv --output outputs/stage1 --seed 17 --max-contribution-per-source 1
+python -m desaparecidos run-traversal --traversal route-ID --target-id person-ID --targets data/manifests/targets.csv --composition overlay --duration 60 --fps 12
 python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
 ```
 
@@ -142,6 +156,7 @@ Downloaded and crawled files are written under `data/raw/`; processed target cop
 python -m compileall src tests
 python -m pytest -q
 npm --prefix frontend run build
+npm --prefix frontend test
 zsh -n start.sh
 git diff --check
 ```

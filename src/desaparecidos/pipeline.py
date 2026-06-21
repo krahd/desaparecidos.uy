@@ -24,8 +24,8 @@ ACCENT = (109, 47, 38)
 PROCESS_VIDEO_STYLE = "contributing-fragment-field"
 MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
 DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1
-ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
-ARTWORK_SOURCE_KIND: dict[ArtworkKind, Literal["people", "places"]] = {
+ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes", "seguimos-buscando"]
+ARTWORK_SOURCE_KIND: dict[str, Literal["people", "places"]] = {
     "todos-somos-familiares": "people",
     "estan-en-todas-partes": "places",
 }
@@ -500,6 +500,8 @@ def run_stage1(
     artwork: ArtworkKind = "estan-en-todas-partes",
 ) -> list[Stage1Output]:
     settings = settings or Stage1Settings()
+    if artwork == "seguimos-buscando":
+        raise ValueError("seguimos-buscando generation requires /api/generate/traversal")
     source_kind = ARTWORK_SOURCE_KIND[artwork]
     if source_kind == "people" and settings.max_contribution_per_source == 0:
         raise ValueError("people-source generation requires a positive max_contribution_per_source")

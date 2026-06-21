@@ -262,12 +262,21 @@ label {
   overflow: auto;
 }
 
-.workspace.page-targets,
+.workspace.page-targets {
+  grid-template-rows: minmax(0, 1.6fr) minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .workspace.page-images {
   grid-template-rows: auto minmax(420px, 1fr);
 }
 
-.workspace.page-targets .source-panel,
+.workspace.page-targets .source-panel {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  min-height: 0;
+}
+
 .workspace.page-images .source-panel {
   grid-column: 1 / -1;
   grid-row: auto;
@@ -282,6 +291,24 @@ label {
 .workspace.page-todos-somos-familiares,
 .workspace.page-estan-en-todas-partes {
   grid-template-rows: minmax(360px, 1fr) 220px;
+}
+
+/* Seguimos buscando is a vertical stack of independent sections (route
+   authoring with a tall map, frame review, generation, outputs, log). Use a
+   scrolling flex column so each section keeps its content height instead of the
+   grid auto-tracks collapsing the panels (which clips the map). */
+.workspace.page-seguimos-buscando {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace.page-seguimos-buscando > section {
+  flex: 0 0 auto;
+}
+
+.workspace.page-seguimos-buscando .outputs-panel,
+.workspace.page-seguimos-buscando .log-panel {
+  min-height: 220px;
 }
 
 .workspace.page-todos-somos-familiares .target-panel,
@@ -312,6 +339,7 @@ label {
 }
 
 .panel-title {
+  flex: 0 0 auto;
   min-height: 46px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
@@ -321,6 +349,7 @@ label {
   gap: 12px;
   font-size: 13px;
   font-weight: 650;
+  background: var(--panel);
 }
 
 .panel-title select {
@@ -337,7 +366,12 @@ label {
 
 .targets-admin-panel {
   grid-column: 1 / -1;
-  min-height: 440px;
+  min-height: 0;
+}
+
+.targets-admin-panel > .panel-title {
+  position: relative;
+  z-index: 2;
 }
 
 .target-panel {
@@ -358,6 +392,7 @@ label {
   min-height: 0;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -481,7 +516,7 @@ label {
 
 .person-editor-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.9fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -1120,6 +1155,145 @@ button.danger,
   line-height: 1.45;
 }
 
+.traversal-authoring-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.6fr) minmax(240px, 0.7fr);
+  gap: 14px;
+  padding: 12px;
+}
+
+.traversal-map {
+  width: 100%;
+  height: clamp(440px, 62vh, 760px);
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.traversal-fields,
+.traversal-list,
+.traversal-generation-grid,
+.target-order {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.traversal-list {
+  grid-template-columns: minmax(240px, 1fr) auto minmax(220px, 1fr);
+  align-items: end;
+  padding: 0 12px 12px;
+}
+
+.traversal-list > span {
+  color: var(--muted);
+  font-size: 12px;
+  align-self: center;
+}
+
+.route-import {
+  min-height: clamp(440px, 62vh, 760px);
+  margin-top: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  place-content: center;
+  justify-items: center;
+  padding: 30px;
+}
+
+.route-import input {
+  max-width: 320px;
+}
+
+.traversal-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.traversal-frame {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 4px;
+  padding-bottom: 7px;
+  color: var(--muted);
+}
+
+.traversal-frame.approved { border-color: var(--ok); }
+.traversal-frame.rejected { opacity: 0.55; }
+
+.traversal-frame input {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+.traversal-frame img,
+.frame-placeholder {
+  width: 100%;
+  height: 112px;
+  object-fit: contain;
+  background: #090909;
+  display: grid;
+  place-items: center;
+}
+
+.traversal-frame strong,
+.traversal-frame > span:not(.frame-placeholder) {
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.traversal-generation-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px;
+  align-items: start;
+}
+
+.traversal-generation-grid > div {
+  display: grid;
+  gap: 10px;
+}
+
+.target-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.target-picker button {
+  min-height: 28px;
+  font-size: 11px;
+}
+
+.target-picker button.selected {
+  border-color: var(--accent);
+  background: rgba(185, 83, 74, 0.12);
+}
+
+.ordered-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px 30px;
+  gap: 5px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ordered-target button {
+  min-height: 28px;
+  padding: 3px;
+}
+
 .empty-state {
   min-height: 120px;
   border: 1px dashed var(--line-strong);
@@ -1271,12 +1445,17 @@ button.danger,
     border-right: 0;
     border-bottom: 1px solid var(--line);
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
+  }
+
+  .workspace.page-targets {
+    grid-template-rows: auto;
+    overflow: auto;
   }
 
   .targets-admin-panel,
@@ -1287,8 +1466,19 @@ button.danger,
     grid-row: auto;
   }
 
+  .targets-admin-grid {
+    grid-template-rows: auto;
+    overflow: visible;
+  }
+
   .targets-admin-grid,
-  .person-editor-layout {
+  .person-editor-layout,
+  .traversal-authoring-grid,
+  .traversal-generation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .traversal-list {
     grid-template-columns: 1fr;
   }
 

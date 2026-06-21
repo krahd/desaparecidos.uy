@@ -52,6 +52,9 @@ _IMPORT_NOTE = "Imported from doc/fotos-desaparecidos; identity and provenance p
 _TRAILING_INDEX = re.compile(r"\s*\d+\s*$")
 # Stray qualifiers seen in the collection.
 _NOISE_TOKENS = re.compile(r"\b(internet|copia|copy)\b", re.IGNORECASE)
+# Source filenames separate family and given names with " - "; the rest of the
+# app uses the "Family, Given" convention, so normalise the dash to a comma.
+_NAME_SEPARATOR = re.compile(r"\s+-\s+")
 
 
 def is_portrait(path: Path) -> bool:
@@ -67,6 +70,7 @@ def display_name(stem: str) -> str:
     """Tidy a filename stem into a label without reordering the recorded name."""
     name = _NOISE_TOKENS.sub(" ", stem)
     name = _TRAILING_INDEX.sub("", name)
+    name = _NAME_SEPARATOR.sub(", ", name)
     name = re.sub(r"\s+", " ", name).strip(" -,")
     return name or stem.strip()
 

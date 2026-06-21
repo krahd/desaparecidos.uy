@@ -399,6 +399,70 @@ def test_combined_crawl_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.json()["images_seen"] == 1
 
 
+def test_traversal_endpoints_expose_provider_neutral_contract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    traversal = {
+        "id": "route-one",
+        "name": "Route one",
+        "artwork": "seguimos-buscando",
+        "provider": "mapillary",
+        "frames": [],
+    }
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    monkeypatch.setattr(api_module, "discover_traversal", lambda **_kwargs: traversal)
+    monkeypatch.setattr(api_module, "acquire_traversal", lambda *_args, **_kwargs: traversal)
+    monkeypatch.setattr(api_module, "review_traversal_frames", lambda *_args, **_kwargs: traversal)
+    client = TestClient(create_app())
+
+    discovered = client.post(
+        "/api/traversals/discover",
+        json={
+            "name": "Route one",
+            "mode": "manual",
+            "geometry": {"type": "LineString", "coordinates": [[-56.2, -34.9], [-56.1, -34.8]]},
+            "root": str(tmp_path),
+        },
+    )
+    assert discovered.status_code == 200
+    assert discovered.json()["traversal"]["provider"] == "mapillary"
+    assert client.post(
+        "/api/traversals/acquire", json={"traversal_id": "route-one", "root": str(tmp_path)}
+    ).status_code == 200
+    assert client.post(
+        "/api/traversals/route-one/frames/review",
+        json={"frame_ids": [], "review_status": "approved", "root": str(tmp_path)},
+    ).status_code == 200
+
+
+def test_traversal_generate_endpoint_records_third_artwork(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class Output:
+        def __init__(self) -> None:
+            self.target_id = "target-one"
+            self.still_path = "outputs/one.png"
+            self.sidecar_path = "outputs/one.json"
+            self.video_path = "outputs/one.mp4"
+
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    monkeypatch.setattr(api_module, "render_traversal", lambda *_args, **_kwargs: [Output()])
+    response = TestClient(create_app()).post(
+        "/api/generate/traversal",
+        json={
+            "traversal_id": "route-one",
+            "targets": str(tmp_path / "targets.csv"),
+            "output_dir": str(tmp_path / "outputs"),
+            "traversal_root": str(tmp_path / "routes"),
+            "target_ids": ["target-one"],
+            "target_mode": "single",
+            "composition": "split",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["outputs"][0]["video_path"].endswith(".mp4")
+
+
 def test_persons_endpoints_save_list_and_export(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     image = tmp_path / "portrait.jpg"
     Image.new("RGB", (120, 160), (120, 110, 100)).save(image)

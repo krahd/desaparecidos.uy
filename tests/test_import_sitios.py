@@ -9,6 +9,7 @@ lives in other field containers.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -48,16 +49,18 @@ POSTER_ONLY_PAGE = """
 
 # A page that carries a real portrait inside the fotografia field.
 PORTRAIT_PAGE = """
-<html><body>
+<html><head><title>Wrong page-title biography</title></head><body>
 <nav><a href="/causas">Causas judiciales</a></nav>
 <header><img src="/sites/default/files/logo-para-banner.png" alt="logo"></header>
 <main>
 <h1 class="page-header"><span>Persona, Con Retrato</span></h1>
-<div class="field field--name-field-fotografia field--type-image">
-  <a class="colorbox"><img src="/sites/default/files/styles/ficha_lugares_800px/public/2021-08/retrato-persona.jpg?itok=abc" alt=""></a>
-</div>
-<div class="field field--name-body"><p>biografía</p></div>
-<div class="field field--name-field-victima-de"><p>Víctima de</p><p>Desaparición forzada</p></div>
+<article class="persona is-promoted full">
+  <div class="field field--name-field-fotografia field--type-image">
+    <a class="colorbox"><img src="/sites/default/files/styles/ficha_lugares_800px/public/2021-08/retrato-persona.jpg?itok=abc" alt=""></a>
+  </div>
+  <div class="field field--name-body"><p>Biografía <strong>correcta</strong>.</p><p>Segundo párrafo.</p></div>
+  <div class="field field--name-field-victima-de"><p>Víctima de</p><p>Desaparición forzada</p></div>
+</article>
 <h2>Obras de interés (1)</h2>
 <img src="/sites/default/files/styles/medium/public/obra.jpg">
 </main></body></html>
@@ -106,3 +109,97 @@ def test_fields_stop_before_works_section() -> None:
     assert fields.get("date_of_death") == "1975-08-30"
     assert fields.get("place_of_remains_found") == "Playa Blancarena"
     assert fields.get("date_of_identification") == "2011"
+
+
+def test_biography_is_scoped_to_person_article_body() -> None:
+    _fields, bio = importer.extract_fields(PORTRAIT_PAGE)
+    assert bio == "Biografía correcta. Segundo párrafo."
+    assert "page-title" not in bio
+
+
+def test_page_without_person_biography_returns_none() -> None:
+    _fields, bio = importer.extract_fields(POSTER_ONLY_PAGE)
+    assert bio is None
+
+
+def test_build_record_records_biography_provenance(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(importer, "request_text", lambda _url: PORTRAIT_PAGE)
+    args = importer.parse_args(["--repo-root", str(tmp_path)])
+    record = importer.build_record({"Nombre": "Persona, Con Retrato"}, args)
+    assert record.short_bio == "Biografía correcta. Segundo párrafo."
+    assert record.field_sources["short_bio"] == importer.SITIOS_SOURCE_ID
+
+
+def test_refresh_bios_preserves_curated_data_and_clears_unavailable_bio(
+    monkeypatch, tmp_path: Path
+) -> None:
+    store = tmp_path / "data" / "persons" / "disappeared.json"
+    store.parent.mkdir(parents=True)
+    store.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "persona-con-retrato",
+                    "full_name": "Persona, Con Retrato",
+                    "source_page": f"{importer.BASE_URL}/persona-con-retrato",
+                    "short_bio": "polluted navigation",
+                    "notes": "curated note",
+                },
+                {
+                    "id": "sin-pagina",
+                    "full_name": "Sin Página",
+                    "source_page": importer.LIST_URL,
+                    "short_bio": "polluted navigation",
+                    "notes": "keep this too",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(importer, "request_text", lambda _url: PORTRAIT_PAGE)
+    args = importer.parse_args(["--repo-root", str(tmp_path), "--sleep", "0"])
+
+    refreshed, empty, errors = importer.refresh_bios(args)
+
+    assert (refreshed, empty, errors) == (1, 1, [])
+    payload = json.loads(store.read_text(encoding="utf-8"))
+    by_id = {person["id"]: person for person in payload}
+    assert by_id["persona-con-retrato"]["short_bio"] == "Biografía correcta. Segundo párrafo."
+    assert by_id["persona-con-retrato"]["notes"] == "curated note"
+    assert by_id["persona-con-retrato"]["field_sources"]["short_bio"] == importer.SITIOS_SOURCE_ID
+    assert by_id["sin-pagina"]["short_bio"] == ""
+    assert by_id["sin-pagina"]["notes"] == "keep this too"
+
+
+def test_refresh_bios_retains_existing_bio_on_fetch_failure(
+    monkeypatch, tmp_path: Path
+) -> None:
+    store = tmp_path / "data" / "persons" / "disappeared.json"
+    store.parent.mkdir(parents=True)
+    store.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "persona",
+                    "full_name": "Persona",
+                    "source_page": f"{importer.BASE_URL}/persona",
+                    "short_bio": "Existing reviewed biography.",
+                    "field_sources": {"short_bio": importer.SITIOS_SOURCE_ID},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_request(_url: str) -> str:
+        raise importer.URLError("temporary failure")
+
+    monkeypatch.setattr(importer, "request_text", fail_request)
+    args = importer.parse_args(["--repo-root", str(tmp_path), "--sleep", "0"])
+    refreshed, empty, errors = importer.refresh_bios(args)
+
+    assert (refreshed, empty) == (0, 0)
+    assert len(errors) == 1
+    payload = json.loads(store.read_text(encoding="utf-8"))
+    assert payload[0]["short_bio"] == "Existing reviewed biography."
+    assert payload[0]["field_sources"]["short_bio"] == importer.SITIOS_SOURCE_ID

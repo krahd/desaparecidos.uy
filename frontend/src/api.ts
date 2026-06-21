@@ -50,6 +50,7 @@ export type GenerateResponse = {
 
 export type ArtworkKind = 'todos-somos-familiares' | 'estan-en-todas-partes' | 'seguimos-buscando';
 export type FragmentArtworkKind = Exclude<ArtworkKind, 'seguimos-buscando'>;
+export type VideoSourceLayout = 'grid' | 'match';
 export type RouteGeometry = {
   type: 'LineString' | 'MultiLineString' | 'Polygon';
   coordinates: number[][] | number[][][];
@@ -501,6 +502,7 @@ export function generateStage1(payload: {
   max_contribution_per_source: number;
   search_scan_frames_per_candidate: number;
   search_scan_max_candidates: number;
+  video_source_layout: VideoSourceLayout;
   make_video: boolean;
   target_id?: string;
   artwork: ArtworkKind;

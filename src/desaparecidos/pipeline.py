@@ -14,17 +14,25 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from .cache import image_events_for_runs, page_trail_for_runs
-from .images import Fragment, crop_from_row, descriptor_for, extract_fragments, load_rgb
+from .images import (
+    Fragment,
+    crop_from_row,
+    descriptor_for,
+    extract_fragments,
+    load_rgb,
+    source_region_from_row,
+)
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
 
 BACKGROUND = (245, 245, 242)
 INK = (18, 18, 17)
 ACCENT = (109, 47, 38)
-PROCESS_VIDEO_STYLE = "contributing-fragment-field"
+PROCESS_VIDEO_STYLE = "source-reveal-fragment-transfer"
 MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
 DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1
 ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes", "seguimos-buscando"]
+VideoSourceLayout = Literal["grid", "match"]
 ARTWORK_SOURCE_KIND: dict[str, Literal["people", "places"]] = {
     "todos-somos-familiares": "people",
     "estan-en-todas-partes": "places",
@@ -41,6 +49,7 @@ class Stage1Settings:
     max_contribution_per_source: int = DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
     search_scan_frames_per_candidate: int = 2
     search_scan_max_candidates: int = 120
+    video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
 
 
@@ -225,6 +234,7 @@ def render_video(
     search_candidates: list[SearchCandidate] | None = None,
     search_scan_frames_per_candidate: int = 2,
     search_candidate_display: list[dict[str, object]] | None = None,
+    source_layout: VideoSourceLayout = "grid",
     fps: int = 12,
     seconds: int = 8,
 ) -> str:
@@ -240,6 +250,7 @@ def render_video(
             search_candidates=search_candidates or [],
             search_scan_frames_per_candidate=search_scan_frames_per_candidate,
             search_candidate_display=search_candidate_display,
+            source_layout=source_layout,
         )
     else:
         frames = _reveal_video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds)
@@ -292,48 +303,91 @@ def _process_video_frames(
     search_candidates: list[SearchCandidate] | None = None,
     search_scan_frames_per_candidate: int = 2,
     search_candidate_display: list[dict[str, object]] | None = None,
+    source_layout: VideoSourceLayout = "grid",
 ) -> Iterable[Image.Image]:
-    width, height = assembly.image.size
+    if source_layout not in {"grid", "match"}:
+        raise ValueError(f"unsupported video source layout: {source_layout}")
     tile = assembly.placements[0].image.width if assembly.placements else 24
     placements_by_source = _placements_by_source(assembly.placements)
     ordered_sources = _ordered_video_sources(placements_by_source, search_candidates or [])
+    source_by_id = {row.id: row for row in source_rows}
     mosaic = Image.new("RGB", assembly.image.size, BACKGROUND)
     placed_mask = Image.new("L", assembly.image.size, 0)
     mask_draw = ImageDraw.Draw(placed_mask)
     trail = search_trail or []
     frame_index = 0
-    candidates = list(search_candidates or [])
-    del source_rows, source_manifest, search_scan_frames_per_candidate, search_candidate_display
+    del search_scan_frames_per_candidate, search_candidate_display
 
     for source_id, placements in ordered_sources:
         samples = _sample_placements(placements, MAX_ANIMATED_FRAGMENTS_PER_SOURCE)
-        field, starts = _contributing_fragment_field(
-            samples,
-            assembly.image.size,
-            seed=seed + sum(ord(char) for char in source_id),
+        source_row = source_by_id.get(source_id)
+        if source_row is None:
+            raise ValueError(f"video source {source_id!r} is missing from the approved manifest rows")
+        source_region = source_region_from_row(
+            load_rgb(row_file_path(source_row, source_manifest)),
+            source_row,
+            source_row.kind,
         )
-        for _ in range(max(1, int(fps * 0.9))):
+        full_source, source_field, source_starts = _source_fragment_field(
+            samples,
+            source_region,
+            assembly.image.size,
+        )
+        for _ in range(max(1, int(fps * 0.45))):
+            yield _with_url_ticker(full_source.copy(), trail, frame_index, fps)
+            frame_index += 1
+
+        fade_steps = max(1, int(fps * 0.45))
+        for step in range(fade_steps):
+            progress = (step + 1) / fade_steps
+            frame = Image.blend(full_source, source_field, progress)
+            yield _with_url_ticker(frame, trail, frame_index, fps)
+            frame_index += 1
+
+        if source_layout == "grid":
+            field, starts = _contributing_fragment_field(
+                samples,
+                assembly.image.size,
+                seed=seed + sum(ord(char) for char in source_id),
+            )
+        else:
+            field, starts = _matched_fragment_field(samples, assembly.image.size)
+
+        transition_steps = max(1, int(fps * 0.5))
+        for step in range(transition_steps):
+            progress = (step + 1) / transition_steps
+            frame = _fragment_transfer_frame(
+                samples,
+                source_starts,
+                starts,
+                progress,
+                Image.new("RGB", assembly.image.size, INK),
+            )
+            yield _with_url_ticker(frame, trail, frame_index, fps)
+            frame_index += 1
+
+        for _ in range(max(1, int(fps * 0.4))):
             yield _with_url_ticker(field.copy(), trail, frame_index, fps)
             frame_index += 1
 
         highlighted = field.copy()
         highlight_draw = ImageDraw.Draw(highlighted)
-        for x, y in starts:
-            highlight_draw.rectangle((x, y, x + tile, y + tile), outline=ACCENT, width=2)
-        for _ in range(max(1, int(fps * 0.7))):
+        for x, y, start_size in starts:
+            highlight_draw.rectangle((x, y, x + start_size, y + start_size), outline=ACCENT, width=2)
+        for _ in range(max(1, int(fps * 0.3))):
             yield _with_url_ticker(highlighted.copy(), trail, frame_index, fps)
             frame_index += 1
 
-        for step in range(max(1, int(fps * 1.2))):
-            frame = Image.blend(field, assembly.target_canvas, min(0.25, (step + 1) / max(1, fps * 4)))
-            draw = ImageDraw.Draw(frame)
-            progress = (step + 1) / max(1, int(fps * 1.2))
-            visible_count = max(1, int(len(samples) * progress))
-            for placement, (sx, sy) in zip(samples[:visible_count], starts[:visible_count]):
-                dx = int(sx + (placement.dest_x - sx) * progress)
-                dy = int(sy + (placement.dest_y - sy) * progress)
-                draw.rectangle((sx, sy, sx + tile, sy + tile), outline=ACCENT, width=2)
-                frame.paste(placement.image, (dx, dy))
+        transfer_steps = max(1, int(fps * 1.2))
+        destinations = [(placement.dest_x, placement.dest_y, tile) for placement in samples]
+        for step in range(transfer_steps):
+            progress = (step + 1) / transfer_steps
+            background = Image.blend(
+                Image.new("RGB", assembly.image.size, INK),
+                assembly.target_canvas,
+                min(0.25, progress * 0.25),
+            )
+            frame = _fragment_transfer_frame(samples, starts, destinations, progress, background)
             yield _with_url_ticker(frame, trail, frame_index, fps)
             frame_index += 1
 
@@ -363,7 +417,7 @@ def _contributing_fragment_field(
     size: tuple[int, int],
     *,
     seed: int,
-) -> tuple[Image.Image, list[tuple[int, int]]]:
+) -> tuple[Image.Image, list[tuple[int, int, int]]]:
     field = Image.new("RGB", size, INK)
     if not placements:
         return field, []
@@ -380,10 +434,87 @@ def _contributing_fragment_field(
         for column in range(columns)
     ]
     random.Random(seed).shuffle(cells)
-    starts = cells[:len(placements)]
-    for placement, position in zip(placements, starts):
-        field.paste(placement.image, position)
+    starts = [(x, y, tile) for x, y in cells[:len(placements)]]
+    for placement, (x, y, _size) in zip(placements, starts):
+        field.paste(placement.image, (x, y))
     return field, starts
+
+
+def _source_fragment_field(
+    placements: list[TilePlacement],
+    source_region: Image.Image,
+    size: tuple[int, int],
+) -> tuple[Image.Image, Image.Image, list[tuple[int, int, int]]]:
+    width, height = size
+    if source_region.width <= 0 or source_region.height <= 0:
+        raise ValueError("source region has no displayable pixels")
+    scale = min(width / source_region.width, height / source_region.height)
+    display_width = max(1, int(round(source_region.width * scale)))
+    display_height = max(1, int(round(source_region.height * scale)))
+    offset_x = (width - display_width) // 2
+    offset_y = (height - display_height) // 2
+    fitted = source_region.resize((display_width, display_height), Image.Resampling.LANCZOS)
+    full_source = Image.new("RGB", size, INK)
+    full_source.paste(fitted, (offset_x, offset_y))
+    field = Image.new("RGB", size, INK)
+    starts: list[tuple[int, int, int]] = []
+    for placement in placements:
+        fragment_size = max(1, int(round(placement.image.width * scale)))
+        x = max(0, min(width - fragment_size, offset_x + int(round(placement.source_x * scale))))
+        y = max(0, min(height - fragment_size, offset_y + int(round(placement.source_y * scale))))
+        field.paste(
+            placement.image.resize((fragment_size, fragment_size), Image.Resampling.LANCZOS),
+            (x, y),
+        )
+        starts.append((x, y, fragment_size))
+    return full_source, field, starts
+
+
+def _matched_fragment_field(
+    placements: list[TilePlacement],
+    size: tuple[int, int],
+) -> tuple[Image.Image, list[tuple[int, int, int]]]:
+    field = Image.new("RGB", size, INK)
+    if not placements:
+        return field, []
+    width, height = size
+    tile = placements[0].image.width
+    starts: list[tuple[int, int, int]] = []
+    for placement in placements:
+        column = placement.dest_x // max(1, tile)
+        row = placement.dest_y // max(1, tile)
+        key = (column * 73856093) ^ (row * 19349663)
+        angle = math.radians(key % 360)
+        distance = tile * (1.5 + (key % 4) * 0.75)
+        x = int(round(placement.dest_x + math.cos(angle) * distance))
+        y = int(round(placement.dest_y + math.sin(angle) * distance))
+        x = max(0, min(width - tile, x))
+        y = max(0, min(height - tile, y))
+        field.paste(placement.image, (x, y))
+        starts.append((x, y, tile))
+    return field, starts
+
+
+def _fragment_transfer_frame(
+    placements: list[TilePlacement],
+    starts: list[tuple[int, int, int]],
+    destinations: list[tuple[int, int, int]],
+    progress: float,
+    background: Image.Image,
+) -> Image.Image:
+    frame = background.copy()
+    progress = max(0.0, min(1.0, progress))
+    for placement, (sx, sy, start_size), (dx, dy, dest_size) in zip(
+        placements, starts, destinations
+    ):
+        x = int(round(sx + (dx - sx) * progress))
+        y = int(round(sy + (dy - sy) * progress))
+        fragment_size = max(1, int(round(start_size + (dest_size - start_size) * progress)))
+        fragment = placement.image
+        if fragment.size != (fragment_size, fragment_size):
+            fragment = fragment.resize((fragment_size, fragment_size), Image.Resampling.LANCZOS)
+        frame.paste(fragment, (x, y))
+    return frame
 
 
 def _placements_by_source(placements: list[TilePlacement]) -> dict[str, list[TilePlacement]]:
@@ -546,6 +677,7 @@ def run_stage1(
                 search_candidates=search_candidates,
                 search_scan_frames_per_candidate=settings.search_scan_frames_per_candidate,
                 search_candidate_display=search_candidate_display,
+                source_layout=settings.video_source_layout,
             )
         sidecar_path = root / f"{stem}.json"
         sidecar = {
@@ -559,7 +691,12 @@ def run_stage1(
             "video_path": display_path(video_path) if video_path else None,
             "video_format": video_format,
             "video_process_style": PROCESS_VIDEO_STYLE if video_path else None,
-            "source_image_display": "contributing-fragments-only" if video_path else None,
+            "source_image_display": (
+                "reviewed-face-region-reveal" if video_path and source_kind == "people"
+                else "approved-place-source-reveal" if video_path
+                else None
+            ),
+            "video_source_layout": settings.video_source_layout if video_path else None,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,

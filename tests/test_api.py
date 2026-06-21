@@ -163,9 +163,11 @@ def test_generate_endpoint_preserves_zero_as_unlimited(monkeypatch: pytest.Monke
     assert captured["cap"] == 0
 
 
-def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_generate_endpoint_passes_contribution_cap_and_video_layout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     targets, sources = write_fixture(tmp_path)
-    captured: dict[str, int] = {}
+    captured: dict[str, object] = {}
 
     def fake_run_stage1(
         target_manifest: str,
@@ -180,6 +182,7 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
         captured["cap"] = getattr(settings, "max_contribution_per_source")
         captured["scan_frames"] = getattr(settings, "search_scan_frames_per_candidate")
         captured["scan_max"] = getattr(settings, "search_scan_max_candidates")
+        captured["video_source_layout"] = getattr(settings, "video_source_layout")
         return []
 
     monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
@@ -198,6 +201,7 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
             "max_contribution_per_source": 7,
             "search_scan_frames_per_candidate": 3,
             "search_scan_max_candidates": 45,
+            "video_source_layout": "match",
             "make_video": False,
         },
     )
@@ -206,6 +210,7 @@ def test_generate_endpoint_passes_contribution_cap(monkeypatch: pytest.MonkeyPat
     assert captured["cap"] == 7
     assert captured["scan_frames"] == 3
     assert captured["scan_max"] == 45
+    assert captured["video_source_layout"] == "match"
 
 
 def test_demo_fixtures_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:

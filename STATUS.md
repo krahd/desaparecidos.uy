@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-20 20:29 GMT-3
+Last updated: 2026-06-21 12:32 GMT-3
 
 ## Project purpose
 
@@ -8,17 +8,18 @@ Last updated: 2026-06-20 20:29 GMT-3
 
 ## Current implementation state
 
-The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, preprocessing, and target-admin features. The branch keeps:
+The repository now combines the current crawler/search-trail work with the newer `main` GUI, API, pipeline, corpus-import, preprocessing, and target-admin features. The repository keeps:
 
 - canonical disappeared-person target records in `data/persons/disappeared.json`;
 - target administration APIs and a GUI screen for incomplete-record review, portrait-review filtering, linked person/portrait selection, unsaved-edit confirmation, record editing, portrait candidate download, selected portrait processing, and explicit target-manifest export;
 - reviewed selected 3:4 target portrait derivatives under trackable `assets/targets/disappeared/selected/`, while raw downloads and rejected candidates remain ignored;
 - a first full imported corpus pass: 204 person records, 202 selected portrait derivatives, 321 total portrait candidates, 118 review-only local alternate portrait candidates, and two unresolved public-portrait gaps (`camuyrano-bottini-mario`, `gadea-hernandez-liborio`) recorded in person notes after trusted-source and web checks;
 - reviewed source-backed metadata overrides in `data/persons/metadata-overrides.csv`, applied to the canonical store with per-field `field_sources` and `field_source_refs`;
+- 197 source-scoped Sitios de Memoria biographies in the canonical person store, with seven explicit empty biography records and no retained page-navigation boilerplate;
 - five functional hash-routed GUI pages for Targets, Images, Todos somos familiares, Están en todas partes, and Seguimos buscando;
 - combined single-traversal crawling with separate place/people classification, manifests, run ids, trails, review states, and per-kind dedupe;
 - artwork-aware still/video generation: approved face-region fragments for Todos somos familiares and approved place fragments for Están en todas partes;
-- fragment-field process videos that never display complete source photographs or non-contributing raw candidates;
+- source-reveal process videos that briefly show each contributing approved place image, or only the reviewed face region for a people source, before fading non-contributing pixels and transferring selected fragments;
 - provider-neutral traversal storage with a Mapillary adapter, manual/GeoJSON/GPX/autonomous route authoring, bounded local frame acquisition, manual frame approval, and deterministic Seguimos buscando rendering;
 - traversal overlay, alternating-phase, and split-screen compositions for single targets or artist-ordered target sequences, with only already-traversed approved frames contributing fragments;
 - `people` manifest support for internal contemporary people-source review and generation;
@@ -41,10 +42,11 @@ The restored current-state features include:
 - vectorised fragment matching;
 - `max_contribution_per_source` feasibility checks and settings propagation;
 - restored commemorative outro sequence in process videos.
+- selectable `grid` and `match` process-video layouts, with the latter deriving a deterministic non-grid scatter only from matched target sections before transfer.
 
 ## Active focus
 
-The active focus combines target corpus curation with all three artwork workflows: review-gated people/place acquisition, reviewed street-level traversal acquisition, provenance-preserving source separation, and fragment assembly that keeps source use auditable.
+The active focus combines target corpus curation with all three artwork workflows: review-gated people/place acquisition, reviewed street-level traversal acquisition, provenance-preserving source separation, and fragment assembly that keeps source use auditable. Biography text is not currently consumed by video generation; source text must receive editorial review and a deliberate display-length policy before that changes.
 
 ## Architecture overview
 
@@ -223,7 +225,7 @@ git diff --check
 - `src/desaparecidos/manifests.py`: manifest schemas, validation, review, bulk review, single and bulk row delete.
 - `src/desaparecidos/persons.py`: canonical disappeared-person store, missing-field computation, portrait candidate handling, selected portrait processing, and target manifest export.
 - `src/desaparecidos/preprocess.py`: portrait preprocessing for local target manifests.
-- `scripts/import_sitios_memoria.py`: Sitios de Memoria importer; conservative `field-fotografia` portrait selection and per-field provenance.
+- `scripts/import_sitios_memoria.py`: Sitios de Memoria importer with conservative `field-fotografia` portrait selection, person-article-scoped biography extraction, per-field provenance, and a `--refresh-bios-only` mode that preserves other curated data.
 - `scripts/apply_portrait_overrides.py`: replaces a person's portrait from an authoritative override source and records portrait provenance.
 - `scripts/audit_target_corpus.py`: reports selected portrait coverage, portrait-review needs, missing metadata fields, portrait source counts, and unresolved target-person records.
 - `scripts/apply_person_metadata_overrides.py`: applies reviewed per-field metadata corrections from `data/persons/metadata-overrides.csv` and records source ids/references.
@@ -260,7 +262,8 @@ git diff --check
 - Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate stills and MP4 process videos for **Todos somos familiares** from approved face regions and for **Están en todas partes** from approved place images.
 - Discover and cache Mapillary routes for **Seguimos buscando**, approve frames manually, and render single-target or ordered multi-target traversal videos in overlay, alternating, or split-screen composition.
-- Show only patches that contribute to the reconstruction in process videos; never introduce complete source photographs or non-contributing raw candidates.
+- Reveal each contributing approved place source, or only the reviewed face region for a people source, at full opacity before fading non-contributing pixels and transferring selected fragments; rejected and non-contributing candidates never appear.
+- Choose regular `grid` staging or a target-match-defined non-grid scatter through the GUI, API `video_source_layout`, or CLI `--video-source-layout`; record the selection and reveal policy in sidecars.
 - Cap source contribution with `max_contribution_per_source`; the default is `1`, place generation permits explicit `0`/unlimited use, and people generation requires a positive cap.
 - Control output block size through the GUI `Block size` slider wired to `fragment_size`.
 - Record artwork/source identifiers, settings, source usage, source sequence, search trail URLs/run ids, truthful candidate counts, privacy/display policy, and video process metadata in sidecars.
@@ -268,6 +271,12 @@ git diff --check
 
 ## Recent changes
 
+- Implemented the `doc/TODO-2.md` process-video transition: each contributing source region appears at full opacity, non-contributing pixels fade to the black video background, and selected fragments move without leaving duplicate fragments behind.
+- Added two source-fragment layouts. `grid` transitions selected fragments into the existing regular field before target transfer; `match` uses a deterministic non-grid scatter derived only from matched target sections. The setting is available in the GUI, API, and CLI and is recorded as `video_source_layout` in sidecars.
+- Preserved the people-source privacy boundary during source reveal: **Todos somos familiares** displays only the reviewed detected face region used for extraction, never the surrounding contemporary photograph. Place videos may reveal complete manually approved place images; rejected and non-contributing candidates remain excluded.
+- Replaced page-wide `short_bio` extraction with person-article-scoped Drupal body extraction. Refreshed the canonical corpus to 197 source-backed biographies, cleared seven unavailable/empty biographies, added `short_bio` field provenance, and confirmed that none of the known Sitios navigation boilerplate remains.
+- Added importer `--refresh-bios-only` mode so biographies can be refreshed without replacing reviewed metadata overrides, portrait candidates, or selected portraits; transient fetch failures retain existing values and return an error. Video generators still do not read biographies; editorial review and display-length rules remain prerequisites.
+- Deleted the fully merged `paper-ai-society-open-forum-import` branch locally and from `origin`. Its local and remote tips had no commits absent from `main`; the merged writing materials remain under `doc/writings/`.
 - Fixed direct `#targets` reload so the target review manifest is active immediately; Images retains its last Places/People review tab.
 - Corrected target administration/Review images linkage for both image clicks and selection checkboxes. It resolves exact canonical ids first, then unique matching portrait source URLs or local portrait filenames for persisted legacy manifests; unmatched rows remain review-only. Counterpart scrolling and unsaved-edit confirmation remain enforced.
 - Fixed cross-panel target selections such as Basualdo Noguera disappearing under an active administration filter/query: hidden selections now reset the browser to All with an empty query. The Target administration panel now has a viewport-bounded body so its titlebar/actions remain fixed while the list and editor scroll internally.
@@ -279,7 +288,7 @@ git diff --check
 - Previously replaced the scrolling dashboard with functional hash-routed workspaces; the current fifth page completes the triptych navigation.
 - Added `POST /api/crawl/combined`: one traversal and cached download per unique candidate now produces independent place/people CV decisions, manifests, run ids, trails, and review rows under one overall candidate cap. The legacy single-kind endpoint remains available.
 - Added artwork-aware API/pipeline/CLI generation. Todos somos familiares requires approved people rows with valid face boxes and extracts fragments only from the reviewed face region; Están en todas partes consumes approved place rows. Sidecars record the artwork, source kind, and source manifest, and legacy outputs default to Están en todas partes in the GUI.
-- Replaced full-source and raw-candidate video frames with a deterministic contributing-fragment field for both artworks. Only patches actually placed in the target are displayed and animated.
+- The earlier fragment-only process-video policy has been superseded by the reviewed source-reveal transition above; raw rejected/non-contributing candidates remain excluded.
 - Reconciled the prior merge inconsistencies: the contribution default is again `1`, place-only `0` remains unlimited, search trails fall back to manifest pages when cache trails are absent, and candidate sidecars distinguish available, selected, displayed, and omitted counts.
 - Merged `origin/paper-ai-society-open-forum-import` into `import-full-disappeared-corpus`, adding the AI & Society/Open Forum drafts, source audit, summer publication plan, and paper figure SVGs under `doc/writings/`.
 - Added canonical target corpus administration: `src/desaparecidos/persons.py`, person-store FastAPI routes, React Targets screen, missing-field filters, explicit portrait candidate download, selected portrait processing, source provenance display, and target-manifest export.
@@ -316,6 +325,24 @@ git diff --check
 - Added tracked `data/persons/metadata-overrides.csv` plus `scripts/apply_person_metadata_overrides.py`. Applied eleven official Investigación Histórica corrections: D’Elía and O’Neill birth/place/disappearance fields, country of disappearance for both, and reviewed death places for Barry, Mata, and Camuyrano.
 
 ## Tests and verification status
+
+Latest local verification (TODO-2 source reveal and layouts):
+
+- `.venv/bin/python -m pytest -q`: passed, 127 tests, 1 upstream Starlette/httpx deprecation warning.
+- `npm --prefix frontend test`: passed, 7 tests.
+- `npm --prefix frontend run build`: passed (`tsc` and Vite 8 production build); the existing bundle-size advisory remains informational.
+- `.venv/bin/python -m compileall -q src tests scripts`: passed.
+- `git diff --check`: passed.
+- Pixel-level tests verify full-opacity source frames, fade-selected source positions, grid/match layout divergence, completed fragment transfer, API/CLI propagation, and exclusion of photograph context outside the reviewed people face region.
+- Real H.264 smoke renders passed for both `--video-source-layout grid` and `--video-source-layout match` using regenerated synthetic fixtures. `ffprobe` validated the files, sidecars recorded the expected layout/style/reveal policy, and contact sheets were visually inspected.
+
+Latest local verification (biography extraction and corpus refresh):
+
+- `.venv/bin/python -m pytest -q`: passed, 125 tests, 1 upstream Starlette/httpx deprecation warning.
+- `.venv/bin/python -m compileall -q src tests scripts`: passed.
+- Canonical JSON audit: 204 person ids preserved; 197 biographies have `sitios-de-memoria` field provenance, seven are explicitly empty, and zero contain the known navigation boilerplate patterns.
+- Structured before/after audit: only `short_bio`, `field_sources`, and affected `updated_at` values changed in `data/persons/disappeared.json`.
+- Branch audit: both `git branch --all --list '*paper-ai-society-open-forum-import*'` and `git ls-remote --heads origin paper-ai-society-open-forum-import` returned no refs after deletion.
 
 Latest local verification (five-page, traversal, and linked-target work):
 
@@ -366,8 +393,10 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
 - The target corpus is not yet complete: 187 of 204 records still have at least one required-field gap under the current strict missing-field policy, mostly `remains_status` and `place_of_disappearance`. Birth-date and loss-date gaps are currently resolved; four birthplace gaps remain.
 - Two selected portraits remain unresolved after the current public/trusted-source audit: `camuyrano-bottini-mario` and `gadea-hernandez-liborio`.
+- Seven records have no source biography text: `d-elia-pallares-julio-cesar`, `gadea-hernandez-liborio`, `hernandez-rodriguez-jorge`, `martinez-santoro-luis-fernando`, `o-neill-velazquez-heber-eduardo`, `quinones-modesto`, and `raina-gonzalez-carlos-alberto`.
+- Recovered biographies are faithful source-body text and range from 141 to 3,647 characters; they have not received project-specific editorial review or a video display-length policy. Do not enable biography display in videos until both are complete.
 - The older `data/manifests/local-targets.csv`/`doc/fotos-desaparecidos` corpus has 142 approved local portraits. A name-match pass added 118 review-only candidates to canonical records, and the target-admin GUI now flags records needing portrait review, but the candidates remain unselected until reviewed and processed.
-- People crawling and Todos somos familiares generation are internal and review-gated. They perform no identity matching; generation uses only reviewed face boxes and fragment fields, but outputs still require human privacy review before publication.
+- People crawling and Todos somos familiares generation are internal and review-gated. They perform no identity matching; generation and source reveal use only reviewed face boxes and never the surrounding photograph, but the full-opacity face-region reveal increases recognisability risk and requires human privacy/legal review before publication.
 - Crawler CV is stricter but still heuristic and local; manual review remains mandatory and false positives/negatives are expected.
 - Process videos require local `ffmpeg` with H.264/libx264 support.
 - Generated imagery, raw crawls, JSONL trails, raw portrait candidates, rejected candidates, temporary processed target copies, and review manifests remain ignored local data. Reviewed selected target portraits under `assets/targets/disappeared/selected/` are the explicit corpus exception.
@@ -376,11 +405,13 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 
 - Resolve or explicitly close the two remaining missing portrait gaps with trusted sources only; do not use unverified web images as selected portraits.
 - Continue filling missing person metadata, prioritising `remains_status`, `place_of_disappearance`, and the four remaining missing birthplaces.
+- Review the 197 recovered biographies for source accuracy, respectful presentation, and appropriate length; investigate the seven explicit biography gaps from trusted sources only before any video integration.
 - Review the 119 records flagged by `portrait_review` / the Targets Review filter; select and process only the local candidates that are verified as better portraits.
 - Repair or install a working Playwright/Safari WebDriver path for visual GUI regression checks.
 - Run a full manual GUI smoke in a browser once browser automation is available.
 - Configure a research Mapillary token, acquire a short Uruguay route, review the contact sheet, and inspect all three third-artwork composition modes before exhibition use.
 - Complete university legal review of Mapillary/OpenStreetMap attribution and any public-release terms; current traversal sidecars remain `internal_unreviewed`.
+- Review the full-opacity people face-region transition with university privacy/legal specialists before any public release; use place-source videos for lower-risk public prototyping.
 - Review the merged `doc/DDHH/` archive additions and `doc/writings/` publication materials for repository size and publication-readiness policy if needed.
 - Keep checking that crawler presets stay mundane and contemporary rather than memory/archive oriented.
 - Continue improving CV thresholds only with manual review evidence from real crawl runs.
@@ -389,6 +420,7 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 
 - Use `scripts/audit_target_corpus.py` and the Targets screen to work down missing fields and unresolved portraits.
 - Compare trusted source portraits and reviewed local portraits to choose the best selected portrait per person.
+- Define an editorially reviewed short-biography field or deterministic excerpt policy before connecting biography text to any video renderer.
 - Use the Utilities modal only for synthetic fixture workflows; keep primary GUI space dedicated to the real artwork workflow.
 - Use crawled page trails and local image-candidate events as provenance evidence; generated frames show only contributing fragments.
 - Use the Seguimos buscando page to validate route density, autonomous selection, and pacing with real Uruguay sequence coverage.
@@ -406,6 +438,8 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - `targets` remain only the disappeared-person portrait corpus.
 - `data/persons/disappeared.json` is the canonical disappeared-person data store; `targets.csv` is a derived generation manifest.
 - `data/persons/metadata-overrides.csv` is the tracked correction ledger for source-backed metadata fixes that should survive re-imports.
+- Sitios biography extraction is restricted to the first `field--name-body` inside the person `article`; page title, navigation, global blocks, and footer bodies are never biography candidates. Missing biography fields remain empty rather than falling back to page-wide text.
+- `short_bio` is currently administration metadata only. It must not enter video output until source review and a display-length policy are implemented and tested.
 - Death metadata stays separate from disappearance metadata. For killed cases with no separate disappearance date/place, audit/export uses `date_of_death`/`place_of_death` as the loss date/place rather than copying them into disappearance fields.
 - Reviewed selected target portrait derivatives are allowed under `assets/targets/disappeared/selected/`; raw downloads and temporary candidates remain ignored.
 - Raw-only portrait candidates are never selected automatically. Local filename matches are candidate evidence, not identity/provenance proof.
@@ -414,7 +448,8 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - Seguimos buscando uses a separate traversal contract rather than overloading place manifests. Mapillary is the first adapter; provider tokens stay backend-only, acquisition is bounded, every participating frame requires manual approval, and rendering is deterministic from the local cache.
 - Target-manifest export remains explicit. Linking target administration and image review changes selection/highlighting only and never silently rewrites `targets.csv`.
 - A combined crawl shares traversal/download work but assigns separate run ids and trails so downstream artwork provenance cannot mix the two source kinds.
-- People fragments come only from a valid reviewed face box. Both artwork videos display contributing fragments only; complete source and rejected/non-contributing candidate images remain out of generated frames.
+- Process-video reveal is source-kind-specific: approved place images may appear completely, while people sources are cropped to the valid reviewed face box before any frame is rendered. Rejected/non-contributing candidates and surrounding people-source context remain out of generated frames.
+- `grid` remains the default source-fragment layout for compatibility; `match` is the explicit alternative whose non-grid staging positions derive only from matched target sections.
 - Crawler presets default to same-domain traversal; cross-domain remains a manual opt-in.
 - Crawler CV cache entries are versioned; old decisions are recomputed rather than silently reused after policy changes.
 - Download controls are hidden from the primary GUI because they are no longer central to the workflow, but API/CLI support remains for automation.
@@ -423,9 +458,10 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 
 ## Documentation alignment notes
 
-- `README.md` describes the five routed workspaces, incomplete-record terminology, linked target selection, combined dual classification, three artwork workflows, traversal configuration, contribution policy, and JSON sidecars.
+- `README.md` describes the five routed workspaces, incomplete-record terminology, linked target selection, combined dual classification, three artwork workflows, traversal configuration, source-reveal sequence, grid/match layouts, contribution policy, JSON sidecars, scoped biography extraction, and safe biography refresh command.
+- `doc/TODO-2.md` records the implemented source transition and two layout modes; `doc/desaparecidos-uy-project-description.md` and `AGENTS.md` record the current reveal/privacy policy.
 - `AGENTS.md` records current safety invariants, the canonical person-store/metadata-override/selected-portrait corpus exceptions, local portrait candidate review policy, strict people/place CV expectations, and non-identification requirements.
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-20 20:29 GMT-3
+Last updated: 2026-06-21 12:32 GMT-3

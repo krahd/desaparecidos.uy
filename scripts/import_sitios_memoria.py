@@ -37,7 +37,13 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from desaparecidos.manifests import TARGET_FIELDS
-from desaparecidos.persons import normalise_person, target_row_from_person
+from desaparecidos.persons import (
+    load_persons,
+    normalise_person,
+    save_persons,
+    target_row_from_person,
+    utc_now,
+)
 from desaparecidos.preprocess import preprocess_file
 
 BASE_URL = "https://sitiosdememoria.uy"
@@ -168,6 +174,57 @@ class LinkParser(HTMLParser):
             self._text = []
 
 
+class BiographyParser(HTMLParser):
+    """Extract the biography body belonging to the person article only."""
+
+    BLOCK_TAGS = {"br", "div", "li", "p"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._person_article_depth = 0
+        self._capture_tag: str | None = None
+        self._capture_depth = 0
+        self._found_field = False
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
+        classes = set((dict(attrs).get("class") or "").split())
+        if self._person_article_depth:
+            if tag == "article":
+                self._person_article_depth += 1
+            if self._capture_tag is not None and tag == self._capture_tag:
+                self._capture_depth += 1
+                self._parts.append(" ")
+            elif not self._found_field and "field--name-body" in classes:
+                self._capture_tag = tag
+                self._capture_depth = 1
+                self._found_field = True
+            elif self._capture_tag is not None and tag in self.BLOCK_TAGS:
+                self._parts.append(" ")
+        elif tag == "article" and "persona" in classes:
+            self._person_article_depth = 1
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if self._capture_tag is not None and tag in self.BLOCK_TAGS:
+            self._parts.append(" ")
+        if self._capture_tag is not None and tag == self._capture_tag:
+            self._capture_depth -= 1
+            if self._capture_depth == 0:
+                self._capture_tag = None
+        if self._person_article_depth and tag == "article":
+            self._person_article_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._capture_tag is not None:
+            self._parts.append(data)
+
+    def biography(self) -> str | None:
+        value = normalise_space("".join(self._parts))
+        return value or None
+
+
 # The person portrait on a Sitios de Memoria page lives in a single Drupal
 # field container. Anchoring to it is far more reliable than scanning every
 # image: works posters, materials, judicial scans, and supporter logos live in
@@ -238,6 +295,13 @@ def html_lines(page_html: str) -> list[str]:
     text = re.sub(r"(?is)</(p|div|li|tr|td|th|h1|h2|h3|h4|section)>", "\n", text)
     text = re.sub(r"(?is)<[^>]+>", "\n", text)
     return [normalise_space(line) for line in text.splitlines() if normalise_space(line)]
+
+
+def extract_biography(page_html: str) -> str | None:
+    parser = BiographyParser()
+    parser.feed(page_html)
+    parser.close()
+    return parser.biography()
 
 
 def parse_export_link() -> str | None:
@@ -337,14 +401,7 @@ def extract_fields(page_html: str) -> tuple[dict[str, object], str | None]:
                     values.append(candidate)
             key = FIELD_ALIASES[line]
             fields[key] = coerce_value(key, " | ".join(values))
-    bio_lines: list[str] = []
-    for line in lines:
-        if line in labels or line.startswith("#") or line in {"Nombre", "Apellido"}:
-            break
-        if line and not line.startswith("Pasar al contenido") and line not in {"BUSCAR", "Main navigation"}:
-            bio_lines.append(line)
-    bio = " ".join(bio_lines[:4]) if bio_lines else None
-    return fields, bio
+    return fields, extract_biography(page_html)
 
 
 def _portrait_field_region(page_html: str) -> str | None:
@@ -469,6 +526,8 @@ def build_record(row: dict[str, str], args: argparse.Namespace) -> PersonRecord:
     )
     # Provenance: every metadata field imported here comes from Sitios de Memoria.
     record.field_sources = {key: SITIOS_SOURCE_ID for key in fields}
+    if bio:
+        record.field_sources["short_bio"] = SITIOS_SOURCE_ID
     # Conservative portrait selection: at most the single header-block portrait,
     # or none at all when the page only carries works/materials imagery.
     portrait_urls = select_portrait_urls(page_html, page_url) if page_html else []
@@ -536,6 +595,52 @@ def write_target_manifest(path: Path, records: list[PersonRecord], approved_targ
             writer.writerow(row)
 
 
+def refresh_bios(args: argparse.Namespace) -> tuple[int, int, list[str]]:
+    """Refresh only canonical biographies, preserving all other curated fields."""
+    people = load_persons(args.people_json)
+    refreshed = 0
+    empty = 0
+    errors: list[str] = []
+    for index, person in enumerate(people, start=1):
+        person_id = str(person.get("id") or person.get("slug") or "").strip()
+        page_url = str(person.get("source_page") or "").strip()
+
+        old_bio = str(person.get("short_bio") or "").strip()
+        bio = None
+        fetch_failed = False
+        if page_url != LIST_URL and page_url.startswith(f"{BASE_URL}/"):
+            try:
+                bio = extract_biography(request_text(page_url))
+            except (HTTPError, URLError, TimeoutError) as exc:
+                errors.append(f"{person_id}: {exc}")
+                fetch_failed = True
+        if fetch_failed:
+            print(f"[{index}/{len(people)}] biography retained after fetch failure: {person_id}")
+            time.sleep(args.sleep)
+            continue
+
+        person["short_bio"] = ""
+        field_sources = dict(person.get("field_sources") or {})
+        field_sources.pop("short_bio", None)
+        person["field_sources"] = field_sources
+        field_source_refs = dict(person.get("field_source_refs") or {})
+        field_source_refs.pop("short_bio", None)
+        person["field_source_refs"] = field_source_refs
+        if bio:
+            person["short_bio"] = bio
+            field_sources["short_bio"] = SITIOS_SOURCE_ID
+            refreshed += 1
+        else:
+            empty += 1
+        if old_bio != (bio or ""):
+            person["updated_at"] = utc_now()
+        print(f"[{index}/{len(people)}] biography {'refreshed' if bio else 'empty'}: {person_id}")
+        time.sleep(args.sleep)
+
+    save_persons(args.people_json, people)
+    return refreshed, empty, errors
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -545,6 +650,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--process-images", action="store_true", help="Create normalised 3:4 processed portrait derivatives with white borders removed.")
     parser.add_argument("--approved-targets", action="store_true", help="Write approved review status for target portraits instead of candidate.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing generated import files.")
+    parser.add_argument(
+        "--refresh-bios-only",
+        action="store_true",
+        help="Refresh canonical short_bio fields without replacing other person data.",
+    )
     parser.add_argument("--width", type=int, default=900)
     parser.add_argument("--height", type=int, default=1200)
     args = parser.parse_args(argv)
@@ -560,6 +670,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    if args.refresh_bios_only:
+        refreshed, empty, errors = refresh_bios(args)
+        print(f"Refreshed biographies: {refreshed}")
+        print(f"Empty biographies: {empty}")
+        for error in errors:
+            print(f"Biography refresh failed: {error}", file=sys.stderr)
+        return 1 if errors else 0
     rows = load_base_records()
     if args.limit:
         rows = rows[: args.limit]

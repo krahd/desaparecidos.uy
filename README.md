@@ -33,7 +33,7 @@ The prototype provides:
 - an active default per-source contribution cap so no single source image can dominate a generated portrait;
 - separate generation workspaces for **Todos somos familiares** and **Están en todas partes**;
 - a provider-neutral street-level traversal workflow for **Seguimos buscando**, with Mapillary discovery, local acquisition, frame review, and deterministic offline video rendering;
-- still PNG outputs and optional browser-playable H.264 MP4 process videos that show only contributing fragments, a bottom URL ticker, and a commemorative outro;
+- still PNG outputs and optional browser-playable H.264 MP4 process videos that reveal an approved place source or reviewed people face region, fade away everything except contributing fragments, transfer those fragments to the portrait, retain a bottom URL ticker, and finish with a commemorative outro;
 - JSON sidecars for generated outputs;
 - a localhost-only GUI so the workflow can be run without typing CLI commands.
 
@@ -67,9 +67,10 @@ Generation controls include:
 
 - `Block size`, wired to `fragment_size` (`8..128`, step `4`);
 - `Max tiles per source`, wired to `max_contribution_per_source`; the default is `1`, `0` means unlimited for place generation, and people generation requires a positive cap;
+- `Source fragment layout`, selecting either a regular grid or a deterministic non-grid scatter derived from each fragment's matched target section;
 - `reuse_limit`, `output_width`, seed, still generation, and video generation.
 
-Generated videos never introduce complete source photographs. For each contributing source, only the patches used by the reconstruction appear in a dispersed fragment field and animate into their actual target positions. People fragments come only from the reviewed detected face region. Crawler page URLs remain visible along the bottom during assembly, and the video finishes with a commemorative outro.
+For each contributing source, generated videos begin with the approved source region at full opacity, quickly fade non-contributing pixels, and transfer the remaining fragments into their actual target positions. The `grid` mode stages selected fragments in a regular field before transfer; the `match` mode uses a deterministic non-grid scatter derived only from each fragment's matched target section. Place videos may reveal the complete approved place image. People videos reveal only the reviewed detected face region used for extraction, never the surrounding source photograph. Rejected and non-contributing candidate images remain excluded. Crawler page URLs remain visible along the bottom during assembly, and the video finishes with a commemorative outro.
 
 Each generated PNG/MP4 has an adjacent JSON **sidecar**. The sidecar is output metadata: it records the artwork, source kind and manifest, target, settings, source/fragment usage, output paths, crawl trail, and candidate counts without modifying the media file.
 
@@ -122,9 +123,12 @@ python -m desaparecidos run-stage1 --artwork estan-en-todas-partes --targets dat
 python -m desaparecidos run-stage1 --artwork todos-somos-familiares --targets data/manifests/targets.csv --sources data/manifests/people.csv --output outputs/stage1 --seed 17 --max-contribution-per-source 1
 python -m desaparecidos run-traversal --traversal route-ID --target-id person-ID --targets data/manifests/targets.csv --composition overlay --duration 60 --fps 12
 python scripts/build_targets_manifest.py --source doc/fotos-desaparecidos --output data/manifests/local-targets.csv --processed-root data/processed/targets --aspect 3:4
+python scripts/import_sitios_memoria.py --refresh-bios-only
 ```
 
-The Sitios de Memoria importer and portrait override tooling remain available for corpus preparation. The importer selects a portrait only from a person page's `field-fotografia` container, recording `portrait_status` as `ok` or `missing` rather than importing work posters or materials as a face. It writes the canonical person store at `data/persons/disappeared.json`, raw downloads under ignored `assets/targets/disappeared/raw/`, selected 3:4 derivatives under `assets/targets/disappeared/selected/`, and the derived `data/manifests/targets.csv`. Each person record carries a `field_sources` map noting which source (see the tracked `data/sources.json` registry) is authoritative for each field and for the portrait; `scripts/apply_portrait_overrides.py` swaps in a portrait from a better source (for example Parque de la Memoria for Argentine cases) and records that provenance.
+The Sitios de Memoria importer and portrait override tooling remain available for corpus preparation. The importer selects a portrait only from a person page's `field-fotografia` container, recording `portrait_status` as `ok` or `missing` rather than importing work posters or materials as a face. Biography extraction is restricted to the first `field--name-body` inside the person `article`; navigation, page chrome, global blocks, and footer bodies are excluded. `--refresh-bios-only` updates only canonical biographies and their field provenance, preserving curated metadata and portrait decisions. Biography text is not currently used by video generation and requires editorial review plus a display-length policy before integration.
+
+The importer writes the canonical person store at `data/persons/disappeared.json`, raw downloads under ignored `assets/targets/disappeared/raw/`, selected 3:4 derivatives under `assets/targets/disappeared/selected/`, and the derived `data/manifests/targets.csv`. Each person record carries a `field_sources` map noting which source (see the tracked `data/sources.json` registry) is authoritative for each field and for the portrait; `scripts/apply_portrait_overrides.py` swaps in a portrait from a better source (for example Parque de la Memoria for Argentine cases) and records that provenance.
 
 ## Manifests and Review
 

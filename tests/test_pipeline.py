@@ -14,6 +14,7 @@ from desaparecidos.manifests import approved_rows
 from desaparecidos.pipeline import (
     DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
     Stage1Settings,
+    TilePlacement,
     assemble_target_with_trace,
     run_stage1,
 )
@@ -72,6 +73,7 @@ def digest(path: Path) -> str:
 def test_stage1_settings_default_contribution_cap_is_one() -> None:
     assert DEFAULT_MAX_CONTRIBUTION_PER_SOURCE == 1
     assert Stage1Settings().max_contribution_per_source == 1
+    assert Stage1Settings().video_source_layout == "grid"
 
 
 def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
@@ -91,6 +93,7 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     sidecar = json.loads(Path(first.sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["target_id"] == "person-1"
     assert sidecar["settings"]["seed"] == 17
+    assert sidecar["settings"]["video_source_layout"] == "grid"
     assert sidecar["max_fragment_reuse_observed"] <= 2
     assert sidecar["tile_count"] == 16
     assert sidecar["source_sequence"]
@@ -235,7 +238,40 @@ def test_assembly_trace_records_fragment_destinations(tmp_path: Path) -> None:
     assert assembly.placements[0].dest_y == 0
 
 
-def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_path: Path) -> None:
+def test_source_layout_fades_to_true_source_positions_and_transfers_fragments() -> None:
+    source = Image.new("RGB", (96, 48), (180, 30, 30))
+    ImageDraw.Draw(source).rectangle((48, 0, 95, 47), fill=(20, 40, 220))
+    fragment = source.crop((48, 0, 72, 24))
+    placement = TilePlacement("source", "source:48:0", fragment, 0, 0, 48, 0)
+
+    full_source, selected, starts = pipeline_module._source_fragment_field(
+        [placement], source, (96, 96)
+    )
+    grid, grid_starts = pipeline_module._contributing_fragment_field(
+        [placement], (96, 96), seed=17
+    )
+    matched, matched_starts = pipeline_module._matched_fragment_field([placement], (96, 96))
+
+    assert full_source.getpixel((12, 36)) == (180, 30, 30)
+    assert full_source.getpixel((60, 36)) == (20, 40, 220)
+    assert selected.getpixel((12, 36)) == pipeline_module.INK
+    assert selected.getpixel((60, 36)) == (20, 40, 220)
+    assert starts == [(48, 24, 24)]
+    assert grid_starts != starts
+    assert matched_starts != starts
+    assert matched_starts != grid_starts
+    assert grid.getpixel(grid_starts[0][:2]) == (20, 40, 220)
+    assert matched.getpixel(matched_starts[0][:2]) == (20, 40, 220)
+
+    transferred = pipeline_module._fragment_transfer_frame(
+        [placement], starts, [(0, 0, 24)], 1.0,
+        Image.new("RGB", (96, 96), pipeline_module.INK),
+    )
+    assert transferred.getpixel((12, 12)) == (20, 40, 220)
+    assert transferred.getpixel((60, 36)) == pipeline_module.INK
+
+
+def test_process_video_frames_start_with_full_source_then_change(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path, source_count=1)
     target_row = approved_rows(targets, "targets", require_files=True)[0]
     source_rows = approved_rows(places, "places", require_files=True)
@@ -261,15 +297,72 @@ def test_process_video_frames_start_with_full_source_and_end_with_result(tmp_pat
             places,
             seed=17,
             fps=4,
-            search_trail=["https://example.invalid/search"],
+            source_layout="match",
         ),
         12,
     ))
 
     assert frames
     assert all(frame.size == assembly.image.size for frame in frames)
-    assert frames[0].tobytes() != assembly.image.tobytes()
+    source_region = Image.open(tmp_path / "source-0.png").convert("RGB")
+    expected, _selected, _starts = pipeline_module._source_fragment_field(
+        pipeline_module._sample_placements(
+            assembly.placements,
+            pipeline_module.MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
+        ),
+        source_region,
+        assembly.image.size,
+    )
+    assert frames[0].tobytes() == expected.tobytes()
     assert any(frame.tobytes() != frames[0].tobytes() for frame in frames[1:])
+
+
+def test_people_video_reveals_only_reviewed_face_region(tmp_path: Path) -> None:
+    targets, _places = write_manifests(tmp_path, source_count=1)
+    person_image = Image.new("RGB", (96, 96), (220, 20, 20))
+    ImageDraw.Draw(person_image).rectangle((48, 0, 95, 95), fill=(20, 40, 220))
+    person_image.save(tmp_path / "person-source.png")
+    people = tmp_path / "people.csv"
+    with people.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
+            "local_path", "review_status", "location_label", "notes", "crawl_run_id",
+            "content_sha256", "perceptual_hash", "face_x", "face_y", "face_width", "face_height",
+        ])
+        writer.writerow([
+            "person-source", "Person", "local://person-source.png", "local://person-source",
+            "fixture", "2026-06-21", "person-source.png", "approved", "", "", "", "", "",
+            "48", "0", "48", "96",
+        ])
+    target_row = approved_rows(targets, "targets", require_files=True)[0]
+    source_rows = approved_rows(people, "people", require_files=True)
+    fragments = extract_fragments(source_rows, people, fragment_size=24, source_kind="people")
+    assembly = assemble_target_with_trace(
+        target_row,
+        targets,
+        fragments,
+        Stage1Settings(
+            fragment_size=24,
+            reuse_limit=2,
+            output_width=96,
+            max_contribution_per_source=16,
+            video_source_layout="match",
+        ),
+    )
+
+    first = next(pipeline_module._process_video_frames(
+        target_row,
+        assembly,
+        source_rows,
+        people,
+        seed=17,
+        fps=4,
+        source_layout="match",
+    ))
+
+    assert first.getpixel((48, 48)) == (20, 40, 220)
+    assert first.getpixel((12, 48)) == pipeline_module.INK
 
 
 def test_process_video_frames_do_not_show_non_contributing_candidates(tmp_path: Path) -> None:

@@ -172,13 +172,16 @@ The project’s most important final form may be video. A still image can show t
 
 A typical sequence might proceed as follows:
 
-1. fragments appear as unorganized visual matter;
-2. the system begins to sort, move, compare, and place them;
-3. a face slowly becomes perceptible;
-4. the portrait reaches a fragile moment of recognition;
-5. the person’s name and minimal public data appear;
-6. the image destabilizes, dissolves, or returns to the visual field;
-7. the next reconstruction begins.
+1. an approved place source, or only the reviewed face region of a people source, appears at full opacity;
+2. non-contributing pixels fade away, leaving the selected fragments visible;
+3. fragments transition into either a regular grid or a deterministic non-grid scatter defined by their matched target sections;
+4. the fragments move into their matched target positions and a face slowly becomes perceptible;
+5. the portrait reaches a fragile moment of recognition;
+6. the person’s name and minimal public data appear;
+7. the image destabilizes, dissolves, or returns to the visual field;
+
+The current process-video renderer exposes two source-fragment layouts. `grid` preserves the earlier regular staging field; `match` derives a deterministic non-grid scatter only from each fragment's matched target section before transfer. Place-source reveal is limited to manually approved images. For contemporary people, the renderer must reveal only the reviewed detected face region used for extraction, never the surrounding photograph, and the output remains internal until privacy and legal review.
+8. the next reconstruction begins.
 
 This temporal structure prevents the face from becoming a resolved object. The work should not end in restoration, but in continued search.
 
@@ -265,7 +268,7 @@ Historical target images require careful provenance and respect. The project sho
 
 Source images of living persons require privacy protection. Public availability should not be treated as blanket permission for any form of processing. Even when images are public, the project should minimize identifiability, avoid classification, avoid source-person representation, and make deletion or exclusion procedures available.
 
-Generated outputs require careful review before publication. They should be inspected to ensure that no living person appears recognizably, no source image is reconstructable, and no output creates a false implication about the source persons.
+Generated outputs require careful review before publication. Place-source reveals should be checked for approval and release terms. People-source reveals should be inspected to ensure that no context outside the reviewed face region appears and that the output does not create a false implication about the source person; these outputs remain internal until privacy and legal review.
 
 The project should also avoid using images from contexts that create additional vulnerability or sensitivity. Unless explicit permission exists, the system should exclude images from schools, hospitals, prisons, shelters, protests, funerals, religious ceremonies, political meetings, or other contexts where visual presence may reveal sensitive personal information.
 

@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--search-scan-frames-per-candidate", type=int, default=2)
     run.add_argument("--search-scan-max-candidates", type=int, default=120)
+    run.add_argument(
+        "--video-source-layout",
+        choices=["grid", "match"],
+        default="grid",
+        help="arrange selected fragments in a grid or a target-match-defined scatter",
+    )
     run.add_argument("--target-id")
     run.add_argument(
         "--artwork",
@@ -118,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             max_contribution_per_source=_normalise_contribution_cap(args.max_contribution_per_source),
             search_scan_frames_per_candidate=args.search_scan_frames_per_candidate,
             search_scan_max_candidates=args.search_scan_max_candidates,
+            video_source_layout=args.video_source_layout,
             make_video=args.video,
         )
         outputs = run_stage1(

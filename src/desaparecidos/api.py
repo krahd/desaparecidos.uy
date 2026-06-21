@@ -32,7 +32,13 @@ from .persons import (
     set_selected_portrait,
     upsert_person,
 )
-from .pipeline import ArtworkKind, DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, Stage1Settings, run_stage1
+from .pipeline import (
+    ArtworkKind,
+    DEFAULT_MAX_CONTRIBUTION_PER_SOURCE,
+    Stage1Settings,
+    VideoSourceLayout,
+    run_stage1,
+)
 from .traversals import (
     CompositionMode,
     TargetMode,
@@ -73,6 +79,7 @@ class GenerateRequest(BaseModel):
     max_contribution_per_source: int = Field(default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, ge=0, le=1000000)
     search_scan_frames_per_candidate: int = Field(default=2, ge=1, le=24)
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
+    video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
     target_id: str | None = None
     artwork: ArtworkKind = "estan-en-todas-partes"
@@ -565,6 +572,7 @@ def create_app() -> FastAPI:
             max_contribution_per_source=_normalise_contribution_cap(request.max_contribution_per_source),
             search_scan_frames_per_candidate=request.search_scan_frames_per_candidate,
             search_scan_max_candidates=request.search_scan_max_candidates,
+            video_source_layout=request.video_source_layout,
             make_video=request.make_video,
         )
         try:

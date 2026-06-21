@@ -33,6 +33,7 @@ import {
   PersonsResponse,
   SourceRegistry,
   ValidateResponse,
+  VideoSourceLayout,
   addPersonPortrait,
   crawlPagesCombined,
   createDemoFixtures,
@@ -84,6 +85,7 @@ type GenerationSettings = {
   reuseLimit: number;
   outputWidth: number;
   maxContribution: number;
+  videoSourceLayout: VideoSourceLayout;
 };
 
 const defaultGenerationSettings: GenerationSettings = {
@@ -92,6 +94,7 @@ const defaultGenerationSettings: GenerationSettings = {
   reuseLimit: 8,
   outputWidth: 720,
   maxContribution: 1,
+  videoSourceLayout: 'grid',
 };
 
 function pageFromHash(): PageId {
@@ -667,6 +670,7 @@ export function App() {
           max_contribution_per_source: settings.maxContribution,
           search_scan_frames_per_candidate: 2,
           search_scan_max_candidates: 120,
+          video_source_layout: settings.videoSourceLayout,
           make_video: makeVideo,
           target_id: selectedTargetId || undefined,
           artwork,
@@ -1801,7 +1805,7 @@ export function App() {
         <section id="controls-generate">
           <h2>{fragmentArtwork === 'todos-somos-familiares' ? 'Face-fragment generation' : 'Place-fragment generation'}</h2>
           <p className="section-note">
-            Only fragments that contribute to the portrait appear in the process video. Complete source photographs are never shown.
+            Videos reveal each approved place source, or only the reviewed face crop for people, before fading to the selected fragments.
           </p>
           <label>
             Output directory
@@ -1828,6 +1832,20 @@ export function App() {
               value={generationSettings[fragmentArtwork].maxContribution}
               onChange={(event) => updateGenerationSetting(fragmentArtwork, 'maxContribution', Number(event.target.value))}
             />
+          </label>
+          <label>
+            Source fragment layout
+            <select
+              value={generationSettings[fragmentArtwork].videoSourceLayout}
+              onChange={(event) => updateGenerationSetting(
+                fragmentArtwork,
+                'videoSourceLayout',
+                event.target.value as VideoSourceLayout,
+              )}
+            >
+              <option value="grid">Grid</option>
+              <option value="match">Matched non-grid scatter</option>
+            </select>
           </label>
           <div className="form-grid">
             <label>

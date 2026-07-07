@@ -199,6 +199,7 @@ class TraversalDiscoverRequest(BaseModel):
     import_format: Literal["geojson", "gpx"] | None = None
     duration_seconds: int = Field(default=60, ge=1, le=3600)
     max_frames: int = Field(default=600, ge=1, le=1200)
+    regions: int = Field(default=1, ge=1, le=12)
     root: str = "data/raw/traversals"
 
 
@@ -506,6 +507,7 @@ def create_app() -> FastAPI:
                 duration_seconds=request.duration_seconds,
                 root=safe_project_path(request.root),
                 max_frames=request.max_frames,
+                regions=request.regions,
             )
             return {"ok": True, "traversal": result}
         except Exception as exc:

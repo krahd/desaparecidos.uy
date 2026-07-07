@@ -71,6 +71,7 @@ export type TraversalFrame = {
   cv_reason: string;
   cv_accept?: boolean;
   sequence_jump: boolean;
+  region_index?: number | null;
 };
 
 export type Traversal = {
@@ -81,6 +82,13 @@ export type Traversal = {
   mode: 'manual' | 'import' | 'autonomous';
   geometry: RouteGeometry;
   duration_seconds: number;
+  regions?: number | null;
+  walks?: {
+    region_index: number | null;
+    sequence_id: string;
+    first_frame_id: string;
+    frame_count: number;
+  }[] | null;
   gap_policy: 'direct-jump-cut';
   release_status: 'internal_unreviewed';
   attribution: string;
@@ -525,6 +533,7 @@ export function discoverTraversal(payload: {
   import_format?: 'geojson' | 'gpx';
   duration_seconds: number;
   max_frames: number;
+  regions?: number;
   root?: string;
 }): Promise<{ ok: boolean; traversal: Traversal }> {
   return request('/api/traversals/discover', { method: 'POST', body: JSON.stringify(payload) });

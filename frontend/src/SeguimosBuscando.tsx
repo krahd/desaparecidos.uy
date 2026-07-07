@@ -40,6 +40,7 @@ export function SeguimosBuscando({
   const [name, setName] = useState('Uruguay traversal');
   const [duration, setDuration] = useState(60);
   const [maxFrames, setMaxFrames] = useState(120);
+  const [regions, setRegions] = useState(4);
   const [importContent, setImportContent] = useState('');
   const [importFormat, setImportFormat] = useState<'geojson' | 'gpx'>('geojson');
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
@@ -103,10 +104,14 @@ export function SeguimosBuscando({
         import_format: mode === 'import' ? importFormat : undefined,
         duration_seconds: duration,
         max_frames: maxFrames,
+        regions: mode === 'autonomous' ? regions : undefined,
       });
       setActive(response.traversal);
       setItems((current) => [response.traversal, ...current.filter((item) => item.id !== response.traversal.id)]);
-      setMessage(`Discovered ${response.traversal.frames.length} ordered frames. Acquire them before review.`);
+      const walkNote = response.traversal.walks?.length
+        ? ` across ${response.traversal.walks.length} coherent walks`
+        : '';
+      setMessage(`Discovered ${response.traversal.frames.length} ordered frames${walkNote}. Acquire them before review.`);
     });
   }
 
@@ -214,8 +219,11 @@ export function SeguimosBuscando({
             <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label>Duration (seconds)<input type="number" min={1} max={3600} value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label>
             <label>Maximum frames<input type="number" min={1} max={600} value={maxFrames} onChange={(event) => setMaxFrames(Number(event.target.value))} /></label>
+            {mode === 'autonomous' && (
+              <label>Regions<input type="number" min={1} max={12} value={regions} onChange={(event) => setRegions(Number(event.target.value))} /></label>
+            )}
             <button className="primary" onClick={() => void discover()} disabled={busy}><Map size={16} /> Discover sequences</button>
-            <p className="section-note">Click the map to add ordered points. Autonomous mode uses the drawn region and duration. Disconnected sequences use direct jump cuts.</p>
+            <p className="section-note">Click the map to add ordered points. Autonomous mode divides the drawn region into cells and selects one coherent capture sequence per region; walks are joined with direct jump cuts.</p>
           </div>
         </div>
         <div className="traversal-list">
@@ -248,7 +256,7 @@ export function SeguimosBuscando({
               })} />
               {frame.local_path ? <img src={fileUrl(frame.local_path)} alt="" /> : <span className="frame-placeholder">metadata only</span>}
               <strong>{frame.ordinal + 1} · {frame.review_status}</strong>
-              <span>{frame.cv_label}{frame.sequence_jump ? ' · jump cut' : ''}</span>
+              <span>{frame.cv_label}{frame.region_index != null ? ` · region ${frame.region_index + 1}` : ''}{frame.sequence_jump ? ' · jump cut' : ''}</span>
             </label>
           ))}
         </div>

@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-06-21 12:32 GMT-3
+Last updated: 2026-07-07 15:06 GMT-3
 
 ## Project purpose
 
@@ -21,6 +21,8 @@ The repository now combines the current crawler/search-trail work with the newer
 - artwork-aware still/video generation: approved face-region fragments for Todos somos familiares and approved place fragments for Están en todas partes;
 - source-reveal process videos that briefly show each contributing approved place image, or only the reviewed face region for a people source, before fading non-contributing pixels and transferring selected fragments;
 - provider-neutral traversal storage with a Mapillary adapter, manual/GeoJSON/GPX/autonomous route authoring, bounded local frame acquisition, manual frame approval, and deterministic Seguimos buscando rendering;
+- autonomous multi-region walk discovery: the drawn region is divided into up to twelve grid cells and the longest coherent capture sequence per cell becomes one walk, so a single traversal moves through different parts of the country with direct jump cuts between walks and `walks`/`region_index` metadata recorded on the route;
+- incremental found-fragment assembly for Seguimos buscando: fragments become available only when the walk reaches their frame, still-empty portrait tiles are filled on a proportional schedule from the best-matching found fragments, and ordered multi-target renders split the walk into contiguous per-target segments;
 - traversal overlay, alternating-phase, and split-screen compositions for single targets or artist-ordered target sequences, with only already-traversed approved frames contributing fragments;
 - `people` manifest support for internal contemporary people-source review and generation;
 - crawler run/page/image trail persistence in SQLite plus JSONL run exports;
@@ -262,6 +264,8 @@ git diff --check
 - Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate stills and MP4 process videos for **Todos somos familiares** from approved face regions and for **Están en todas partes** from approved place images.
 - Discover and cache Mapillary routes for **Seguimos buscando**, approve frames manually, and render single-target or ordered multi-target traversal videos in overlay, alternating, or split-screen composition.
+- Discover autonomous multi-region walks: a drawn region is split into up to twelve grid cells (`regions` in the GUI/API), the longest coherent capture sequence per cell becomes one walk, walks chain by nearest neighbour with direct jump cuts, and `walks`/`region_index` metadata persists on the route and in sidecars.
+- Assemble Seguimos buscando portraits incrementally from the bits found along the walk: no tile is matched against a frame the traversal has not reached, ordered target sequences consume contiguous per-target walk segments, and sidecars record `assembly_policy: "incremental-found-fragments"` plus `target_segments`.
 - Reveal each contributing approved place source, or only the reviewed face region for a people source, at full opacity before fading non-contributing pixels and transferring selected fragments; rejected and non-contributing candidates never appear.
 - Choose regular `grid` staging or a target-match-defined non-grid scatter through the GUI, API `video_source_layout`, or CLI `--video-source-layout`; record the selection and reveal policy in sidecars.
 - Cap source contribution with `max_contribution_per_source`; the default is `1`, place generation permits explicit `0`/unlimited use, and people generation requires a positive cap.
@@ -271,6 +275,8 @@ git diff --check
 
 ## Recent changes
 
+- Completed the Seguimos buscando generation model. Autonomous discovery now produces coherent walks through different parts of the country: the drawn region is partitioned into grid cells (new `regions` control in the GUI and `POST /api/traversals/discover`, 1–12, GUI default 4), each cell contributes its longest capture sequence ordered by capture time, singleton/noise frames are never selected when a coherent sequence (≥4 frames) exists, and walks chain with the existing direct-jump-cut policy. Route records and sidecars persist `regions`, `walks`, and per-frame `region_index`.
+- Replaced full-knowledge traversal assembly with incremental found-fragment assembly (`assemble_walk`). Fragments join the pool only when the walk reaches their frame; after each frame a proportional share of still-empty portrait tiles is filled with the best-matching found fragment under the existing reuse/contribution limits, so tile matching never sees future frames. Ordered multi-target renders split the walk into contiguous per-target segments (`target_segments` in sidecars); each target's street footage and portrait progress now come from its own segment.
 - Implemented the `doc/TODO-2.md` process-video transition: each contributing source region appears at full opacity, non-contributing pixels fade to the black video background, and selected fragments move without leaving duplicate fragments behind.
 - Added two source-fragment layouts. `grid` transitions selected fragments into the existing regular field before target transfer; `match` uses a deterministic non-grid scatter derived only from matched target sections. The setting is available in the GUI, API, and CLI and is recorded as `video_source_layout` in sidecars.
 - Preserved the people-source privacy boundary during source reveal: **Todos somos familiares** displays only the reviewed detected face region used for extraction, never the surrounding contemporary photograph. Place videos may reveal complete manually approved place images; rejected and non-contributing candidates remain excluded.
@@ -325,6 +331,16 @@ git diff --check
 - Added tracked `data/persons/metadata-overrides.csv` plus `scripts/apply_person_metadata_overrides.py`. Applied eleven official Investigación Histórica corrections: D’Elía and O’Neill birth/place/disappearance fields, country of disappearance for both, and reviewed death places for Barry, Mata, and Camuyrano.
 
 ## Tests and verification status
+
+Latest local verification (Seguimos buscando coherent walks and incremental assembly):
+
+- `.venv/bin/python -m pytest -q`: passed, 130 tests, 1 upstream Starlette/httpx deprecation warning. New tests cover per-region walk selection and ordering, noise-sequence exclusion, empty-coverage error, incremental `assemble_walk` never using unfound frames, the half/half fill schedule, and the new sidecar fields.
+- `.venv/bin/python -m compileall -q src tests scripts`: passed.
+- `npm --prefix frontend test`: passed, 7 tests.
+- `npm --prefix frontend run build`: passed (`tsc` and Vite production build); the existing bundle-size advisory remains informational.
+- `git diff --check`: passed.
+- End-to-end synthetic smoke with real ffmpeg: autonomous discovery over a two-region fixture produced two coherent walks (8+8 frames, one jump cut), acquisition/approval succeeded, a sequence-mode overlay render wrote a valid H.264 MP4 (`ffprobe` verified, 36 frames), the sidecar recorded `assembly_policy`, `walks`, `regions`, and `target_segments`, and a six-frame contact sheet showed each segment's street footage, progressive portrait fill, name caption, and the jump cut between regions. The CV place gate was fixture-patched because synthetic gradients are legitimately rejected as non-photos.
+- Live Mapillary discovery remains unverified without a configured `MAPILLARY_ACCESS_TOKEN`.
 
 Latest local verification (TODO-2 source reveal and layouts):
 
@@ -446,6 +462,8 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
 - Each artwork has a separate generation page. For the first two, the artwork identifier rather than a free source selector determines whether a request consumes `people` or `places` rows.
 - Seguimos buscando uses a separate traversal contract rather than overloading place manifests. Mapillary is the first adapter; provider tokens stay backend-only, acquisition is bounded, every participating frame requires manual approval, and rendering is deterministic from the local cache.
+- Autonomous walks keep to whole capture sequences rather than nearest-neighbour scatter: one coherent sequence per region cell reads as a continuous street traversal, keeps provenance simple (one contributor per walk), and matches the work's search-as-process framing. Region cells are a bounding-box grid; finer geographic authoring stays in manual/import modes.
+- Traversal assembly is incremental by construction, not by display filtering: tile matching only ever sees fragments from frames the walk has reached, which makes the sidecar claim `future_source_frames_used: false` hold for matching as well as display. The proportional fill schedule keeps the portrait completing exactly at each segment's end.
 - Target-manifest export remains explicit. Linking target administration and image review changes selection/highlighting only and never silently rewrites `targets.csv`.
 - A combined crawl shares traversal/download work but assigns separate run ids and trails so downstream artwork provenance cannot mix the two source kinds.
 - Process-video reveal is source-kind-specific: approved place images may appear completely, while people sources are cropped to the valid reviewed face box before any frame is rendered. Rejected/non-contributing candidates and surrounding people-source context remain out of generated frames.
@@ -458,10 +476,10 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 
 ## Documentation alignment notes
 
-- `README.md` describes the five routed workspaces, incomplete-record terminology, linked target selection, combined dual classification, three artwork workflows, traversal configuration, source-reveal sequence, grid/match layouts, contribution policy, JSON sidecars, scoped biography extraction, and safe biography refresh command.
+- `README.md` describes the five routed workspaces, incomplete-record terminology, linked target selection, combined dual classification, three artwork workflows, traversal configuration including multi-region coherent walks and incremental found-fragment assembly, source-reveal sequence, grid/match layouts, contribution policy, JSON sidecars, scoped biography extraction, and safe biography refresh command.
 - `doc/TODO-2.md` records the implemented source transition and two layout modes; `doc/desaparecidos-uy-project-description.md` and `AGENTS.md` record the current reveal/privacy policy.
 - `AGENTS.md` records current safety invariants, the canonical person-store/metadata-override/selected-portrait corpus exceptions, local portrait candidate review policy, strict people/place CV expectations, and non-identification requirements.
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-06-21 12:32 GMT-3
+Last updated: 2026-07-07 15:06 GMT-3

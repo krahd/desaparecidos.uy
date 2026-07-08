@@ -331,7 +331,8 @@ def delete_manifest_rows(
     kept = [row for row in rows if (row.get("id") or "").strip() not in targets]
 
     with manifest_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        # LF endings so review writes keep tracked manifests `git diff --check` clean.
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in kept:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
@@ -389,7 +390,8 @@ def set_review_status_bulk(
             raise ValueError(f"{manifest_path} has no row with id {ids}")
 
     with manifest_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        # LF endings so review writes keep tracked manifests `git diff --check` clean.
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in fieldnames})

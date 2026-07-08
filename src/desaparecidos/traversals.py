@@ -19,6 +19,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from .cv import classify_image
+from .geography import sample_uruguay_cells
 from .images import Fragment, crop_from_row, descriptor_for, load_rgb
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
@@ -32,6 +33,7 @@ from .pipeline import (
 )
 
 TraversalMode = Literal["manual", "import", "autonomous"]
+TraversalScope = Literal["drawn", "uruguay"]
 CompositionMode = Literal["overlay", "alternate", "split"]
 TargetMode = Literal["single", "sequence"]
 ReviewStatus = Literal["pending", "approved", "rejected"]
@@ -42,6 +44,20 @@ MAX_ACQUIRE_FRAMES = 600
 MAX_REGIONS = 12
 MIN_WALK_FRAMES = 4
 MAPILLARY_IMAGES_URL = "https://graph.mapillary.com/images"
+MAPILLARY_IMAGE_URL = "https://graph.mapillary.com/{image_id}"
+# Minimal search fields. Requesting a thumb_*_url field inside the bbox
+# /images search makes graph.mapillary.com return HTTP 500, and heavy fields
+# such as creator/organization make dense-city bbox queries time out, so the
+# thumbnail URL and contributor attribution are resolved one image at a time
+# at download time instead (see below).
+MAPILLARY_SEARCH_FIELDS = "id,computed_geometry,compass_angle,captured_at,sequence"
+MAPILLARY_IMAGE_FIELDS = "thumb_2048_url,creator,organization"
+MAPILLARY_SEARCH_TIMEOUT = 90  # dense-city bbox searches routinely take tens of seconds
+# graph.mapillary.com returns HTTP 500 for bbox searches over dense coverage
+# (~>1 km in central Montevideo, measured 2026-07-08). Dense boxes are split
+# into quadrants and retried within a bounded query budget.
+MAPILLARY_MAX_BBOX_DEPTH = 4
+MAPILLARY_MAX_BBOX_QUERIES = 40
 
 
 def _now() -> str:
@@ -220,26 +236,30 @@ def _region_cells(geometry: dict[str, Any], regions: int) -> list[dict[str, Any]
 
 def _coherent_region_walks(
     provider: "TraversalProvider",
-    geometry: dict[str, Any],
+    cells: list[dict[str, Any]],
     *,
-    regions: int,
     desired_frames: int,
     query_limit: int,
+    max_walks: int | None = None,
 ) -> list[dict[str, Any]]:
-    """One coherent walk per region: the longest single capture sequence found in each cell.
+    """One coherent walk per cell: the longest single capture sequence found in each.
 
     Each walk stays inside one provider sequence so it reads as a continuous
-    street-level traversal; walks from different regions are joined with the
-    existing direct-jump-cut gap policy.
+    street-level traversal; walks from different cells are joined with the
+    existing direct-jump-cut gap policy. Cells without coverage are skipped;
+    when ``max_walks`` is set, remaining candidate cells are not queried once
+    enough walks have been found.
     """
-    cells = _region_cells(geometry, regions)
-    per_region_frames = max(MIN_WALK_FRAMES, desired_frames // max(1, len(cells)))
-    per_region_query = min(MAX_DISCOVERY_FRAMES, max(query_limit // max(1, len(cells)), per_region_frames * 4))
+    target_walks = max(1, max_walks or len(cells))
+    per_region_frames = max(MIN_WALK_FRAMES, desired_frames // target_walks)
+    per_region_query = min(MAX_DISCOVERY_FRAMES, max(query_limit // target_walks, per_region_frames * 4))
     seen: set[str] = set()
     walk_groups: list[list[dict[str, Any]]] = []
     for region_index, cell in enumerate(cells):
+        if len(walk_groups) >= target_walks:
+            break
         candidates = []
-        for frame in provider.discover(cell, limit=per_region_query):
+        for frame in provider.discover(cell["geometry"], limit=per_region_query):
             provider_id = str(frame.get("provider_id", ""))
             if not provider_id or provider_id in seen:
                 continue
@@ -253,6 +273,9 @@ def _coherent_region_walks(
         walk = best[:per_region_frames]
         for frame in walk:
             frame["region_index"] = region_index
+            if cell.get("name"):
+                frame["place_name"] = cell["name"]
+                frame["place_kind"] = cell.get("kind", "locality")
         walk_groups.append(walk)
     if not walk_groups:
         raise ValueError("no street-level sequences were found in the selected region")
@@ -276,40 +299,90 @@ class MapillaryProvider:
             raise ValueError("MAPILLARY_ACCESS_TOKEN is required for Mapillary discovery")
         self.session = session or requests.Session()
 
+    def _auth_header(self) -> dict[str, str]:
+        return {"Authorization": f"OAuth {self.token}"}
+
     def discover(self, geometry: dict[str, Any], *, limit: int) -> list[dict[str, Any]]:
-        west, south, east, north = _bbox(geometry)
+        limit = min(MAX_DISCOVERY_FRAMES, max(1, limit))
+        boxes: list[tuple[float, float, float, float, int]] = [(*_bbox(geometry), 0)]
+        frames: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        queries = 0
+        while boxes and len(frames) < limit and queries < MAPILLARY_MAX_BBOX_QUERIES:
+            west, south, east, north, depth = boxes.pop(0)
+            queries += 1
+            response = self.session.get(
+                MAPILLARY_IMAGES_URL,
+                params={
+                    "bbox": f"{west},{south},{east},{north}",
+                    "limit": limit,
+                    "fields": MAPILLARY_SEARCH_FIELDS,
+                },
+                headers=self._auth_header(),
+                timeout=MAPILLARY_SEARCH_TIMEOUT,
+            )
+            if response.status_code == 500 and depth < MAPILLARY_MAX_BBOX_DEPTH:
+                # Dense coverage: split into quadrants and retry smaller boxes.
+                mid_lon, mid_lat = (west + east) / 2, (south + north) / 2
+                boxes.extend([
+                    (west, south, mid_lon, mid_lat, depth + 1),
+                    (mid_lon, south, east, mid_lat, depth + 1),
+                    (west, mid_lat, mid_lon, north, depth + 1),
+                    (mid_lon, mid_lat, east, north, depth + 1),
+                ])
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            for item in payload.get("data", []):
+                coordinates = (item.get("computed_geometry") or {}).get("coordinates") or []
+                provider_id = str(item.get("id", ""))
+                if len(coordinates) < 2 or not provider_id or provider_id in seen:
+                    continue
+                seen.add(provider_id)
+                frames.append({
+                    "provider_id": provider_id,
+                    "sequence_id": str(item.get("sequence", "")),
+                    "longitude": float(coordinates[0]),
+                    "latitude": float(coordinates[1]),
+                    "compass_angle": float(item.get("compass_angle") or 0),
+                    "captured_at": item.get("captured_at"),
+                })
+        return frames[:limit]
+
+    def _image_details(self, provider_id: str) -> dict[str, Any]:
+        """Resolve one image's thumbnail URL and contributor attribution.
+
+        The bbox /images search returns HTTP 500 when a thumb_*_url field is
+        requested and slows badly on dense cells with attribution fields, so
+        both are fetched a single image at a time when the frame is actually
+        downloaded. This also keeps the URL fresh (Mapillary thumbnail URLs
+        are short-lived signed links) and attaches contributor attribution to
+        exactly the frames that can appear in outputs.
+        """
+        if not provider_id:
+            return {}
         response = self.session.get(
-            MAPILLARY_IMAGES_URL,
-            params={
-                "bbox": f"{west},{south},{east},{north}",
-                "limit": min(MAX_DISCOVERY_FRAMES, max(1, limit)),
-                "fields": "id,thumb_2048_url,computed_geometry,compass_angle,captured_at,sequence,creator,organization",
-            },
-            headers={"Authorization": f"OAuth {self.token}"},
+            MAPILLARY_IMAGE_URL.format(image_id=provider_id),
+            params={"fields": MAPILLARY_IMAGE_FIELDS},
+            headers=self._auth_header(),
             timeout=30,
         )
         response.raise_for_status()
-        payload = response.json()
-        frames: list[dict[str, Any]] = []
-        for item in payload.get("data", []):
-            coordinates = (item.get("computed_geometry") or {}).get("coordinates") or []
-            if len(coordinates) < 2 or not item.get("thumb_2048_url"):
-                continue
-            frames.append({
-                "provider_id": str(item.get("id", "")),
-                "sequence_id": str(item.get("sequence", "")),
-                "longitude": float(coordinates[0]),
-                "latitude": float(coordinates[1]),
-                "compass_angle": float(item.get("compass_angle") or 0),
-                "captured_at": item.get("captured_at"),
-                "download_url": _clean_url(str(item["thumb_2048_url"])),
-                "creator": item.get("creator") or {},
-                "organization": item.get("organization") or {},
-            })
-        return frames
+        return response.json()
 
     def download(self, frame: dict[str, Any]) -> bytes:
-        response = self.session.get(str(frame["download_url"]), timeout=30)
+        # Legacy routes cached a download_url at discovery time; new routes carry
+        # only the provider id and resolve fresh image details here.
+        url = str(frame.get("download_url") or "")
+        if not url:
+            details = self._image_details(str(frame.get("provider_id", "")))
+            thumb = details.get("thumb_2048_url")
+            url = _clean_url(str(thumb)) if thumb else ""
+            frame["creator"] = details.get("creator") or frame.get("creator") or {}
+            frame["organization"] = details.get("organization") or frame.get("organization") or {}
+        if not url:
+            raise ValueError(f"no thumbnail available for frame {frame.get('id') or frame.get('provider_id')}")
+        response = self.session.get(url, timeout=30)
         response.raise_for_status()
         return response.content
 
@@ -369,31 +442,88 @@ def _walk_summary(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "region_index": region,
                 "sequence_id": sequence,
                 "first_frame_id": frame["id"],
+                "place_name": frame.get("place_name"),
+                "place_kind": frame.get("place_kind"),
                 "frame_count": 0,
             })
         walks[-1]["frame_count"] += 1
     return walks
 
 
+def _walk_line_geometry(frames: list[dict[str, Any]]) -> dict[str, Any]:
+    """The chosen national path: a LineString through each walk's start plus the final frame."""
+    coordinates: list[list[float]] = []
+    previous_region: int | None = None
+    for frame in frames:
+        region = frame.get("region_index")
+        if region != previous_region:
+            coordinates.append([float(frame["longitude"]), float(frame["latitude"])])
+            previous_region = region
+    if frames:
+        coordinates.append([float(frames[-1]["longitude"]), float(frames[-1]["latitude"])])
+    if len(coordinates) < 2:
+        raise ValueError("no street-level sequences were found in the sampled places")
+    return {"type": "LineString", "coordinates": coordinates}
+
+
+def _renumber_walks(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Renumber region_index in chained walk order and summarise the visited places."""
+    mapping: dict[int, int] = {}
+    places: list[dict[str, Any]] = []
+    for frame in frames:
+        original = int(frame.get("region_index", 0))
+        if original not in mapping:
+            mapping[original] = len(mapping)
+            places.append({
+                "region_index": mapping[original],
+                "name": frame.get("place_name") or "campo",
+                "kind": frame.get("place_kind") or "rural",
+            })
+        frame["region_index"] = mapping[original]
+    return places
+
+
 def discover_traversal(
     *,
     name: str,
     mode: TraversalMode,
-    geometry: dict[str, Any],
+    geometry: dict[str, Any] | None = None,
     duration_seconds: int = 60,
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,
     provider: TraversalProvider | None = None,
     max_frames: int = MAX_DISCOVERY_FRAMES,
     regions: int = 1,
+    scope: TraversalScope = "drawn",
+    rural_probability: float = 0.25,
+    seed: int | None = None,
 ) -> dict[str, Any]:
-    geometry = normalise_geojson(geometry)
+    if scope == "uruguay" and mode != "autonomous":
+        raise ValueError("the uruguay scope requires autonomous mode")
+    if scope != "uruguay":
+        if geometry is None:
+            raise ValueError("route geometry is required for a drawn traversal")
+        geometry = normalise_geojson(geometry)
     provider = provider or MapillaryProvider()
     limit = min(MAX_DISCOVERY_FRAMES, max(1, max_frames))
     regions = max(1, min(MAX_REGIONS, regions))
-    if mode == "autonomous":
+    places: list[dict[str, Any]] | None = None
+    if scope == "uruguay":
         desired = min(limit, max(2, duration_seconds * 2))
+        # Oversample candidate places: cells without street-level coverage are
+        # skipped until `regions` coherent walks are found.
+        cells = sample_uruguay_cells(
+            regions * 3, rural_probability=rural_probability, rng=random.Random(seed)
+        )
         frames = _coherent_region_walks(
-            provider, geometry, regions=regions, desired_frames=desired, query_limit=limit
+            provider, cells, desired_frames=desired, query_limit=limit, max_walks=regions
+        )
+        places = _renumber_walks(frames)
+        geometry = _walk_line_geometry(frames)
+    elif mode == "autonomous":
+        desired = min(limit, max(2, duration_seconds * 2))
+        cells = [{"geometry": cell} for cell in _region_cells(geometry, regions)]
+        frames = _coherent_region_walks(
+            provider, cells, desired_frames=desired, query_limit=limit
         )
     else:
         raw_frames = provider.discover(geometry, limit=limit)
@@ -427,6 +557,9 @@ def discover_traversal(
         "mode": mode,
         "geometry": geometry,
         "duration_seconds": max(1, duration_seconds),
+        "scope": scope,
+        "rural_probability": rural_probability if scope == "uruguay" else None,
+        "places": places,
         "regions": regions if mode == "autonomous" else None,
         "walks": _walk_summary(frames) if mode == "autonomous" else None,
         "gap_policy": "direct-jump-cut",
@@ -445,6 +578,7 @@ def acquire_traversal(
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,
     provider: TraversalProvider | None = None,
     max_frames: int = MAX_ACQUIRE_FRAMES,
+    auto_approve: bool = False,
 ) -> dict[str, Any]:
     traversal = load_traversal(traversal_id, root)
     if traversal.get("provider") != "mapillary":
@@ -482,7 +616,19 @@ def acquire_traversal(
             frame["cv_label"] = checked.label
             frame["cv_reason"] = checked.reason
             frame["cv_accept"] = checked.accept
-            frame["review_status"] = "pending"
+            manually_reviewed = bool(frame.get("reviewed_at")) and frame.get("review_policy") != "auto-cv-accepted"
+            if manually_reviewed:
+                pass  # a person's decision always survives re-acquisition
+            elif auto_approve and checked.accept:
+                # Explicit artist-selected policy: frames passing the local CV
+                # place gate are approved automatically and remain reversible
+                # through the ordinary frame review.
+                frame["review_status"] = "approved"
+                frame["reviewed_at"] = _now()
+                frame["review_policy"] = "auto-cv-accepted"
+            else:
+                frame["review_status"] = "pending"
+                frame.pop("review_policy", None)
         except Exception as exc:
             errors.append(f"{frame.get('id')}: {exc}")
             frame["acquisition_error"] = str(exc)
@@ -490,6 +636,8 @@ def acquire_traversal(
     traversal["acquisition"] = {
         "attempted": len(frames),
         "acquired": sum(bool(frame.get("local_path")) for frame in frames),
+        "auto_approve": auto_approve,
+        "auto_approved": sum(frame.get("review_policy") == "auto-cv-accepted" for frame in frames),
         "errors": errors,
         "completed_at": _now(),
     }
@@ -522,6 +670,7 @@ def review_traversal_frames(
             )
         frame["review_status"] = status
         frame["reviewed_at"] = _now()
+        frame["review_policy"] = "manual"
     return save_traversal(traversal, root)
 
 
@@ -530,10 +679,10 @@ class TraversalRenderSettings:
     composition: CompositionMode = "overlay"
     target_mode: TargetMode = "single"
     duration_seconds: int = 60
-    fps: int = 12
+    fps: int = 24
     seed: int = 17
     fragment_size: int = 24
-    output_width: int = 720
+    output_width: int = 1920
     reuse_limit: int = 10000
     max_contribution_per_source: int = 0
 
@@ -825,3 +974,53 @@ def render_traversal(
     }
     sidecar_path.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
     return [Stage1Output(str(sidecar["target_id"]), display_path(still_path), display_path(sidecar_path), display_path(video_path))]
+
+
+def run_autonomous_uruguay(
+    *,
+    name: str = "Seguimos buscando · Uruguay",
+    regions: int = 4,
+    duration_seconds: int = 60,
+    max_frames: int = 240,
+    rural_probability: float = 0.25,
+    seed: int | None = None,
+    root: str | Path = DEFAULT_TRAVERSAL_ROOT,
+    target_manifest: str | Path,
+    output_dir: str | Path,
+    target_ids: list[str],
+    settings: TraversalRenderSettings | None = None,
+    provider: TraversalProvider | None = None,
+) -> tuple[dict[str, Any], list[Stage1Output]]:
+    """One-shot Seguimos buscando run: sample places across Uruguay, discover
+    coherent walks, acquire frames, auto-approve those passing the CV place
+    gate, and render the video. Every stage's record stays reviewable on disk
+    afterwards, and manual frame review can still amend the traversal.
+    """
+    traversal = discover_traversal(
+        name=name,
+        mode="autonomous",
+        scope="uruguay",
+        duration_seconds=duration_seconds,
+        root=root,
+        provider=provider,
+        max_frames=max_frames,
+        regions=regions,
+        rural_probability=rural_probability,
+        seed=seed,
+    )
+    traversal = acquire_traversal(
+        str(traversal["id"]), root=root, provider=provider,
+        max_frames=max_frames, auto_approve=True,
+    )
+    approved = [
+        frame for frame in traversal.get("frames", [])
+        if frame.get("review_status") == "approved" and frame.get("local_path")
+    ]
+    if not approved:
+        raise ValueError(
+            "no acquired frames passed the CV place gate; open the traversal for manual review"
+        )
+    outputs = render_traversal(
+        str(traversal["id"]), target_manifest, output_dir, target_ids, settings, root=root
+    )
+    return load_traversal(str(traversal["id"]), root), outputs

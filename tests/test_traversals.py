@@ -147,6 +147,156 @@ def region() -> dict[str, object]:
     }
 
 
+class UruguayProvider:
+    """Coherent capture sequences around every gazetteer locality; nothing elsewhere."""
+
+    name = "mapillary"
+
+    def __init__(self) -> None:
+        self.queried: list[tuple[float, float]] = []
+        self.downloads = 0
+        self._sequences = 0
+
+    def discover(self, geometry: dict[str, object], *, limit: int) -> list[dict[str, object]]:
+        from desaparecidos.geography import URUGUAY_LOCALITIES
+
+        ring = geometry["coordinates"][0]  # type: ignore[index]
+        longitude = sum(point[0] for point in ring[:4]) / 4  # type: ignore[index]
+        latitude = sum(point[1] for point in ring[:4]) / 4  # type: ignore[index]
+        self.queried.append((longitude, latitude))
+        if not any(
+            abs(longitude - entry[1]) < 0.08 and abs(latitude - entry[2]) < 0.08
+            for entry in URUGUAY_LOCALITIES
+        ):
+            return []
+        self._sequences += 1
+        sequence = f"seq-{self._sequences}"
+        return [
+            {
+                "provider_id": f"{sequence}-frame-{index}",
+                "sequence_id": sequence,
+                "longitude": longitude + index * 0.001,
+                "latitude": latitude,
+                "compass_angle": 0,
+                "captured_at": index,
+            }
+            for index in range(6)
+        ][:limit]
+
+    def download(self, frame: dict[str, object]) -> bytes:
+        self.downloads += 1
+        seed = sum(ord(char) for char in str(frame["provider_id"]))
+        return image_bytes((seed % 200, (seed * 7) % 200, (seed * 13) % 200))
+
+
+def test_uruguay_scope_samples_places_and_builds_walks(tmp_path: Path) -> None:
+    provider = UruguayProvider()
+    traversal = discover_traversal(
+        name="Uruguay walk",
+        mode="autonomous",
+        scope="uruguay",
+        duration_seconds=4,
+        root=tmp_path,
+        provider=provider,
+        max_frames=40,
+        regions=2,
+        rural_probability=0.0,
+        seed=11,
+    )
+    assert traversal["scope"] == "uruguay"
+    assert traversal["geometry"]["type"] == "LineString"
+    places = traversal["places"]
+    assert [place["region_index"] for place in places] == [0, 1]
+    assert all(place["kind"] == "locality" for place in places)
+    from desaparecidos.geography import URUGUAY_LOCALITIES
+
+    known = {entry[0] for entry in URUGUAY_LOCALITIES}
+    assert all(place["name"] in known for place in places)
+    # region_index is renumbered in chained walk order and recorded per frame.
+    ordered_regions = [frame["region_index"] for frame in traversal["frames"]]
+    assert set(ordered_regions) == {0, 1}
+    assert ordered_regions == sorted(ordered_regions)
+    assert all(frame.get("place_name") for frame in traversal["frames"])
+    assert traversal["walks"][0]["place_name"] == places[0]["name"]
+    # only as many cells as needed were queried once two walks were found
+    assert len(provider.queried) == 2
+
+
+def test_uruguay_scope_requires_autonomous_mode(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="autonomous"):
+        discover_traversal(
+            name="Bad", mode="manual", scope="uruguay", root=tmp_path, provider=UruguayProvider()
+        )
+
+
+def test_acquire_auto_approves_only_cv_accepted_frames(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    decisions = iter([True, False, True, False])
+    monkeypatch.setattr(
+        traversal_module, "classify_image",
+        lambda _image, _kind: SimpleNamespace(accept=next(decisions), label="place-photo", reason="fixture"),
+    )
+    provider = FakeProvider()
+    traversal = discover_traversal(
+        name="Auto", mode="manual", geometry=route(), root=tmp_path, provider=provider
+    )
+    acquired = acquire_traversal(traversal["id"], root=tmp_path, provider=provider, auto_approve=True)
+    frames = acquired["frames"]
+    assert frames[0]["review_status"] == "approved"
+    assert frames[0]["review_policy"] == "auto-cv-accepted"
+    assert frames[1]["review_status"] == "pending"
+    assert acquired["acquisition"]["auto_approve"] is True
+    assert acquired["acquisition"]["auto_approved"] == 1
+    # A manual decision always survives re-acquisition with auto-approve on.
+    review_traversal_frames(traversal["id"], [frames[0]["id"]], "rejected", root=tmp_path)
+    reacquired = acquire_traversal(traversal["id"], root=tmp_path, provider=provider, auto_approve=True)
+    assert reacquired["frames"][0]["review_status"] == "rejected"
+    assert reacquired["frames"][0]["review_policy"] == "manual"
+
+
+def test_run_autonomous_uruguay_renders_in_one_step(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        traversal_module, "classify_image",
+        lambda _image, _kind: SimpleNamespace(accept=True, label="place-photo", reason="fixture"),
+    )
+    rendered_frames: list[Image.Image] = []
+
+    def fake_render(frames: object, size: tuple[int, int], output_path: Path, *, fps: int) -> bool:
+        del size, fps
+        rendered_frames.extend(list(frames))  # type: ignore[arg-type]
+        output_path.write_bytes(b"mp4")
+        return True
+
+    monkeypatch.setattr(traversal_module, "_render_video_ffmpeg", fake_render)
+    provider = UruguayProvider()
+    manifest = write_target_manifest(tmp_path)
+    traversal, outputs = traversal_module.run_autonomous_uruguay(
+        regions=2,
+        duration_seconds=4,
+        max_frames=40,
+        rural_probability=0.0,
+        seed=7,
+        root=tmp_path / "routes",
+        target_manifest=manifest,
+        output_dir=tmp_path / "outputs",
+        target_ids=["target-one"],
+        settings=TraversalRenderSettings(duration_seconds=1, fps=2, fragment_size=8, output_width=32),
+        provider=provider,
+    )
+    assert traversal["scope"] == "uruguay"
+    acquired = [frame for frame in traversal["frames"] if frame.get("local_path")]
+    assert acquired and all(frame["review_status"] == "approved" for frame in acquired)
+    assert all(frame["review_policy"] == "auto-cv-accepted" for frame in acquired)
+    assert rendered_frames
+    sidecar = json.loads(Path(outputs[0].sidecar_path).read_text(encoding="utf-8"))
+    assert sidecar["assembly_policy"] == "incremental-found-fragments"
+    assert sidecar["artwork"] == "seguimos-buscando"
+    assert sidecar["release_status"] == "internal_unreviewed"
+
+
 def test_autonomous_discovery_builds_coherent_walks_per_region(tmp_path: Path) -> None:
     provider = RegionProvider()
     traversal = discover_traversal(
@@ -406,3 +556,127 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
     assert list(segments) == target_ids
     all_segment_frames = [frame_id for ids in segments.values() for frame_id in ids]
     assert all_segment_frames == [frame["id"] for frame in acquired["frames"]]
+
+
+class _FakeResponse:
+    def __init__(self, *, json_data: object = None, content: bytes = b"", status: int = 200) -> None:
+        self._json = json_data
+        self.content = content
+        self.status_code = status
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            import requests
+
+            raise requests.HTTPError(f"{self.status_code} Server Error")
+
+    def json(self) -> object:
+        return self._json
+
+
+class RecordingSession:
+    """Fake session that reproduces Mapillary's bbox/per-image behaviour."""
+
+    THUMB_URL = "https://cdn.invalid/111.jpg"
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def get(self, url: str, *, params: object = None, headers: object = None, timeout: object = None) -> _FakeResponse:
+        params = dict(params or {})
+        self.calls.append({"url": url, "params": params})
+        if url == traversal_module.MAPILLARY_IMAGES_URL:
+            # The real API returns 500 when a thumb_*_url is requested in a bbox search.
+            if "thumb" in str(params.get("fields", "")):
+                return _FakeResponse(status=500)
+            return _FakeResponse(json_data={"data": [{
+                "id": "111",
+                "sequence": "seq-a",
+                "computed_geometry": {"coordinates": [-56.19, -34.90]},
+                "compass_angle": 30,
+                "captured_at": 1,
+            }]})
+        if url == traversal_module.MAPILLARY_IMAGE_URL.format(image_id="111"):
+            if str(params.get("fields")) != traversal_module.MAPILLARY_IMAGE_FIELDS:
+                return _FakeResponse(status=400)
+            return _FakeResponse(json_data={
+                "id": "111",
+                "thumb_2048_url": self.THUMB_URL,
+                "creator": {"username": "contributor-one"},
+                "organization": {},
+            })
+        if url == self.THUMB_URL:
+            return _FakeResponse(content=image_bytes((10, 20, 30)))
+        return _FakeResponse(status=404)
+
+
+def test_mapillary_discover_keeps_thumb_out_of_bbox_search() -> None:
+    session = RecordingSession()
+    provider = traversal_module.MapillaryProvider(token="MLY|test|token", session=session)
+
+    frames = provider.discover(route(), limit=10)
+
+    assert [frame["provider_id"] for frame in frames] == ["111"]
+    # No thumbnail URL is cached at discovery; the bbox search never asks for one.
+    assert "download_url" not in frames[0]
+    search_calls = [call for call in session.calls if call["url"] == traversal_module.MAPILLARY_IMAGES_URL]
+    assert search_calls
+    assert all("thumb" not in str(call["params"].get("fields", "")) for call in search_calls)
+
+
+def test_mapillary_discover_subdivides_dense_bboxes_on_500() -> None:
+    class DenseSession:
+        """500 on any bbox wider than 0.01 degrees, imagery only in one quadrant."""
+
+        def __init__(self) -> None:
+            self.bbox_calls: list[str] = []
+
+        def get(self, url: str, *, params: object = None, headers: object = None, timeout: object = None) -> _FakeResponse:
+            params = dict(params or {})
+            if url != traversal_module.MAPILLARY_IMAGES_URL:
+                return _FakeResponse(status=404)
+            bbox = str(params["bbox"])
+            self.bbox_calls.append(bbox)
+            west, south, east, north = (float(value) for value in bbox.split(","))
+            if east - west > 0.0101:
+                return _FakeResponse(status=500)
+            lon_centre, lat_centre = (west + east) / 2, (south + north) / 2
+            if not (lon_centre > -56.22 and lat_centre < -34.92):  # imagery only in the SE quadrant
+                return _FakeResponse(json_data={"data": []})
+            return _FakeResponse(json_data={"data": [{
+                "id": f"img-{len(self.bbox_calls)}",
+                "sequence": "seq-dense",
+                "computed_geometry": {"coordinates": [west + 0.001, south + 0.001]},
+                "compass_angle": 0,
+                "captured_at": len(self.bbox_calls),
+            }]})
+
+    session = DenseSession()
+    provider = traversal_module.MapillaryProvider(token="MLY|test|token", session=session)
+    geometry = {"type": "Polygon", "coordinates": [[
+        [-56.24, -34.94], [-56.20, -34.94], [-56.20, -34.90], [-56.24, -34.90], [-56.24, -34.94],
+    ]]}
+
+    frames = provider.discover(geometry, limit=10)
+
+    assert frames  # dense area still yields imagery through subdivision
+    assert all(frame["sequence_id"] == "seq-dense" for frame in frames)
+    # The first query used the full box; later queries are strictly smaller.
+    first = [float(v) for v in session.bbox_calls[0].split(",")]
+    assert first[2] - first[0] > 0.01
+    assert len(session.bbox_calls) <= traversal_module.MAPILLARY_MAX_BBOX_QUERIES
+
+
+def test_mapillary_download_resolves_thumbnail_and_attribution_per_image() -> None:
+    session = RecordingSession()
+    provider = traversal_module.MapillaryProvider(token="MLY|test|token", session=session)
+    frame = provider.discover(route(), limit=10)[0]
+
+    data = provider.download(frame)
+
+    assert data == image_bytes((10, 20, 30))
+    thumb_calls = [call for call in session.calls
+                   if call["url"] == traversal_module.MAPILLARY_IMAGE_URL.format(image_id="111")]
+    assert len(thumb_calls) == 1
+    # Contributor attribution is attached to the downloaded frame.
+    assert frame["creator"] == {"username": "contributor-one"}

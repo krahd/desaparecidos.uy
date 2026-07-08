@@ -72,6 +72,9 @@ export type TraversalFrame = {
   cv_accept?: boolean;
   sequence_jump: boolean;
   region_index?: number | null;
+  place_name?: string | null;
+  place_kind?: string | null;
+  review_policy?: 'manual' | 'auto-cv-accepted' | null;
 };
 
 export type Traversal = {
@@ -80,6 +83,9 @@ export type Traversal = {
   artwork: 'seguimos-buscando';
   provider: string;
   mode: 'manual' | 'import' | 'autonomous';
+  scope?: 'drawn' | 'uruguay';
+  rural_probability?: number | null;
+  places?: { region_index: number; name: string; kind: 'locality' | 'rural' }[] | null;
   geometry: RouteGeometry;
   duration_seconds: number;
   regions?: number | null;
@@ -87,6 +93,8 @@ export type Traversal = {
     region_index: number | null;
     sequence_id: string;
     first_frame_id: string;
+    place_name?: string | null;
+    place_kind?: string | null;
     frame_count: number;
   }[] | null;
   gap_policy: 'direct-jump-cut';
@@ -101,7 +109,14 @@ export type Traversal = {
     pending_count: number;
     rejected_count: number;
   };
-  acquisition?: { attempted: number; acquired: number; errors: string[]; completed_at: string };
+  acquisition?: {
+    attempted: number;
+    acquired: number;
+    auto_approve?: boolean;
+    auto_approved?: number;
+    errors: string[];
+    completed_at: string;
+  };
 };
 
 export type CrawlResponse = {
@@ -528,12 +543,15 @@ export function listTraversals(root = 'data/raw/traversals'): Promise<{ ok: bool
 export function discoverTraversal(payload: {
   name: string;
   mode: 'manual' | 'import' | 'autonomous';
+  scope?: 'drawn' | 'uruguay';
   geometry?: RouteGeometry;
   import_content?: string;
   import_format?: 'geojson' | 'gpx';
   duration_seconds: number;
   max_frames: number;
   regions?: number;
+  rural_probability?: number;
+  seed?: number;
   root?: string;
 }): Promise<{ ok: boolean; traversal: Traversal }> {
   return request('/api/traversals/discover', { method: 'POST', body: JSON.stringify(payload) });
@@ -542,9 +560,31 @@ export function discoverTraversal(payload: {
 export function acquireTraversal(payload: {
   traversal_id: string;
   max_frames: number;
+  auto_approve?: boolean;
   root?: string;
 }): Promise<{ ok: boolean; traversal: Traversal }> {
   return request('/api/traversals/acquire', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function autoTraversal(payload: {
+  name?: string;
+  regions?: number;
+  duration_seconds: number;
+  max_frames?: number;
+  rural_probability?: number;
+  seed?: number;
+  targets: string;
+  output_dir: string;
+  target_ids: string[];
+  target_mode: 'single' | 'sequence';
+  composition: 'overlay' | 'alternate' | 'split';
+  fps: number;
+  fragment_size: number;
+  output_width: number;
+  reuse_limit?: number;
+  max_contribution_per_source?: number;
+}): Promise<{ ok: boolean; traversal: Traversal; outputs: GenerateResponse['outputs'] }> {
+  return request('/api/traversals/auto', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function reviewTraversalFrames(payload: {

@@ -1,10 +1,11 @@
-import { Check, Download, Map, Play, RefreshCw, Upload } from 'lucide-react';
+import { Check, Compass, Download, Map, Play, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ManifestRow,
   RouteGeometry,
   Traversal,
   acquireTraversal,
+  autoTraversal,
   discoverTraversal,
   fileUrl,
   generateTraversal,
@@ -36,18 +37,22 @@ export function SeguimosBuscando({
   const [items, setItems] = useState<Traversal[]>([]);
   const [active, setActive] = useState<Traversal | null>(null);
   const [mode, setMode] = useState<'manual' | 'import' | 'autonomous'>('manual');
+  const [scope, setScope] = useState<'drawn' | 'uruguay'>('uruguay');
   const [geometry, setGeometry] = useState<RouteGeometry>(initialLine);
   const [name, setName] = useState('Uruguay traversal');
   const [duration, setDuration] = useState(60);
   const [maxFrames, setMaxFrames] = useState(120);
   const [regions, setRegions] = useState(4);
+  const [ruralShare, setRuralShare] = useState(25);
+  const [autoApprove, setAutoApprove] = useState(true);
   const [importContent, setImportContent] = useState('');
   const [importFormat, setImportFormat] = useState<'geojson' | 'gpx'>('geojson');
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
   const [targetMode, setTargetMode] = useState<'single' | 'sequence'>('single');
   const [targetIds, setTargetIds] = useState<string[]>([]);
   const [composition, setComposition] = useState<'overlay' | 'alternate' | 'split'>('overlay');
-  const [fps, setFps] = useState(12);
+  const [fps, setFps] = useState(24);
+  const [outputWidth, setOutputWidth] = useState(1920);
   const [fragmentSize, setFragmentSize] = useState(24);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Mapillary discovery requires MAPILLARY_ACCESS_TOKEN in the backend environment.');
@@ -82,6 +87,8 @@ export function SeguimosBuscando({
     }
   }
 
+  const nationalScope = mode === 'autonomous' && scope === 'uruguay';
+
   function validGeometry(): boolean {
     const coordinates = geometry.coordinates;
     if (mode === 'autonomous') {
@@ -92,36 +99,67 @@ export function SeguimosBuscando({
       : (coordinates as number[][]).length >= 2;
   }
 
+  function describeWalks(traversal: Traversal): string {
+    if (!traversal.walks?.length) return '';
+    const places = traversal.places?.map((place) => place.name).join(', ');
+    return ` across ${traversal.walks.length} coherent walks${places ? ` (${places})` : ''}`;
+  }
+
   async function discover() {
     await run('Discovering Mapillary sequences.', async () => {
-      if (mode !== 'import' && !validGeometry()) throw new Error('Add at least two route points or a three-point region.');
+      if (!nationalScope && mode !== 'import' && !validGeometry()) throw new Error('Add at least two route points or a three-point region.');
       if (mode === 'import' && !importContent.trim()) throw new Error('Choose a GeoJSON or GPX route file.');
       const response = await discoverTraversal({
         name,
         mode,
-        geometry: mode === 'import' ? undefined : geometry,
+        scope: mode === 'autonomous' ? scope : 'drawn',
+        geometry: mode === 'import' || nationalScope ? undefined : geometry,
         import_content: mode === 'import' ? importContent : undefined,
         import_format: mode === 'import' ? importFormat : undefined,
         duration_seconds: duration,
         max_frames: maxFrames,
         regions: mode === 'autonomous' ? regions : undefined,
+        rural_probability: nationalScope ? ruralShare / 100 : undefined,
       });
       setActive(response.traversal);
       setItems((current) => [response.traversal, ...current.filter((item) => item.id !== response.traversal.id)]);
-      const walkNote = response.traversal.walks?.length
-        ? ` across ${response.traversal.walks.length} coherent walks`
-        : '';
-      setMessage(`Discovered ${response.traversal.frames.length} ordered frames${walkNote}. Acquire them before review.`);
+      setMessage(`Discovered ${response.traversal.frames.length} ordered frames${describeWalks(response.traversal)}. Acquire them before review.`);
     });
   }
 
   async function acquire() {
     if (!active) return;
     await run('Acquiring and checking traversal frames.', async () => {
-      const response = await acquireTraversal({ traversal_id: active.id, max_frames: maxFrames });
+      const response = await acquireTraversal({ traversal_id: active.id, max_frames: maxFrames, auto_approve: autoApprove });
       setActive(response.traversal);
       await refresh(response.traversal.id);
-      setMessage(`Acquired ${response.traversal.acquisition?.acquired ?? 0} frames. Manual approval is still required.`);
+      const approved = response.traversal.acquisition?.auto_approved ?? 0;
+      setMessage(autoApprove
+        ? `Acquired ${response.traversal.acquisition?.acquired ?? 0} frames; ${approved} passed the CV gate and were auto-approved. Review remains open.`
+        : `Acquired ${response.traversal.acquisition?.acquired ?? 0} frames. Manual approval is still required.`);
+    });
+  }
+
+  async function autoRun() {
+    await run('Searching Uruguay, acquiring frames, and rendering. This can take several minutes.', async () => {
+      if (!targetIds.length) throw new Error('Select at least one approved target.');
+      const response = await autoTraversal({
+        duration_seconds: duration,
+        regions,
+        max_frames: maxFrames,
+        rural_probability: ruralShare / 100,
+        targets: targetManifest,
+        output_dir: outputDir,
+        target_ids: targetIds,
+        target_mode: targetMode,
+        composition,
+        fps,
+        fragment_size: fragmentSize,
+        output_width: outputWidth,
+      });
+      await refresh(response.traversal.id);
+      await onGenerated(response.outputs[0]?.sidecar_path);
+      setMessage(`Autonomous traversal rendered${describeWalks(response.traversal)}. Frames stay open for review.`);
     });
   }
 
@@ -168,7 +206,7 @@ export function SeguimosBuscando({
         fps,
         seed: 17,
         fragment_size: fragmentSize,
-        output_width: 720,
+        output_width: outputWidth,
         reuse_limit: 10000,
         max_contribution_per_source: 0,
       });
@@ -191,7 +229,21 @@ export function SeguimosBuscando({
                 <button key={value} className={mode === value ? 'selected' : ''} onClick={() => setMode(value)}>{value}</button>
               ))}
             </div>
-            {mode !== 'import' ? (
+            {mode === 'autonomous' && (
+              <div className="segmented">
+                {(['uruguay', 'drawn'] as const).map((value) => (
+                  <button key={value} className={scope === value ? 'selected' : ''} onClick={() => setScope(value)}>
+                    {value === 'uruguay' ? 'all Uruguay' : 'drawn region'}
+                  </button>
+                ))}
+              </div>
+            )}
+            {nationalScope ? (
+              <p className="section-note">
+                The walk chooses its own places across Uruguay: localities are sampled by population,
+                and a share of the walks searches away from inhabited places.
+              </p>
+            ) : mode !== 'import' ? (
               <>
                 <TraversalMap geometry={geometry} mode={mode} onChange={setGeometry} />
                 <button className="text-button" onClick={() => setGeometry({ type: 'LineString', coordinates: [] })}>
@@ -222,8 +274,15 @@ export function SeguimosBuscando({
             {mode === 'autonomous' && (
               <label>Regions<input type="number" min={1} max={12} value={regions} onChange={(event) => setRegions(Number(event.target.value))} /></label>
             )}
+            {nationalScope && (
+              <label>Rural share (%)<input type="number" min={0} max={100} value={ruralShare} onChange={(event) => setRuralShare(Number(event.target.value))} /></label>
+            )}
             <button className="primary" onClick={() => void discover()} disabled={busy}><Map size={16} /> Discover sequences</button>
-            <p className="section-note">Click the map to add ordered points. Autonomous mode divides the drawn region into cells and selects one coherent capture sequence per region; walks are joined with direct jump cuts.</p>
+            <p className="section-note">
+              {nationalScope
+                ? 'Autonomous Uruguay scope samples one coherent capture sequence per chosen place; walks are joined with direct jump cuts.'
+                : 'Click the map to add ordered points. Autonomous mode divides the drawn region into cells and selects one coherent capture sequence per region; walks are joined with direct jump cuts.'}
+            </p>
           </div>
         </div>
         <div className="traversal-list">
@@ -234,6 +293,10 @@ export function SeguimosBuscando({
             </select>
           </label>
           <button onClick={() => void acquire()} disabled={busy || !active}><Download size={16} /> Acquire and cache</button>
+          <label className="inline-check">
+            <input type="checkbox" checked={autoApprove} onChange={(event) => setAutoApprove(event.target.checked)} />
+            Auto-approve CV-accepted frames
+          </label>
           <span>{message}</span>
         </div>
       </section>
@@ -256,7 +319,7 @@ export function SeguimosBuscando({
               })} />
               {frame.local_path ? <img src={fileUrl(frame.local_path)} alt="" /> : <span className="frame-placeholder">metadata only</span>}
               <strong>{frame.ordinal + 1} · {frame.review_status}</strong>
-              <span>{frame.cv_label}{frame.region_index != null ? ` · region ${frame.region_index + 1}` : ''}{frame.sequence_jump ? ' · jump cut' : ''}</span>
+              <span>{frame.cv_label}{frame.place_name ? ` · ${frame.place_name}` : frame.region_index != null ? ` · region ${frame.region_index + 1}` : ''}{frame.sequence_jump ? ' · jump cut' : ''}{frame.review_policy === 'auto-cv-accepted' ? ' · auto' : ''}</span>
             </label>
           ))}
         </div>
@@ -298,8 +361,11 @@ export function SeguimosBuscando({
               </select>
             </label>
             <label>Frames per second<input type="number" min={1} max={60} value={fps} onChange={(event) => setFps(Number(event.target.value))} /></label>
+            <label>Output width (px)<input type="number" min={120} max={4096} step={10} value={outputWidth} onChange={(event) => setOutputWidth(Number(event.target.value))} /></label>
             <label>Fragment size<input type="number" min={8} max={128} value={fragmentSize} onChange={(event) => setFragmentSize(Number(event.target.value))} /></label>
             <button className="primary" onClick={() => void generate()} disabled={busy || !active || !targetIds.length}><Play size={16} /> Generate traversal video</button>
+            <button className="primary" onClick={() => void autoRun()} disabled={busy || !targetIds.length}><Compass size={16} /> Search Uruguay &amp; generate</button>
+            <p className="section-note">Search Uruguay &amp; generate runs the whole walk in one step: sample places, discover, acquire, auto-approve CV-accepted frames, and render. Frames remain reviewable afterwards.</p>
           </div>
         </div>
       </section>

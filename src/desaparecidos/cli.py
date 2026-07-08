@@ -78,10 +78,10 @@ def build_parser() -> argparse.ArgumentParser:
     traversal.add_argument("--target-mode", choices=["single", "sequence"], default="single")
     traversal.add_argument("--composition", choices=["overlay", "alternate", "split"], default="overlay")
     traversal.add_argument("--duration", type=int, default=60)
-    traversal.add_argument("--fps", type=int, default=12)
+    traversal.add_argument("--fps", type=int, default=24)
     traversal.add_argument("--seed", type=int, default=17)
     traversal.add_argument("--fragment-size", type=int, default=24)
-    traversal.add_argument("--output-width", type=int, default=720)
+    traversal.add_argument("--output-width", type=int, default=1920)
     traversal.add_argument("--output", default="outputs/stage1")
 
     outputs = subparsers.add_parser("outputs", help="List generated outputs.")

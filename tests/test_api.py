@@ -440,6 +440,65 @@ def test_traversal_endpoints_expose_provider_neutral_contract(
     ).status_code == 200
 
 
+def test_traversal_discover_uruguay_scope_needs_no_geometry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_discover(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"id": "route-uy", "provider": "mapillary", "scope": "uruguay", "frames": []}
+
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    monkeypatch.setattr(api_module, "discover_traversal", fake_discover)
+    response = TestClient(create_app()).post(
+        "/api/traversals/discover",
+        json={
+            "name": "Uruguay walk",
+            "mode": "autonomous",
+            "scope": "uruguay",
+            "regions": 3,
+            "rural_probability": 0.4,
+            "root": str(tmp_path),
+        },
+    )
+    assert response.status_code == 200
+    assert captured["scope"] == "uruguay"
+    assert captured["geometry"] is None
+    assert captured["regions"] == 3
+    assert captured["rural_probability"] == 0.4
+
+
+def test_traversal_auto_endpoint_runs_one_shot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class Output:
+        def __init__(self) -> None:
+            self.target_id = "target-one"
+            self.still_path = "outputs/auto.png"
+            self.sidecar_path = "outputs/auto.json"
+            self.video_path = "outputs/auto.mp4"
+
+    captured: dict[str, object] = {}
+
+    def fake_run(**kwargs: object) -> tuple[dict[str, object], list[Output]]:
+        captured.update(kwargs)
+        return {"id": "route-auto", "provider": "mapillary", "scope": "uruguay", "frames": []}, [Output()]
+
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    monkeypatch.setattr(api_module, "run_autonomous_uruguay", fake_run)
+    response = TestClient(create_app()).post(
+        "/api/traversals/auto", json={"target_ids": ["target-one"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["traversal"]["scope"] == "uruguay"
+    assert response.json()["outputs"][0]["video_path"].endswith(".mp4")
+    settings = captured["settings"]
+    assert settings.fps == 24  # type: ignore[attr-defined]
+    assert settings.output_width == 1920  # type: ignore[attr-defined]
+    assert captured["regions"] == 4
+
+
 def test_traversal_generate_endpoint_records_third_artwork(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

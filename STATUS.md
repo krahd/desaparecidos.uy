@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-07 15:06 GMT-3
+Last updated: 2026-07-08 GMT-3
 
 ## Project purpose
 
@@ -263,8 +263,9 @@ git diff --check
 - Store face-region metadata for accepted `people` rows for manual review only; `people` rows now require a detected face and no fallback face box is generated.
 - Reject obvious non-photo place candidates before review: flat graphics, limited-palette graphics/logos, prominent faces, and random-noise-like textures.
 - Generate stills and MP4 process videos for **Todos somos familiares** from approved face regions and for **Están en todas partes** from approved place images.
-- Discover and cache Mapillary routes for **Seguimos buscando**, approve frames manually, and render single-target or ordered multi-target traversal videos in overlay, alternating, or split-screen composition.
+- Discover and cache Mapillary routes for **Seguimos buscando**, approve frames manually or via the explicit CV-gated auto-approve policy, and render single-target or ordered multi-target traversal videos in overlay, alternating, or split-screen composition at a default 1920 px / 24 fps.
 - Discover autonomous multi-region walks: a drawn region is split into up to twelve grid cells (`regions` in the GUI/API), the longest coherent capture sequence per cell becomes one walk, walks chain by nearest neighbour with direct jump cuts, and `walks`/`region_index` metadata persists on the route and in sidecars.
+- Run the fully autonomous all-Uruguay flow: population-weighted locality sampling with a configurable rural share chooses the walk's places nationwide (no drawn region), and **Search Uruguay & generate** / `POST /api/traversals/auto` chains discovery, acquisition, CV-gated auto-approval, and rendering in one step while keeping every frame reviewable afterwards.
 - Assemble Seguimos buscando portraits incrementally from the bits found along the walk: no tile is matched against a frame the traversal has not reached, ordered target sequences consume contiguous per-target walk segments, and sidecars record `assembly_policy: "incremental-found-fragments"` plus `target_segments`.
 - Reveal each contributing approved place source, or only the reviewed face region for a people source, at full opacity before fading non-contributing pixels and transferring selected fragments; rejected and non-contributing candidates never appear.
 - Choose regular `grid` staging or a target-match-defined non-grid scatter through the GUI, API `video_source_layout`, or CLI `--video-source-layout`; record the selection and reveal policy in sidecars.
@@ -275,6 +276,13 @@ git diff --check
 
 ## Recent changes
 
+- Verified the autonomous Seguimos buscando flow live against Mapillary end to end and hardened the adapter for real coverage: the bbox `/images` search now requests only lightweight fields with a 90 s timeout (heavy `creator`/`organization` fields made dense-city queries time out), thumbnail URL and contributor attribution are resolved per image at download time so attribution attaches to exactly the acquired frames, dense bboxes that still return HTTP 500 (measured ~>1 km in central Montevideo) are subdivided into quadrants within a bounded query budget, and gazetteer locality cells shrank to ~1.2 km (rural cells stay ~5 km). A live one-shot run sampled Artigas and Paysandú, acquired 16 real frames, auto-approved 13 (3 CV-rejected), captured contributor attribution, and rendered a verified 1920×2568 H.264 video for the first approved target with the portrait visibly assembled from real street fragments.
+- Fixed manifest review writes emitting CRLF line endings: `set_review_status`/delete rewrites now use LF so tracked manifests stay `git diff --check` clean. Approved the first target row (`abeledo-sotuyo-horacio-adolfo`) in `data/manifests/targets.csv` through the ordinary review path during live verification.
+- Added the first fully working autonomous Seguimos buscando version. A new all-Uruguay autonomous scope (`scope: "uruguay"`, the GUI autonomous default) chooses the walk's places by itself: a coarse tracked gazetteer (`src/desaparecidos/geography.py`, ~50 localities with approximate 2011 census weights plus a simplified national boundary polygon) is sampled with population-proportional weight, a configurable rural share (default 25%) instead samples a uniform point on Uruguayan land, each sampled place becomes a ~5 km search cell, and cells without Mapillary coverage are skipped until the requested number of coherent walks is found. Routes record `scope`, `rural_probability`, `places`, per-frame `place_name`/`place_kind`, and walk-order-renumbered `region_index`; the route geometry becomes the national path through the chosen places.
+- Added CV-gated auto-approval of traversal frames as an explicit artist decision (recorded in `AGENTS.md`): `acquire_traversal(auto_approve=True)` approves frames passing the local CV place gate with `review_policy: "auto-cv-accepted"`, never approves CV-rejected or duplicate frames, and a manual review decision now always survives re-acquisition (manual review stamps `review_policy: "manual"`). Crawler manifest rows (`targets`/`places`/`people`) remain manual-approval-only.
+- Added the one-shot autonomous flow: `run_autonomous_uruguay` and `POST /api/traversals/auto` chain sample→discover→acquire→auto-approve→render in one call, surfaced in the GUI as **Search Uruguay & generate**. Frames remain reviewable afterwards; outputs stay `internal_unreviewed`.
+- Raised default Seguimos buscando output quality to 1920 px / 24 fps across `TraversalRenderSettings`, the API request models, the CLI, and the GUI, with an editable Output width control.
+- Fixed Seguimos buscando Mapillary discovery failing with HTTP 500. The bbox `/images` search requested a `thumb_2048_url` field, and `graph.mapillary.com` returns 500 when a thumbnail-URL field is included in a bbox search. `MapillaryProvider.discover` now requests lightweight metadata only (`id,computed_geometry,compass_angle,captured_at,sequence,creator,organization`) and `download` resolves each frame's thumbnail with a per-image `GET /{image_id}?fields=thumb_2048_url` call. Resolving thumbnails at download time also fetches only the frames actually acquired and keeps Mapillary's short-lived signed thumbnail URLs fresh; legacy routes that cached a `download_url` still download. Verified live against the Graph API (metadata-only bbox search returns 200; per-image thumbnail resolution returns a URL) and with two new HTTP-adapter tests.
 - Completed the Seguimos buscando generation model. Autonomous discovery now produces coherent walks through different parts of the country: the drawn region is partitioned into grid cells (new `regions` control in the GUI and `POST /api/traversals/discover`, 1–12, GUI default 4), each cell contributes its longest capture sequence ordered by capture time, singleton/noise frames are never selected when a coherent sequence (≥4 frames) exists, and walks chain with the existing direct-jump-cut policy. Route records and sidecars persist `regions`, `walks`, and per-frame `region_index`.
 - Replaced full-knowledge traversal assembly with incremental found-fragment assembly (`assemble_walk`). Fragments join the pool only when the walk reaches their frame; after each frame a proportional share of still-empty portrait tiles is filled with the best-matching found fragment under the existing reuse/contribution limits, so tile matching never sees future frames. Ordered multi-target renders split the walk into contiguous per-target segments (`target_segments` in sidecars); each target's street footage and portrait progress now come from its own segment.
 - Implemented the `doc/TODO-2.md` process-video transition: each contributing source region appears at full opacity, non-contributing pixels fade to the black video background, and selected fragments move without leaving duplicate fragments behind.
@@ -332,7 +340,13 @@ git diff --check
 
 ## Tests and verification status
 
-Latest local verification (Seguimos buscando coherent walks and incremental assembly):
+Latest local verification (autonomous all-Uruguay flow, auto-approve, and quality defaults):
+
+- `.venv/bin/python -m pytest -q`: passed. New tests cover gazetteer determinism, population weighting, rural samples staying on Uruguayan land, uruguay-scope discovery (place metadata, walk-order region renumbering, query stop after enough walks), scope/mode validation, CV-gated auto-approval including manual-decision survival across re-acquisition, the one-shot `run_autonomous_uruguay`, and the `/api/traversals/auto` and uruguay-scope discover endpoints.
+- E2E smoke with real ffmpeg through `run_autonomous_uruguay` (synthetic provider, CV gate fixture-patched): all three compositions produced valid H.264 MP4s verified with `ffprobe` — overlay/single at final quality 1920×2568 / 24 fps / 96 frames, alternate/sequence and split/single at reduced size — with population-weighted places sampled per run (Montevideo, Tacuarembó, Rivera, Melo, …), `auto-cv-accepted` on every participating frame, and a visually inspected contact sheet showing progressive fill, overlay blend, and the name caption.
+- Live Mapillary end-to-end (2026-07-08, real token): uruguay-scope discovery returned coherent real walks (Maldonado/Montevideo in the discovery check; Artigas/Paysandú in the full run), the one-shot flow acquired 16 frames, auto-approved 13 with 3 CV rejections, attached contributor attribution, and rendered a 1920×2568 / 24 fps / 192-frame H.264 video (`ffprobe`-verified) for the approved Abeledo target; the extracted contact sheet shows real street imagery progressively assembling the portrait with the name caption. Dense-city hardening (lean search fields, per-image attribution, quadrant subdivision, ~1.2 km locality cells) was added after live 500/timeout findings and is unit-tested. A GUI-clicked run of the same flow has not been separately exercised but uses the identical API path.
+
+Previous local verification (Seguimos buscando coherent walks and incremental assembly):
 
 - `.venv/bin/python -m pytest -q`: passed, 130 tests, 1 upstream Starlette/httpx deprecation warning. New tests cover per-region walk selection and ordering, noise-sequence exclusion, empty-coverage error, incremental `assemble_walk` never using unfound frames, the half/half fill schedule, and the new sidecar fields.
 - `.venv/bin/python -m compileall -q src tests scripts`: passed.
@@ -340,7 +354,7 @@ Latest local verification (Seguimos buscando coherent walks and incremental asse
 - `npm --prefix frontend run build`: passed (`tsc` and Vite production build); the existing bundle-size advisory remains informational.
 - `git diff --check`: passed.
 - End-to-end synthetic smoke with real ffmpeg: autonomous discovery over a two-region fixture produced two coherent walks (8+8 frames, one jump cut), acquisition/approval succeeded, a sequence-mode overlay render wrote a valid H.264 MP4 (`ffprobe` verified, 36 frames), the sidecar recorded `assembly_policy`, `walks`, `regions`, and `target_segments`, and a six-frame contact sheet showed each segment's street footage, progressive portrait fill, name caption, and the jump cut between regions. The CV place gate was fixture-patched because synthetic gradients are legitimately rejected as non-photos.
-- Live Mapillary discovery remains unverified without a configured `MAPILLARY_ACCESS_TOKEN`.
+- The Mapillary request shape is now verified live against the Graph API: the metadata-only bbox search returns 200 and per-image `thumb_2048_url` resolution returns a URL with a configured `MAPILLARY_ACCESS_TOKEN`. Full end-to-end discovery/acquire/render through the GUI with a live token is still pending.
 
 Latest local verification (TODO-2 source reveal and layouts):
 
@@ -403,7 +417,7 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 ## Known issues, risks, and limitations
 
 - Full browser-pixel verification remains blocked until Playwright or Safari WebDriver is repaired locally.
-- Live Mapillary discovery/acquisition remains unverified without a configured `MAPILLARY_ACCESS_TOKEN`; provider calls are mocked in automated tests.
+- Live Mapillary discovery, acquisition, and rendering are verified end to end with a real token (2026-07-08) via the one-shot autonomous flow; a browser-clicked GUI run of the same API path has not been separately exercised. Provider calls remain mocked in automated tests, and Mapillary's bbox search stays density-limited (dense boxes are quadrant-subdivided within a bounded query budget).
 - The production frontend bundle is about 1.23 MB before gzip because MapLibre is currently loaded with the main application; Vite reports an informational chunk-size warning.
 - `zsh -n start.sh` reports `nice(5)` permission warnings even though syntax validation exits successfully.
 - The GUI static smoke uses the built output, not Vite dev server, because Vite port binding was blocked by sandbox permissions.
@@ -461,7 +475,8 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - Raw-only portrait candidates are never selected automatically. Local filename matches are candidate evidence, not identity/provenance proof.
 - `people` is separate from `targets` so contemporary public people imagery cannot be confused with disappeared-person portraits.
 - Each artwork has a separate generation page. For the first two, the artwork identifier rather than a free source selector determines whether a request consumes `people` or `places` rows.
-- Seguimos buscando uses a separate traversal contract rather than overloading place manifests. Mapillary is the first adapter; provider tokens stay backend-only, acquisition is bounded, every participating frame requires manual approval, and rendering is deterministic from the local cache.
+- Seguimos buscando uses a separate traversal contract rather than overloading place manifests. Mapillary is the first adapter; provider tokens stay backend-only, acquisition is bounded, and rendering is deterministic from the local cache. Frame approval is manual by default; the explicit artist-decided exception (2026-07-08) lets acquisition auto-approve frames passing the CV place gate with recorded `review_policy: "auto-cv-accepted"`, reversible in review, with manual decisions always surviving re-acquisition. Crawler manifest rows keep manual-only approval.
+- The all-Uruguay autonomous scope samples where the walk searches from a coarse tracked gazetteer weighted by population, with a rural share sampling uniform points on Uruguayan land, because the work's search should favour inhabited places while sometimes looking elsewhere. The gazetteer is sampling data only — approximate coordinates and census weights, never person-related data.
 - Autonomous walks keep to whole capture sequences rather than nearest-neighbour scatter: one coherent sequence per region cell reads as a continuous street traversal, keeps provenance simple (one contributor per walk), and matches the work's search-as-process framing. Region cells are a bounding-box grid; finer geographic authoring stays in manual/import modes.
 - Traversal assembly is incremental by construction, not by display filtering: tile matching only ever sees fragments from frames the walk has reached, which makes the sidecar claim `future_source_frames_used: false` hold for matching as well as display. The proportional fill schedule keeps the portrait completing exactly at each segment's end.
 - Target-manifest export remains explicit. Linking target administration and image review changes selection/highlighting only and never silently rewrites `targets.csv`.
@@ -482,4 +497,4 @@ Browser-rendered smoke is not complete in this environment: the Browser plugin i
 - `doc/writings/` now contains merged AI & Society/Open Forum drafts, figures, source audit, and publication planning material.
 - `CLAUDE.md` remains a short pointer to `AGENTS.md`, `STATUS.md`, and the project description.
 
-Last updated: 2026-07-07 15:06 GMT-3
+Last updated: 2026-07-08 GMT-3

@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-08 14:25 GMT-3
+Last updated: 2026-07-08 15:05 GMT-3
 
 ## Project purpose
 
@@ -33,27 +33,35 @@ Current artwork/runtime state:
 
 ## Current submission work
 
-A dedicated branch exists for the 62.º Premio Nacional de Artes Visuales 2026 submission:
+Current Premio Nacional work is happening on `main` directly, under:
 
-- branch: `submission-premio-nacional-2026`;
-- target format: one composite work/triptych, three offline-generated videos in loop, three vertical screens, non-interactive installation;
-- submission folder: `doc/submissions/2026-premio-nacional-artes-visuales/`.
+- `doc/submissions/2026-premio-nacional-artes-visuales/`.
+
+Target format:
+
+- one composite work/triptych;
+- three offline-generated videos in loop;
+- three vertical screens;
+- non-interactive installation.
 
 Files added/updated for this submission pass:
 
-- `doc/submissions/2026-premio-nacional-artes-visuales/application-texts.md`: first Spanish application text package aligned with the bases fields and character limits;
-- `doc/submissions/2026-premio-nacional-artes-visuales/code-audit.md`: static code/documentation audit for the proposed offline three-screen installation.
+- `doc/submissions/2026-premio-nacional-artes-visuales/application-texts.md`: revised Spanish application text package aligned with the bases fields and character limits;
+- `doc/submissions/2026-premio-nacional-artes-visuales/code-audit.md`: static code/documentation audit for the proposed offline three-screen installation;
+- `doc/submissions/2026-premio-nacional-artes-visuales/postulacion-desaparecidos-uy.docx`: generated DOCX version of the application text package;
+- `doc/submissions/2026-premio-nacional-artes-visuales/declaracion-jurada-tomas-laurenzo-desaparecidos-uy.docx`: generated DOCX draft of the sworn declaration, with placeholders for missing administrative fields.
 
 ## Active focus
 
 Prepare the Premio Nacional submission package as an offline audiovisual triptych rather than a live software demo. This requires:
 
 1. finalising Spanish application texts;
-2. exporting one looped video per artwork mode;
-3. selecting stills and a montage diagram for a PDF under 20 MB;
-4. confirming source rights and image-rights risk for all final visual inputs;
-5. ensuring the **Todos somos familiares** exhibition loop does not expose recognisable living source faces without authorisation;
-6. generating stable external video links if needed by the online form.
+2. completing missing administrative placeholders: exact birth day/month, document number, address, date, local responsible person if used;
+3. exporting one looped video per artwork mode;
+4. selecting stills and a montage diagram for a PDF under 20 MB;
+5. confirming source rights and image-rights risk for all final visual inputs;
+6. ensuring the **Todos somos familiares** exhibition loop does not expose recognisable living source faces without authorisation;
+7. generating stable external video links if needed by the online form.
 
 ## Technical and ethical constraints
 
@@ -108,7 +116,9 @@ git diff --check
 
 ## Verification status
 
-No tests, builds, smoke tests, linters, type-checkers, or render commands were run during the Premio Nacional documentation pass in this session. The code audit was static only, based on repository inspection through GitHub.
+Application texts were audited against the official opportunity page and the local bases PDF. The generated DOCX files were rendered through LibreOffice to page PNGs and visually inspected: the application renders to five pages and the declaration renders to one page, with no visible clipping or overlap.
+
+No code tests, builds, smoke tests, linters, type-checkers, or video render commands were run during this documentation pass.
 
 ## Important files and directories
 

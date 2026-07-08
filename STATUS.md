@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-08 15:05 GMT-3
+Last updated: 2026-07-08 16:05 GMT-3
 
 ## Project purpose
 
@@ -46,10 +46,12 @@ Target format:
 
 Files added/updated for this submission pass:
 
-- `doc/submissions/2026-premio-nacional-artes-visuales/application-texts.md`: revised Spanish application text package aligned with the bases fields and character limits;
+- `doc/submissions/2026-premio-nacional-artes-visuales/Desaparecidos_PNAV_2026.docx`: live DOCX application folder, now including a visual-register section with generated stills, a three-screen montage, and a typo fix in the artwork description;
+- `doc/submissions/2026-premio-nacional-artes-visuales/Desaparecidos_PNAV_2026_con_imagenes.docx`: explicit copy of the same DOCX with embedded visual-register images, added after the live filename was overwritten by a 36 KB image-less copy during local editing;
+- `doc/submissions/2026-premio-nacional-artes-visuales/Desaparecidos_PNAV_2026.pdf`: Pandoc/XeLaTeX PDF export of the updated DOCX, 6 pages and about 700 KB;
+- `doc/submissions/2026-premio-nacional-artes-visuales/visual-documentation/`: PNAV visual documentation stills, contact sheet, process sheet, installation mock-up, generated preview source manifests, render sidecars, and metadata;
 - `doc/submissions/2026-premio-nacional-artes-visuales/code-audit.md`: static code/documentation audit for the proposed offline three-screen installation;
-- `doc/submissions/2026-premio-nacional-artes-visuales/postulacion-desaparecidos-uy.docx`: generated DOCX version of the application text package;
-- `doc/submissions/2026-premio-nacional-artes-visuales/declaracion-jurada-tomas-laurenzo-desaparecidos-uy.docx`: generated DOCX draft of the sworn declaration, with placeholders for missing administrative fields.
+- `doc/submissions/2026-premio-nacional-artes-visuales/Desaparecidos-declaracion-jurada-titular.docx`: local declaration file for the administrative upload.
 
 ## Active focus
 
@@ -58,7 +60,7 @@ Prepare the Premio Nacional submission package as an offline audiovisual triptyc
 1. finalising Spanish application texts;
 2. completing missing administrative placeholders: exact birth day/month, document number, address, date, local responsible person if used;
 3. exporting one looped video per artwork mode;
-4. selecting stills and a montage diagram for a PDF under 20 MB;
+4. replacing preview stills with final exhibition-video stills if better reviewed source inputs are available;
 5. confirming source rights and image-rights risk for all final visual inputs;
 6. ensuring the **Todos somos familiares** exhibition loop does not expose recognisable living source faces without authorisation;
 7. generating stable external video links if needed by the online form.
@@ -116,9 +118,19 @@ git diff --check
 
 ## Verification status
 
-Application texts were audited against the official opportunity page and the local bases PDF. The generated DOCX files were rendered through LibreOffice to page PNGs and visually inspected: the application renders to five pages and the declaration renders to one page, with no visible clipping or overlap.
+Application texts were previously audited against the official opportunity page and the local bases PDF.
 
-No code tests, builds, smoke tests, linters, type-checkers, or video render commands were run during this documentation pass.
+PNAV visual documentation pass on 2026-07-08:
+
+- generated two Stage 1 preview stills with `.venv/bin/python -m desaparecidos run-stage1`, using the approved `abeledo-sotuyo-horacio-adolfo` target and local synthetic non-sensitive PNAV source manifests;
+- extracted a **Seguimos buscando** process frame from the existing traversal MP4 with `ffmpeg`;
+- generated individual stills, a three-channel contact sheet, a process sheet, and an installation mock-up under `doc/submissions/2026-premio-nacional-artes-visuales/visual-documentation/`;
+- patched `Desaparecidos_PNAV_2026.docx` to insert the visual register and fix `Ddesaparecidos.uy`;
+- validated the DOCX with `unzip -t`, XML parsing, image-relationship checks, and `textutil -convert html`;
+- exported `Desaparecidos_PNAV_2026.pdf` with `pandoc --pdf-engine=xelatex`;
+- checked the PDF with `pdfinfo` and rendered pages with `pdftoppm`; the PDF renders to 6 pages and is about 700 KB, below the 20 MB submission limit.
+
+No code tests, full frontend builds, or full video-export smoke tests were run during this visual-documentation pass.
 
 ## Important files and directories
 
@@ -135,3 +147,5 @@ No code tests, builds, smoke tests, linters, type-checkers, or video render comm
 - `data/sources.json`: source registry.
 - `data/raw/`, `data/processed/`, `outputs/stage1/`: ignored runtime/generated data.
 - `doc/submissions/2026-premio-nacional-artes-visuales/`: Premio Nacional submission materials.
+
+Last updated: 2026-07-08 16:05 GMT-3

@@ -1,0 +1,17 @@
+Public production verification
+==============================
+
+Repository: krahd/desaparecidos.uy
+Commit tested: 741db2183d05ce0f26caee1fea59646824e043a6
+Workflow: URUCON artifact verification, run 29878591295
+Environment: GitHub Actions ubuntu-latest, Python 3.12.13
+Command: python -m pytest -q --tb=short
+
+........................................................................ [ 50%]
+........................................................................ [100%]
+=============================== warnings summary ===============================
+fastapi/testclient.py: StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead.
+
+144 passed, 1 warning in 6.44s
+
+The independent benchmark job in the same workflow run completed successfully and reproduced the reported aggregate values.

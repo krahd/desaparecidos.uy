@@ -1,0 +1,42 @@
+name: URUCON artifact verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "benchmark/**"
+      - ".github/workflows/urucon-artifact.yml"
+  workflow_dispatch:
+
+jobs:
+  production-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install production dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run production test suite
+        run: python -m pytest -q
+
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: benchmark/requirements.txt
+      - name: Install benchmark dependencies
+        run: python -m pip install -r benchmark/requirements.txt
+      - name: Reproduce and verify reported values
+        run: python benchmark/reproduce.py

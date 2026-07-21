@@ -1,0 +1,22 @@
+{
+  "audit": {
+    "dependency_query_hits": 1,
+    "deterministic_replay": true,
+    "excluded_source_absent": true,
+    "regenerated_output_changed": true
+  },
+  "faces_gap_cap1": 15.681106912766994,
+  "faces_hhi_cap1": 0.010000000000000002,
+  "faces_hhi_unlimited": 0.02656666666666667,
+  "faces_ssim_cap1": 0.3719589412212372,
+  "faces_ssim_unlimited": 0.40942681829134625,
+  "places_gap_cap1": 28.12556381171279,
+  "places_max_parent_share_cap1": 0.16,
+  "places_parent_hhi_cap1_mean": 0.14593333333333333,
+  "places_parent_hhi_cap1_sd": 0.005441568401358809,
+  "places_row_hhi_cap1": 0.010000000000000002,
+  "places_row_hhi_unlimited": 0.061866666666666674,
+  "places_ssim_cap1": 0.23181668668985367,
+  "places_ssim_unlimited": 0.2831954260667165,
+  "runs": 432
+}

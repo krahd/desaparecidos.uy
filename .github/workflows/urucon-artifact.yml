@@ -32,7 +32,13 @@ jobs:
       - name: Install production dependencies
         run: python -m pip install -e ".[dev]"
       - name: Run production test suite
-        run: python -m pytest -q
+        run: python -m pytest -q --tb=short > pytest.log 2>&1
+      - name: Upload production test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-test-log
+          path: pytest.log
 
   benchmark:
     runs-on: ubuntu-latest

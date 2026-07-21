@@ -13,6 +13,6 @@ python -m pip install -r benchmark/requirements.txt
 python benchmark/reproduce.py
 ```
 
-The script regenerates the 432-run proxy experiment, parent-level concentration analysis, reduced greedy-versus-exact comparison, and an independent source-dependency/regeneration diagnostic. It writes `benchmark-results.json` and verifies the values reported in the paper against numerical tolerances.
+The script regenerates the 432-run proxy experiment, parent-level concentration analysis, reduced greedy-versus-exact comparison, and an independent source-dependency/regeneration diagnostic. It writes `benchmark-results.json` and verifies the values reported in the paper against numerical tolerances. The committed `reported-results.json` records the corresponding reference output.
 
 GitHub Actions also runs the production test suite and this benchmark on changes to the relevant code or artifact files.

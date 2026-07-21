@@ -9,6 +9,14 @@ on:
       - "pyproject.toml"
       - "benchmark/**"
       - ".github/workflows/urucon-artifact.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "benchmark/**"
+      - ".github/workflows/urucon-artifact.yml"
   workflow_dispatch:
 
 jobs:

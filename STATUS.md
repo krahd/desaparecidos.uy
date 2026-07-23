@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-08 16:05 GMT-3
+Last updated: 2026-07-23 GMT-3
 
 ## Project purpose
 
@@ -30,6 +30,20 @@ Current artwork/runtime state:
 - source-reveal process videos that briefly show contributing approved place images, or only reviewed face regions for people sources, before fading non-contributing pixels and transferring selected fragments;
 - rejected and non-contributing candidates are not shown as raw images in the active video path;
 - sidecars record artwork/source identifiers, settings, source usage, source sequence, search trail URLs/run ids, truthful candidate counts, privacy/display policy, and video process metadata.
+
+## Writing location
+
+The AI & SOCIETY Open Forum paper **Against Restoration: Responsible AI, Disappearance, and Computational Memorial Systems** has been moved out of this project repository and into:
+
+`krahd/academic-writing/my_papers_2026/2026 - AI Society - Against Restoration/`
+
+Moved files:
+
+- `doc/writings/ai-society-open-forum.md` → `academic-writing/.../ai-society-open-forum.md`;
+- `doc/writings/references/source-audit.md` → `academic-writing/.../references/source-audit.md`;
+- `doc/writings/figures/open-forum-fig*.svg` → `academic-writing/.../figures/`.
+
+`doc/writings/README.md` now points to the new canonical paper location. Remaining files under `doc/writings/` are project-local notes or separate drafts.
 
 ## Current submission work
 
@@ -77,16 +91,16 @@ Prepare the Premio Nacional submission package as an offline audiovisual triptyc
 - Public availability is not sufficient consent for arbitrary processing. Exclude minors, private contexts, and sensitive contexts unless explicit permission exists.
 - For Premio Nacional exhibition, generated videos should use reviewed or authorised visual inputs and must be checked end-to-end before submission.
 
-## Known documentation issue
+## Known writing issue
 
-Some older writing files still contain stale method language about a 240-tile default cap or raw rejected/non-contributing candidate display. The current implementation source of truth is:
+The moved Open Forum manuscript in `krahd/academic-writing` still contains stale method language about a 240-tile default cap and raw rejected/non-contributing candidate display. The current implementation source of truth is:
 
 - `DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1` in `src/desaparecidos/pipeline.py`;
 - place generation permits explicit `0` as unlimited;
 - people generation rejects `0` and requires a positive contribution cap;
 - rejected/non-contributing candidates are not shown as raw images in the active video path.
 
-The Premio submission texts use the corrected language. Remaining older writing files should be corrected before they are reused for publication or public documentation.
+Correct these claims in the academic-writing copy before submission.
 
 ## Setup and verification commands
 
@@ -133,6 +147,13 @@ PNAV visual documentation pass on 2026-07-08:
 
 No code tests, full frontend builds, or full video-export smoke tests were run during this visual-documentation pass.
 
+Writing migration pass on 2026-07-23:
+
+- verified `academic-writing` canonical structure and placed the paper under `my_papers_2026/`;
+- copied the Open Forum manuscript, four Open Forum figure SVGs, and source-audit file into `academic-writing`;
+- verified that the moved manuscript's blob SHA matches the source manuscript SHA before deleting the source manuscript from this repository;
+- deleted only the moved Open Forum manuscript package from `doc/writings/`, leaving separate local notes/drafts in place.
+
 ## Important files and directories
 
 - `README.md`: current user-facing overview.
@@ -148,5 +169,6 @@ No code tests, full frontend builds, or full video-export smoke tests were run d
 - `data/sources.json`: source registry.
 - `data/raw/`, `data/processed/`, `outputs/stage1/`: ignored runtime/generated data.
 - `doc/submissions/2026-premio-nacional-artes-visuales/`: Premio Nacional submission materials.
+- `doc/writings/README.md`: pointer to the moved Open Forum paper and remaining writings boundary.
 
-Last updated: 2026-07-08 16:05 GMT-3
+Last updated: 2026-07-23 GMT-3

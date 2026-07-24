@@ -33,17 +33,23 @@ Current artwork/runtime state:
 
 ## Writing location
 
-The AI & SOCIETY Open Forum paper **Against Restoration: Responsible AI, Disappearance, and Computational Memorial Systems** has been moved out of this project repository and into:
+AI & SOCIETY manuscript drafting has been moved out of this project repository and into `krahd/academic-writing`.
 
-`krahd/academic-writing/my_papers_2026/2026 - AI Society - Against Restoration/`
+Canonical moved folders:
+
+- `my_papers_2026/2026 - AI Society - Against Restoration/` — Open Forum paper on computational memorial imagery and the triptych.
+- `my_papers_2026/2026 - AI Society - Incomplete Reconstruction/` — distinct Research Paper draft on conversational AI, collective-memory capture, governance, and non-release.
 
 Moved files:
 
-- `doc/writings/ai-society-open-forum.md` → `academic-writing/.../ai-society-open-forum.md`;
-- `doc/writings/references/source-audit.md` → `academic-writing/.../references/source-audit.md`;
-- `doc/writings/figures/open-forum-fig*.svg` → `academic-writing/.../figures/`.
+- `doc/writings/ai-society-open-forum.md` → `academic-writing/.../2026 - AI Society - Against Restoration/ai-society-open-forum.md`;
+- `doc/writings/references/source-audit.md` → `academic-writing/.../2026 - AI Society - Against Restoration/references/source-audit.md`;
+- `doc/writings/figures/open-forum-fig*.svg` → `academic-writing/.../2026 - AI Society - Against Restoration/figures/`;
+- `doc/writings/AI & SOCIETY special collection.md` → `academic-writing/.../2026 - AI Society - Against Restoration/_recovered_variants/old-open-forum-draft-ai-society-special-collection.md`;
+- `doc/writings/ai-society-research-paper-draft.md` → `academic-writing/.../2026 - AI Society - Incomplete Reconstruction/ai-society-research-paper-draft.md`;
+- `doc/writings/figures/research-paper-fig*.svg` → `academic-writing/.../2026 - AI Society - Incomplete Reconstruction/figures/`.
 
-`doc/writings/README.md` now points to the new canonical paper location. Remaining files under `doc/writings/` are project-local notes or separate drafts.
+`doc/writings/README.md` now points to the academic-writing locations. AI & SOCIETY manuscript drafting should not continue in `desaparecidos.uy`.
 
 ## Current submission work
 
@@ -149,10 +155,12 @@ No code tests, full frontend builds, or full video-export smoke tests were run d
 
 Writing migration pass on 2026-07-23:
 
-- verified `academic-writing` canonical structure and placed the paper under `my_papers_2026/`;
-- copied the Open Forum manuscript, four Open Forum figure SVGs, and source-audit file into `academic-writing`;
-- verified that the moved manuscript's blob SHA matches the source manuscript SHA before deleting the source manuscript from this repository;
-- deleted only the moved Open Forum manuscript package from `doc/writings/`, leaving separate local notes/drafts in place.
+- verified `academic-writing` canonical structure and placed all AI & SOCIETY paper material under `my_papers_2026/`;
+- copied the Open Forum manuscript, source audit, and Open Forum figure SVGs into `academic-writing`;
+- moved the distinct Research Paper draft and its four figure SVGs into a separate academic-writing folder;
+- preserved the older Open Forum draft `AI & SOCIETY special collection.md` as a recovered variant under the Against Restoration folder;
+- deleted the moved AI & SOCIETY manuscripts and paper figures from `doc/writings/` in this repository;
+- verified by direct `fetch_file` that the deleted AI & SOCIETY manuscript paths on `main` now return `Not Found`.
 
 ## Important files and directories
 
@@ -169,6 +177,6 @@ Writing migration pass on 2026-07-23:
 - `data/sources.json`: source registry.
 - `data/raw/`, `data/processed/`, `outputs/stage1/`: ignored runtime/generated data.
 - `doc/submissions/2026-premio-nacional-artes-visuales/`: Premio Nacional submission materials.
-- `doc/writings/README.md`: pointer to the moved Open Forum paper and remaining writings boundary.
+- `doc/writings/README.md`: pointer to academic-writing paper locations and the writing boundary.
 
 Last updated: 2026-07-23 GMT-3

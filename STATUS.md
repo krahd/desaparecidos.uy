@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-25 03:20 GMT-3
+Last updated: 2026-07-25 03:29 GMT-3
 
 ## Governing principle
 
@@ -85,13 +85,14 @@ Completed:
 - complete artwork-derived manuscript;
 - system diagram and claim-to-evidence matrix;
 - corrected mixed `lfw_subset` description;
-- conference, historical and bibliography audit;
+- conference, historical and complete bibliography audit;
+- direct verification of the reported benchmark endpoints and percentage changes from the retained CSVs;
 - rejection-oriented adversarial review;
 - A4 two-column DOCX and four-page PDF within the five-page maximum;
 - page-level and mechanical PDF inspection;
 - exact artifact hashes.
 
-The paper cites the verified runtime revision `5a5a5626f94dfa6b3982234c948d58ebd088405d`. The final EDAS upload still requires export from Microsoft Word with Times New Roman installed, live conference-instruction confirmation, two narrow proceedings-reference checks and direct benchmark-CSV confirmation. The paper explicitly marks final exhibition media and people-derived public-release evidence as pending rather than fabricating them.
+The paper cites the verified runtime revision `5a5a5626f94dfa6b3982234c948d58ebd088405d`. The final EDAS upload still requires export from Microsoft Word with Times New Roman installed, confirmation of the live conference instructions and resolution of any EDAS diagnostics. The paper explicitly marks final exhibition media and people-derived public-release evidence as pending rather than fabricating them.
 
 ## Source and network safety
 
@@ -120,7 +121,7 @@ These are project-corpus counts, not an authoritative historical total.
 6. **Territorial and traversal processes — implemented, including explicit territorial uncertainty and causal placement histories.**
 7. **Verification, CI and software hardening — implemented and verified.**
 8. **Exhibition loops and durable online form — render and publication systems implemented; final reviewed media remain a material-production and human-review task.**
-9. **Artwork-derived URUCON paper — manuscript, evidence package, adversarial audit and four-page A4 two-column artifacts completed. Final Microsoft Word/EDAS export checks remain submission operations rather than research or implementation work.**
+9. **Artwork-derived URUCON paper — manuscript, evidence package, complete citation/numerical audit, adversarial review and four-page A4 two-column artifacts completed. Final Microsoft Word/EDAS export checks remain submission operations rather than research or implementation work.**
 
 ## Verification
 
@@ -187,4 +188,4 @@ npm --prefix frontend run build
 bash -n start.sh
 ```
 
-Last updated: 2026-07-25 03:20 GMT-3
+Last updated: 2026-07-25 03:29 GMT-3

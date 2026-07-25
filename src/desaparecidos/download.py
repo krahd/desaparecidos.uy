@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 import requests
 
 from .manifests import ManifestKind, read_manifest
+from .net import safe_get
+
+DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 
 @dataclass
@@ -69,6 +72,7 @@ def download_manifest(
     *,
     output_root: str | Path = "data/raw",
     timeout: int = 30,
+    max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> DownloadSummary:
     manifest_path = Path(manifest)
     validation = read_manifest(manifest_path, kind)
@@ -101,15 +105,24 @@ def download_manifest(
             continue
 
         try:
-            response = requests.get(
+            response = safe_get(
+                requests,
                 url,
                 timeout=timeout,
-                headers={"User-Agent": "desaparecidos.uy-stage1/0.1"},
+                headers={"User-Agent": "desaparecidos.uy-stage1/0.2"},
             )
-            suffix = _suffix_for(url, response.headers.get("content-type"))
-            output_path = kind_root / f"{row.id}{suffix}"
             response.raise_for_status()
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > max_bytes:
+                raise ValueError(f"response exceeds {max_bytes} bytes")
             payload = response.content
+            if len(payload) > max_bytes:
+                raise ValueError(f"response exceeds {max_bytes} bytes")
+            content_type = response.headers.get("content-type", "")
+            suffix = _suffix_for(url, content_type)
+            if suffix == ".bin" and not content_type.lower().startswith("image/"):
+                raise ValueError(f"not an image response: {content_type or 'unknown content type'}")
+            output_path = kind_root / f"{row.id}{suffix}"
             digest = hashlib.sha256(payload).hexdigest()
             output_path.write_bytes(payload)
             item = DownloadItem(

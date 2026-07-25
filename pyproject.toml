@@ -1,31 +1,32 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=69,<82", "wheel>=0.43,<1"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "desaparecidos-uy"
-version = "0.1.0"
-description = "Local Stage 1 pipeline and GUI for the desaparecidos.uy computational memorial artwork."
+version = "0.2.0"
+description = "Local computational memorial artwork runtime, review tools, and GUI for desaparecidos.uy."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Tomas Laurenzo" }]
 dependencies = [
-  "fastapi>=0.115",
-  "numpy>=1.26",
+  "fastapi>=0.115,<1",
+  "numpy>=1.26,<3",
   "opencv-python-headless==4.12.0.88",
-  "Pillow>=10.0",
-  "requests>=2.31",
-  "uvicorn[standard]>=0.30"
+  "Pillow>=10.0,<13",
+  "requests>=2.31,<3",
+  "uvicorn[standard]>=0.30,<1"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.27",
-  "pytest>=8.0"
+  "httpx>=0.27,<1",
+  "pytest>=8.0,<10"
 ]
 
 [project.scripts]
 desaparecidos = "desaparecidos.cli:main"
+desaparecidos-artwork = "desaparecidos.artwork_runtime:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

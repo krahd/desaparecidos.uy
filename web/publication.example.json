@@ -1,0 +1,24 @@
+{
+  "schema": "desaparecidos.uy/web-publication/1.0",
+  "note": "Versión de publicación revisada. Las obras y sus fuentes se documentan en el manifiesto de exhibición asociado.",
+  "works": {
+    "todos-somos-familiares": {
+      "publish": false,
+      "path": "./media/todos-somos-familiares.mp4",
+      "poster": "",
+      "controls": false
+    },
+    "estan-en-todas-partes": {
+      "publish": true,
+      "path": "./media/estan-en-todas-partes.mp4",
+      "poster": "",
+      "controls": false
+    },
+    "seguimos-buscando": {
+      "publish": true,
+      "path": "./media/seguimos-buscando.mp4",
+      "poster": "",
+      "controls": false
+    }
+  }
+}

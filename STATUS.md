@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-25 02:25 GMT-3
+Last updated: 2026-07-25 03:20 GMT-3
 
 ## Governing principle
 
@@ -70,6 +70,29 @@ These measures do not establish memorial adequacy, identity, consent or anonymit
 
 The tooling is implemented. Final exhibition media are not committed and have not been rendered in this environment because they require the reviewed local source corpora, selected target sequence, an approved traversal, FFmpeg and complete visual review.
 
+## Artwork-derived URUCON paper
+
+The canonical paper package is maintained in:
+
+`krahd/academic-writing/my_papers_2026/2026 - Urucon - Desaparecidos.uy/urucon_v7_artwork_derived/`
+
+Title:
+
+**Computational Re-enactment in a Digital Memorial**
+
+Completed:
+
+- complete artwork-derived manuscript;
+- system diagram and claim-to-evidence matrix;
+- corrected mixed `lfw_subset` description;
+- conference, historical and bibliography audit;
+- rejection-oriented adversarial review;
+- A4 two-column DOCX and four-page PDF within the five-page maximum;
+- page-level and mechanical PDF inspection;
+- exact artifact hashes.
+
+The paper cites the verified runtime revision `5a5a5626f94dfa6b3982234c948d58ebd088405d`. The final EDAS upload still requires export from Microsoft Word with Times New Roman installed, live conference-instruction confirmation, two narrow proceedings-reference checks and direct benchmark-CSV confirmation. The paper explicitly marks final exhibition media and people-derived public-release evidence as pending rather than fabricating them.
+
 ## Source and network safety
 
 - manifest downloads are size-bounded and require an image response;
@@ -96,8 +119,8 @@ These are project-corpus counts, not an authoritative historical total.
 5. **Target salience and source-person non-representation controls — implemented; human review remains mandatory.**
 6. **Territorial and traversal processes — implemented, including explicit territorial uncertainty and causal placement histories.**
 7. **Verification, CI and software hardening — implemented and verified.**
-8. **Exhibition loops and durable online form — render and publication systems implemented; final reviewed media remain a material-production task.**
-9. **Artwork-derived URUCON paper — active in `krahd/academic-writing`; the paper must use only the verified implementation and clearly mark material-production evidence still pending.**
+8. **Exhibition loops and durable online form — render and publication systems implemented; final reviewed media remain a material-production and human-review task.**
+9. **Artwork-derived URUCON paper — manuscript, evidence package, adversarial audit and four-page A4 two-column artifacts completed. Final Microsoft Word/EDAS export checks remain submission operations rather than research or implementation work.**
 
 ## Verification
 
@@ -164,4 +187,4 @@ npm --prefix frontend run build
 bash -n start.sh
 ```
 
-Last updated: 2026-07-25 02:25 GMT-3
+Last updated: 2026-07-25 03:20 GMT-3

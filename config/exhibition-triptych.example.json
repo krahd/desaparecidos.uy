@@ -1,0 +1,32 @@
+{
+  "target_manifest": "data/manifests/targets.csv",
+  "people_manifest": "data/manifests/people.csv",
+  "places_manifest": "data/manifests/places.csv",
+  "traversal_id": "replace-with-reviewed-traversal-id",
+  "traversal_root": "data/raw/traversals",
+  "target_ids": [
+    "replace-with-reviewed-target-id"
+  ],
+  "output_dir": "outputs/exhibition-triptych",
+  "seed": 17,
+  "fragment_size": 24,
+  "output_width": 1920,
+  "fps": 24,
+  "people_source_cap": 1,
+  "people_reuse_limit": 8,
+  "people_visual_grammar": "irregular",
+  "people_max_sources": 0,
+  "avoid_people_source_adjacency": true,
+  "people_segment_duration_seconds": 12,
+  "places_source_cap": 1,
+  "places_reuse_limit": 8,
+  "places_visual_grammar": "overlap",
+  "places_max_sources": 0,
+  "territorially_balance_places": true,
+  "places_segment_duration_seconds": 12,
+  "traversal_composition": "overlay",
+  "traversal_duration_seconds": 180,
+  "traversal_reuse_limit": 10000,
+  "traversal_source_cap": 0,
+  "traversal_visual_grammar": "overlap"
+}

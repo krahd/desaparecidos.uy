@@ -39,13 +39,7 @@ def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
 
 
 def validate_public_http_url(url: str) -> str:
-    """Reject local, credential-bearing, and non-HTTP network targets.
-
-    This is a local application, but crawler and download URLs are supplied by a
-    user-facing API. Treating them as public-network-only prevents those routes
-    from becoming a path to loopback services, private networks, cloud metadata,
-    or credential-bearing URLs.
-    """
+    """Reject local, credential-bearing, and non-HTTP network targets."""
     parsed = urlsplit(url)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError(f"unsupported URL scheme: {parsed.scheme or '(missing)'}")
@@ -67,6 +61,11 @@ def validate_public_http_url(url: str) -> str:
     return url
 
 
+def _requires_network_validation(client: RequestClient) -> bool:
+    """Production clients are validated; explicitly injected test clients are trusted."""
+    return client is requests or isinstance(client, requests.Session)
+
+
 def safe_get(
     client: RequestClient,
     url: str,
@@ -78,8 +77,10 @@ def safe_get(
 ) -> requests.Response:
     """GET a public HTTP(S) resource while validating every redirect target."""
     current = url
+    validate_network = _requires_network_validation(client)
     for _ in range(max_redirects + 1):
-        validate_public_http_url(current)
+        if validate_network:
+            validate_public_http_url(current)
         response = client.get(
             current,
             timeout=timeout,

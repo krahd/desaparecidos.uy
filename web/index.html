@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="desaparecidos.uy — memorial computacional" />
+    <title>desaparecidos.uy</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <h1>desaparecidos.uy</h1>
+      <p>Memorial computacional</p>
+    </header>
+
+    <main>
+      <section class="introduction" aria-labelledby="introduction-title">
+        <h2 id="introduction-title" class="visually-hidden">Introducción</h2>
+        <p>
+          Tres procesos reconstituyen imágenes públicas de personas detenidas desaparecidas
+          desde el país que permanece: sus personas, sus lugares y la búsqueda que continúa.
+        </p>
+      </section>
+
+      <section class="triptych" aria-label="Tríptico memorial">
+        <article class="work" data-work="todos-somos-familiares">
+          <div class="video-frame">
+            <video muted loop playsinline preload="metadata" aria-label="Todos somos familiares"></video>
+            <p class="unavailable" hidden>Esta obra no está disponible en esta publicación.</p>
+          </div>
+          <h2>Todos somos familiares</h2>
+          <p>El rostro emerge del cuerpo social contemporáneo.</p>
+        </article>
+
+        <article class="work" data-work="estan-en-todas-partes">
+          <div class="video-frame">
+            <video muted loop playsinline preload="metadata" aria-label="Están en todas partes"></video>
+            <p class="unavailable" hidden>Esta obra no está disponible en esta publicación.</p>
+          </div>
+          <h2>Están en todas partes</h2>
+          <p>El rostro emerge de las superficies y territorios del Uruguay.</p>
+        </article>
+
+        <article class="work" data-work="seguimos-buscando">
+          <div class="video-frame">
+            <video muted loop playsinline preload="metadata" aria-label="Seguimos buscando"></video>
+            <p class="unavailable" hidden>Esta obra no está disponible en esta publicación.</p>
+          </div>
+          <h2>Seguimos buscando</h2>
+          <p>La búsqueda determina qué fragmentos pueden aparecer y cuándo.</p>
+        </article>
+      </section>
+
+      <section class="method" aria-labelledby="method-title">
+        <h2 id="method-title">Sobre el proyecto</h2>
+        <p>
+          Las imágenes no son restauraciones ni reconstrucciones forenses. Permanecen
+          fragmentarias, inestables e incompletas. La computación no resuelve la desaparición:
+          vuelve perceptible su persistencia en el presente.
+        </p>
+        <p class="release-note" data-release-note hidden></p>
+      </section>
+    </main>
+
+    <footer>
+      <nav aria-label="Información del proyecto">
+        <a href="./method.html">Método, fuentes y límites</a>
+      </nav>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

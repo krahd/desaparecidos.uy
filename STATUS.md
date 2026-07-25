@@ -1,206 +1,167 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-25 01:13 GMT-3
+Last updated: 2026-07-25 02:25 GMT-3
 
 ## Governing principle
 
-`desaparecidos.uy` is first a computational memorial and artwork. Its technical architecture, constraints, evaluations, and papers must emerge from the memorial's artistic and political operations. The project must not acquire arbitrary requirements solely to satisfy a paper.
+`desaparecidos.uy` is first a computational memorial and artwork. Technical architecture, constraints, evaluation and academic writing must emerge from its artistic and political operations. The project must not acquire arbitrary requirements solely to satisfy a paper.
 
-Durable design sources:
+Durable sources of truth:
 
-- `doc/artistic-computational-principles.md` — governing artistic, computational, research, and publication principles;
-- `doc/development-roadmap.md` — completion goal and implementation sequence;
-- `doc/desaparecidos-uy-project-description.md` — full project description and historical, political, artistic, ethical, and visual framework.
+- `doc/artistic-computational-principles.md` — artistic and computational hierarchy;
+- `doc/development-roadmap.md` — completion programme;
+- `doc/desaparecidos-uy-project-description.md` — historical, political and artistic description;
+- `doc/implementation-corrections.md` — current technical corrections to legacy descriptions;
+- `doc/artwork-runtime.md` — canonical rendering, evaluation, exhibition and publication workflow.
 
-The current long-term goal is to complete the roadmap directly on `main`: develop the triptych into an exhibition-quality, durable online computational memorial supporting generated video, installation, interaction, real-time processes, and future artistic iterations, then derive the URUCON paper from the verified work.
+## Project
 
-## Project purpose
+The triptych computationally re-enacts three continuing propositions:
 
-`desaparecidos.uy` is a local-first computational memorial artwork triptych about detained-disappeared persons connected to Uruguay:
+- **Todos somos familiares** — documented portraits of the disappeared emerge from dispersed fragments of the contemporary social body;
+- **Están en todas partes** — documented portraits emerge from Uruguay's places, surfaces, infrastructures, things and territories;
+- **Seguimos buscando** — traversal and continuing search determine which visual material can participate and when.
 
-- **Todos somos familiares** — the disappeared emerge from fragments of the living social body;
-- **Están en todas partes** — the disappeared emerge from the material, visual, institutional, and territorial country;
-- **Seguimos buscando** — traversal and continuing search become the temporal structure of the work.
+Generated videos are primary manifestations of the memorial, not software demonstrations. The work is not a forensic reconstruction, restoration system, biometric identifier, deepfake, resurrection medium or replacement archive.
 
-The generated videos are primary manifestations of the memorial, not demonstrations of a software tool. The system is not an archive, forensic tool, biometric system, deepfake, resurrection medium, or identity-matching workflow.
+## Two runtime paths
 
-## Current implementation state
+### Legacy local application
 
-The repository contains a localhost-only GUI, FastAPI backend, reusable Python pipeline, CLI entry points, canonical disappeared-person corpus, target administration, bounded crawler, source review gates, traversal workflow, still/MP4 generation, and JSON sidecars.
+The existing localhost-only GUI, FastAPI backend and `desaparecidos` command remain operational. They provide target administration, source ingestion and review, crawler and traversal workflows, deterministic square-fragment matching, still/MP4 generation and legacy sidecars.
 
-### Tracked target corpus
+### Canonical artwork runtime
 
-- canonical disappeared-person records: `data/persons/disappeared.json`;
-- reviewed selected 3:4 target portraits: `assets/targets/disappeared/selected/`;
-- first full imported corpus pass: 204 person records, 202 selected portrait derivatives, 321 total portrait candidates, and 118 review-only local alternate candidates;
-- unresolved public-portrait gaps: `camuyrano-bottini-mario` and `gadea-hernandez-liborio`;
-- reviewed source-backed metadata overrides: `data/persons/metadata-overrides.csv`;
-- 197 source-scoped Sitios de Memoria biographies, seven explicit empty biography records, and no retained page-navigation boilerplate.
+`desaparecidos-artwork` and `src/desaparecidos/artwork_runtime.py` now define the artwork-oriented rendering path. It adds:
 
-These counts describe project curation, not an authoritative historical total.
+- `grid`, `irregular` and `overlap` final visual grammars;
+- independent target matching and final render geometry;
+- deterministic position, scale, rotation, opacity and z-order;
+- portrait-oriented or uniform target-section ordering;
+- mandatory positive people-source contribution limits;
+- optional prevention of neighbouring fragments from one people source;
+- fragment-emergence video without raw contemporary source-image reveal;
+- territorially balanced place-source selection using reviewed labels while retaining `unlocated` material;
+- incremental traversal rendering with no future-frame access;
+- persistent output sidecars using `desaparecidos.uy/output-sidecar/2.0`;
+- complete placement histories using `desaparecidos.uy/placement-history/1.0`.
 
-### Runtime and artwork modes
+The legacy GUI path is retained for compatibility. It should not be described as the limit of the artwork's current visual architecture.
 
-- five functional hash-routed GUI pages: Targets, Images, Todos somos familiares, Están en todas partes, and Seguimos buscando;
-- artwork-aware still/video generation for people-derived and place-derived sources;
-- deterministic, vectorised fragment matching using a six-dimensional colour/contrast/edge descriptor and L2 nearest-neighbour search;
-- an active default contribution cap of one output tile per source row;
-- people generation rejects unlimited source contribution;
-- selectable `grid` and `match` process-video layouts;
-- source-reveal process videos show approved place images or only reviewed people face regions before fragment transfer;
-- rejected and non-contributing candidates are not shown as raw images in the active video path;
-- sidecars record artwork/source identifiers, settings, source usage, source sequence, search trails, candidate counts, display policy, and video-process metadata;
-- provider-neutral traversal storage with Mapillary discovery, manual/GeoJSON/GPX/autonomous authoring, bounded acquisition, manual or explicit CV-gated frame approval, and deterministic rendering;
-- autonomous all-Uruguay traversal with population-weighted locality sampling, configurable rural share, coverage fallback, acquisition, CV-gated approval, and rendering;
-- incremental found-fragment assembly for Seguimos buscando: no tile is matched against a frame the traversal has not reached.
+## Artwork-derived evaluation
 
-## Current architectural limitation
+`src/desaparecidos/evaluation.py` and `scripts/evaluate_artwork_output.py` report:
 
-The running system remains based on square fragments and target-tile placements. It supports one regular staging layout and one deterministic non-grid staging scatter, but does not yet provide the general placement architecture required for variable fragment size, masks, overlap, opacity, z-order, rotation, or persistent temporal movement histories.
+- realised source participation, maximum share, HHI and effective source count;
+- same-source adjacency and largest connected same-source target region;
+- overlap, rotation and opacity properties;
+- temporal-causality violations;
+- optional low-level target luminance and gradient diagnostics.
 
-Complete placement records currently exist in memory during Stage 1 assembly but are not persisted in output sidecars. Persistent placement and temporal histories are now an artwork-driven priority because they support video replay, overlap, interaction, live reorganisation, future regeneration, and visible computational process.
+These measures do not establish memorial adequacy, identity, consent or anonymity. People-derived outputs remain subject to complete human review.
 
-## Active development goal
+## Exhibition and online publication
 
-Complete `doc/development-roadmap.md` in the following order:
+- `scripts/render_exhibition_triptych.py` renders all three video loops from a declared plan and creates target-level evaluations plus a hash-addressed exhibition manifest.
+- `config/exhibition-triptych.example.json` records the full render configuration.
+- `web/` contains a sober, tracking-free static memorial presentation.
+- `scripts/publish_static_memorial.py` copies only explicitly selected works whose SHA-256 digests match the exhibition manifest.
+- publication requires explicit acknowledgement that historical, source-rights, contextual, recognisability and full-duration review has been completed.
 
-1. reconcile current documentation with actual behaviour;
-2. add versioned persistent placement histories;
-3. generalise fragment placement while preserving the working grid renderer;
-4. add irregular and overlapping visual grammars;
-5. add target salience and source-recognisability controls for Todos somos familiares;
-6. strengthen territorial source and composition strategies for Están en todas partes;
-7. extend temporal histories and partial-search rendering for Seguimos buscando;
-8. expand tests, CI, dependency reproducibility, API path safety, and network-fetch safety;
-9. produce exhibition-quality loops and a durable online presentation;
-10. rewrite and evaluate the URUCON paper from the resulting verified work.
+The tooling is implemented. Final exhibition media are not committed and have not been rendered in this environment because they require the reviewed local source corpora, selected target sequence, an approved traversal, FFmpeg and complete visual review.
 
-## Current submission work
+## Source and network safety
 
-### Premio Nacional de Artes Visuales 2026
+- manifest downloads are size-bounded and require an image response;
+- production network requests reject localhost, private, link-local, reserved, unspecified, multicast and credential-bearing targets;
+- every redirect target is revalidated;
+- explicitly injected test clients remain usable without external DNS;
+- raw source imagery, generated media, crawler caches, traversal data and sensitive review material remain ignored.
 
-Work is under `doc/submissions/2026-premio-nacional-artes-visuales/` on `main`.
+## Target corpus
 
-Target form:
+- canonical records: `data/persons/disappeared.json`;
+- reviewed selected portraits: `assets/targets/disappeared/selected/`;
+- current project-curation count: 204 person records and 202 selected portrait derivatives;
+- unresolved public-portrait gaps: `camuyrano-bottini-mario` and `gadea-hernandez-liborio`.
 
-- one composite work/triptych;
-- three offline-generated videos in loop;
-- three vertical screens;
-- non-interactive installation.
+These are project-corpus counts, not an authoritative historical total.
 
-Current package includes:
+## Nine-part completion programme
 
-- `Desaparecidos_PNAV_2026.docx`;
-- `Desaparecidos_PNAV_2026_con_imagenes.docx`;
-- `Desaparecidos_PNAV_2026.pdf`;
-- `visual-documentation/` with stills, contact/process sheets, installation mock-up, preview manifests, sidecars, and metadata;
-- `code-audit.md`;
-- `Desaparecidos-declaracion-jurada-titular.docx`.
+1. **Documentation reconciliation — implemented.** Current corrections and canonical runtime documentation explicitly supersede stale technical descriptions.
+2. **Persistent placement and temporal histories — implemented in the canonical runtime.**
+3. **General placement architecture with retained grid baseline — implemented.**
+4. **Irregular and overlapping visual grammars — implemented and tested.**
+5. **Target salience and source-person non-representation controls — implemented; human review remains mandatory.**
+6. **Territorial and traversal processes — implemented, including explicit territorial uncertainty and causal placement histories.**
+7. **Verification, CI and software hardening — implemented and verified.**
+8. **Exhibition loops and durable online form — render and publication systems implemented; final reviewed media remain a material-production task.**
+9. **Artwork-derived URUCON paper — active in `krahd/academic-writing`; the paper must use only the verified implementation and clearly mark material-production evidence still pending.**
 
-Remaining PNAV tasks:
+## Verification
 
-1. finalise Spanish application texts;
-2. complete administrative placeholders;
-3. export one final loop per artwork mode;
-4. replace preview stills if stronger reviewed material becomes available;
-5. confirm rights and image-risk conditions for final inputs;
-6. ensure Todos somos familiares does not expose recognisable living source faces without appropriate authorisation and review;
-7. create stable external video links if required.
+Disposable verification PR `#4` was opened against `main` and closed without merging its trigger file.
 
-## Academic writing boundary
+GitHub Actions run `30145676564` completed successfully on 25 July 2026:
 
-Academic manuscript drafting belongs in `krahd/academic-writing`, not in this repository.
+- Python 3.11 installation, complete test step, local API import and resolved-environment artifact — passed;
+- Python 3.12 installation, complete test step, local API import and resolved-environment artifact — passed;
+- frontend locked installation, tests and production build — passed;
+- launcher shell-syntax validation — passed.
 
-Canonical moved folders:
-
-- `my_papers_2026/2026 - AI Society - Against Restoration/`;
-- `my_papers_2026/2026 - AI Society - Incomplete Reconstruction/`;
-- `my_papers_2026/2026 - Urucon - Desaparecidos.uy/`.
-
-The URUCON package now records an artwork-derived paper direction centred on computational re-enactment rather than treating provenance and quotas as the primary purpose of the artwork.
+The verification run tested the current `main` implementation through the PR merge ref. It did not render final exhibition media or perform human source/output review.
 
 ## Technical and ethical invariants
 
-- Keep GUI/API localhost-only unless deployment is deliberately redesigned.
-- Do not commit raw source imagery, rejected candidates, generated outputs, fragments, downloads, database dumps, credentials, or generated sensitive data.
+- Keep the GUI/API localhost-only unless deployment is deliberately redesigned.
 - Require `review_status=approved` before ordinary source participation.
-- Historical target images are referential portraits, not material for enhancement, resurrection, deepfake, or forensic claims.
-- Contemporary people images belong in `people` manifests and must not be treated as disappeared-person targets.
-- Do not add identity seeking, face/name matching, demographic inference, or biometric identification for contemporary people.
-- Public availability is not sufficient consent for arbitrary processing.
-- Exclude minors, private contexts, and sensitive contexts unless explicit permission and a defensible artistic reason exist.
-- Final public people-derived outputs require end-to-end review; no unsupported anonymity claim is permitted.
-- Provenance, source controls, and exclusion mechanisms should be developed where they sustain the memorial, its public accountability, or future iterations, not as a paper-driven general compliance ontology.
-- Maintain the strict temporal-causality rule for Seguimos buscando.
+- Do not commit raw source imagery, rejected candidates, generated outputs, fragments, downloads, databases, credentials or generated sensitive material.
+- Treat historical portraits as documented referents, not material for enhancement, resurrection or forensic claims.
+- Do not add identity seeking, face/name matching, demographic inference or biometric identification for contemporary people.
+- Public availability is not blanket consent.
+- Exclude minors, private contexts and sensitive contexts without explicit permission and a defensible artistic reason.
+- Never claim that fragment controls guarantee anonymity.
+- Keep `Todos somos familiares` internal until its corpus and complete outputs receive appropriate review.
+- Preserve strict temporal causality in `Seguimos buscando`.
+- Do not convert source accountability into an inflated claim of legality, consent or memorial legitimacy.
 
-## Documentation requiring reconciliation
+## Primary commands
 
-`doc/desaparecidos-uy-project-description.md` still contains stale language describing a legacy 240-tile source contribution cap. The current implementation source of truth is:
-
-- `DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1` in `src/desaparecidos/pipeline.py`;
-- place generation permits explicit `0` as unlimited;
-- people generation rejects `0` and requires a positive cap;
-- `max_fragments_per_source = 240` is an extraction ceiling, not an output contribution cap;
-- rejected and non-contributing candidates are not shown as raw images in the active video path.
-
-This documentation reconciliation is the first roadmap task.
-
-## Setup and verification
-
-Normal GUI run:
+Local GUI:
 
 ```bash
 ./start.sh
 ```
 
-Manual run:
+Canonical artwork render:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e ".[dev]"
-npm --prefix frontend install
-python -m desaparecidos serve --host 127.0.0.1 --port 8765
-npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
+desaparecidos-artwork render --help
+desaparecidos-artwork search --help
 ```
 
-Recommended complete verification:
+Evaluation:
 
 ```bash
-.venv/bin/python -m compileall src tests scripts
-.venv/bin/python -m pytest -q
+python scripts/evaluate_artwork_output.py --help
+```
+
+Exhibition and static publication:
+
+```bash
+python scripts/render_exhibition_triptych.py --help
+python scripts/publish_static_memorial.py --help
+```
+
+Complete verification:
+
+```bash
+python -m pytest -q
+npm --prefix frontend ci
 npm --prefix frontend test
 npm --prefix frontend run build
-zsh -n start.sh
-git diff --check
+bash -n start.sh
 ```
 
-## Verification status
-
-- Public GitHub Actions production verification at commit `741db2183d05ce0f26caee1fea59646824e043a6`: 144 Python tests passed with one Starlette/httpx deprecation warning.
-- The independent benchmark job in that workflow reproduced its committed aggregate values.
-- Current CI does not yet run frontend tests/build, launcher syntax, compileall, or the complete documented verification sequence.
-- The documentation changes adding the principles and roadmap have not altered runtime behaviour.
-- No local test execution was possible for the present documentation-only pass.
-
-## Important files
-
-- `README.md`: user-facing overview and workflow.
-- `AGENTS.md`: repository rules and safety invariants.
-- `STATUS.md`: current project state.
-- `doc/artistic-computational-principles.md`: governing design hierarchy.
-- `doc/development-roadmap.md`: completion goal.
-- `doc/desaparecidos-uy-project-description.md`: full project statement.
-- `src/desaparecidos/pipeline.py`: Stage 1 assembly, sidecars, still/video rendering.
-- `src/desaparecidos/traversals.py`: traversal model, acquisition, review, and rendering.
-- `src/desaparecidos/api.py`: FastAPI routes.
-- `src/desaparecidos/cli.py`: command-line entry points.
-- `frontend/`: React/Vite localhost GUI.
-- `data/persons/disappeared.json`: canonical target-person store.
-- `assets/targets/disappeared/selected/`: reviewed selected target derivatives.
-- `data/sources.json`: source registry.
-- `data/raw/`, `data/processed/`, `outputs/stage1/`: ignored runtime/generated data.
-- `doc/submissions/2026-premio-nacional-artes-visuales/`: PNAV submission materials.
-- `doc/writings/README.md`: academic-writing boundary.
-
-Last updated: 2026-07-25 01:13 GMT-3
+Last updated: 2026-07-25 02:25 GMT-3

@@ -11,9 +11,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from desaparecidos.artwork_runtime import (
+    ArtworkRenderSettings,
+    ArtworkTraversalSettings,
+    render_search_artwork,
+    run_artwork,
+)
+from desaparecidos.evaluation import evaluate_sidecar
 from desaparecidos.paths import display_path, safe_project_path
-from desaparecidos.pipeline import Stage1Settings, run_stage1
-from desaparecidos.traversals import TraversalRenderSettings, render_traversal
 
 
 def _load_plan(path: Path) -> dict[str, Any]:
@@ -56,25 +61,27 @@ def _concat_mp4(inputs: list[Path], output: Path) -> None:
             escaped = str(item.resolve()).replace("'", "'\\''")
             handle.write(f"file '{escaped}'\n")
     try:
-        command = [
-            ffmpeg,
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(list_path),
-            "-an",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(output),
-        ]
-        subprocess.run(command, check=True)
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(list_path),
+                "-an",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                str(output),
+            ],
+            check=True,
+        )
     finally:
         list_path.unlink(missing_ok=True)
 
@@ -86,14 +93,14 @@ def _fragment_loop(
     source_manifest: Path,
     target_ids: list[str],
     output_root: Path,
-    settings: Stage1Settings,
+    settings: ArtworkRenderSettings,
 ) -> tuple[Path, list[dict[str, Any]]]:
     segment_dir = output_root / "segments" / artwork
     segment_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict[str, Any]] = []
     videos: list[Path] = []
     for target_id in target_ids:
-        generated = run_stage1(
+        generated = run_artwork(
             target_manifest,
             source_manifest,
             segment_dir,
@@ -104,12 +111,17 @@ def _fragment_loop(
         if not generated.video_path:
             raise RuntimeError(f"{artwork} did not produce a video for {target_id}")
         video = safe_project_path(generated.video_path)
+        sidecar = safe_project_path(generated.sidecar_path)
+        evaluation = evaluate_sidecar(sidecar)
+        evaluation_path = sidecar.with_suffix(".evaluation.json")
+        evaluation_path.write_text(json.dumps(evaluation, ensure_ascii=False, indent=2), encoding="utf-8")
         videos.append(video)
         records.append(
             {
                 "target_id": target_id,
                 "video": display_path(video),
                 "sidecar": generated.sidecar_path,
+                "evaluation": display_path(evaluation_path),
             }
         )
     loop = output_root / f"{artwork}.mp4"
@@ -134,29 +146,35 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
     seed = int(plan.get("seed", 17))
     fragment_size = int(plan.get("fragment_size", 24))
     output_width = int(plan.get("output_width", 1920))
+    fps = int(plan.get("fps", 24))
 
-    people_settings = Stage1Settings(
+    people_settings = ArtworkRenderSettings(
         seed=seed,
         fragment_size=fragment_size,
         reuse_limit=int(plan.get("people_reuse_limit", 8)),
         output_width=output_width,
         max_contribution_per_source=int(plan.get("people_source_cap", 1)),
-        video_source_layout=str(plan.get("people_source_layout", "match")),  # type: ignore[arg-type]
         visual_grammar=str(plan.get("people_visual_grammar", "irregular")),  # type: ignore[arg-type]
         target_salience="portrait",
         avoid_source_adjacency=bool(plan.get("avoid_people_source_adjacency", True)),
+        max_sources=int(plan.get("people_max_sources", 0)),
         make_video=True,
+        fps=fps,
+        duration_seconds=int(plan.get("people_segment_duration_seconds", 12)),
     )
-    places_settings = Stage1Settings(
+    places_settings = ArtworkRenderSettings(
         seed=seed,
         fragment_size=fragment_size,
         reuse_limit=int(plan.get("places_reuse_limit", 8)),
         output_width=output_width,
         max_contribution_per_source=int(plan.get("places_source_cap", 1)),
-        video_source_layout=str(plan.get("places_source_layout", "match")),  # type: ignore[arg-type]
         visual_grammar=str(plan.get("places_visual_grammar", "overlap")),  # type: ignore[arg-type]
         target_salience="portrait",
+        territorially_balance_sources=bool(plan.get("territorially_balance_places", True)),
+        max_sources=int(plan.get("places_max_sources", 0)),
         make_video=True,
+        fps=fps,
+        duration_seconds=int(plan.get("places_segment_duration_seconds", 12)),
     )
 
     people_loop, people_segments = _fragment_loop(
@@ -176,11 +194,11 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         settings=places_settings,
     )
 
-    traversal_settings = TraversalRenderSettings(
+    traversal_settings = ArtworkTraversalSettings(
         composition=str(plan.get("traversal_composition", "overlay")),  # type: ignore[arg-type]
         target_mode="sequence",
         duration_seconds=int(plan.get("traversal_duration_seconds", 180)),
-        fps=int(plan.get("fps", 24)),
+        fps=fps,
         seed=seed,
         fragment_size=fragment_size,
         output_width=output_width,
@@ -188,7 +206,7 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         max_contribution_per_source=int(plan.get("traversal_source_cap", 0)),
         visual_grammar=str(plan.get("traversal_visual_grammar", "overlap")),  # type: ignore[arg-type]
     )
-    traversal_output = render_traversal(
+    traversal_output = render_search_artwork(
         str(plan["traversal_id"]),
         target_manifest,
         output_root / "segments" / "seguimos-buscando",
@@ -199,6 +217,12 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
     if not traversal_output.video_path:
         raise RuntimeError("Seguimos buscando did not produce a video")
     traversal_video = safe_project_path(traversal_output.video_path)
+    traversal_sidecar = safe_project_path(traversal_output.sidecar_path)
+    traversal_evaluation = evaluate_sidecar(traversal_sidecar)
+    traversal_evaluation_path = traversal_sidecar.with_suffix(".evaluation.json")
+    traversal_evaluation_path.write_text(
+        json.dumps(traversal_evaluation, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     traversal_loop = output_root / "seguimos-buscando.mp4"
     shutil.copy2(traversal_video, traversal_loop)
 
@@ -208,7 +232,7 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         "seguimos-buscando": traversal_loop,
     }
     manifest = {
-        "schema": "desaparecidos.uy/exhibition-triptych/1.0",
+        "schema": "desaparecidos.uy/exhibition-triptych/2.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "release_status": "internal_unreviewed",
         "plan": plan,
@@ -233,6 +257,7 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
                     "target_id": traversal_output.target_id,
                     "video": traversal_output.video_path,
                     "sidecar": traversal_output.sidecar_path,
+                    "evaluation": display_path(traversal_evaluation_path),
                 }
             ],
         },

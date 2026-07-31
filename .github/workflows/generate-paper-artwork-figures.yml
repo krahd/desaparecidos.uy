@@ -6,6 +6,11 @@ on:
       - automation/paper-artwork-figures-20260731
     paths:
       - ".github/workflows/generate-paper-artwork-figures.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/generate-paper-artwork-figures.yml"
   workflow_dispatch:
 
 jobs:

@@ -1,0 +1,223 @@
+name: Generate paper artwork figures
+
+on:
+  push:
+    branches:
+      - automation/paper-artwork-figures-20260731
+    paths:
+      - ".github/workflows/generate-paper-artwork-figures.yml"
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install -e ".[dev]"
+
+      - name: Prepare licensed source photographs and manifests
+        run: |
+          set -euo pipefail
+          mkdir -p paper-generation/sources paper-generation/manifests paper-generation/outputs paper-generation/artifact
+
+          curl -L --fail --retry 3 \
+            "https://upload.wikimedia.org/wikipedia/commons/2/26/Colonia_street.jpg" \
+            -o paper-generation/sources/colonia-street.jpg
+          curl -L --fail --retry 3 \
+            "https://upload.wikimedia.org/wikipedia/commons/f/f6/Palacio_Legislativo_%28Montevideo%29.JPG" \
+            -o paper-generation/sources/palacio-legislativo.jpg
+          curl -L --fail --retry 3 \
+            "https://upload.wikimedia.org/wikipedia/commons/f/fe/Rambla_de_Montevideo%2C_Uruguay.jpg" \
+            -o paper-generation/sources/rambla-montevideo.jpg
+          curl -L --fail --retry 3 \
+            "https://upload.wikimedia.org/wikipedia/commons/0/07/Landscape_-_Landschaft_-_Uruguay_-_South_America_-_S%C3%BCdamerika_%2834893287620%29.jpg" \
+            -o paper-generation/sources/uruguay-landscape.jpg
+
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+
+          root = Path("paper-generation")
+          manifests = root / "manifests"
+
+          with (manifests / "paper-target.csv").open("w", newline="", encoding="utf-8") as handle:
+              writer = csv.writer(handle)
+              writer.writerow([
+                  "id", "name", "source_url", "source_page", "licence_or_terms",
+                  "accessed_at", "local_path", "review_status", "birth_date",
+                  "disappearance_date", "disappearance_place", "notes",
+                  "crop_x", "crop_y", "crop_width", "crop_height"
+              ])
+              writer.writerow([
+                  "alfaro-vazquez-daniel-pedro",
+                  "Alfaro Vázquez, Daniel Pedro",
+                  "https://sitiosdememoria.uy/sites/default/files/styles/ficha_lugares_800px/public/2020-04/682px-Alfaro_V%C3%A1zquez%2C_Daniel_Pedro.jpg",
+                  "https://sitiosdememoria.uy/alfaro-vazquez-daniel-pedro",
+                  "Public memorial portrait; tracked selected derivative in the artwork repository",
+                  "2026-07-31",
+                  "../../assets/targets/disappeared/selected/alfaro-vazquez-daniel-pedro.jpg",
+                  "approved",
+                  "1946-12-31",
+                  "1977-08-11",
+                  "Argentina",
+                  "Temporary approved manifest for author-directed paper-figure generation.",
+                  "", "", "", ""
+              ])
+
+          rows = [
+              (
+                  "colonia-street", "Colonia street",
+                  "https://upload.wikimedia.org/wikipedia/commons/2/26/Colonia_street.jpg",
+                  "https://commons.wikimedia.org/wiki/File:Colonia_street.jpg",
+                  "CC BY 2.0; author doug88888", "../sources/colonia-street.jpg",
+                  "Colonia del Sacramento"
+              ),
+              (
+                  "palacio-legislativo", "Palacio Legislativo",
+                  "https://upload.wikimedia.org/wikipedia/commons/f/f6/Palacio_Legislativo_%28Montevideo%29.JPG",
+                  "https://commons.wikimedia.org/wiki/File:Palacio_Legislativo_(Montevideo).JPG",
+                  "CC BY-SA 3.0; author Vanessa Ustra", "../sources/palacio-legislativo.jpg",
+                  "Montevideo"
+              ),
+              (
+                  "rambla-montevideo", "Rambla de Montevideo",
+                  "https://upload.wikimedia.org/wikipedia/commons/f/fe/Rambla_de_Montevideo%2C_Uruguay.jpg",
+                  "https://commons.wikimedia.org/wiki/File:Rambla_de_Montevideo,_Uruguay.jpg",
+                  "CC BY 2.0; author Todo tiempo pasado fue mejor", "../sources/rambla-montevideo.jpg",
+                  "Montevideo"
+              ),
+              (
+                  "uruguay-landscape", "Uruguay landscape",
+                  "https://upload.wikimedia.org/wikipedia/commons/0/07/Landscape_-_Landschaft_-_Uruguay_-_South_America_-_S%C3%BCdamerika_%2834893287620%29.jpg",
+                  "https://commons.wikimedia.org/wiki/File:Landscape_-_Landschaft_-_Uruguay_-_South_America_-_S%C3%BCdamerika_(34893287620).jpg",
+                  "CC BY-SA 2.0; author flashpacker-travelguide.de", "../sources/uruguay-landscape.jpg",
+                  "Uruguay"
+              ),
+          ]
+
+          with (manifests / "paper-places.csv").open("w", newline="", encoding="utf-8") as handle:
+              writer = csv.writer(handle)
+              writer.writerow([
+                  "id", "title", "source_url", "source_page", "licence_or_terms",
+                  "accessed_at", "local_path", "review_status", "location_label", "notes",
+                  "crawl_run_id", "content_sha256", "perceptual_hash"
+              ])
+              for item in rows:
+                  writer.writerow([
+                      item[0], item[1], item[2], item[3], item[4], "2026-07-31",
+                      item[5], "approved", item[6],
+                      "Selected and provenance-recorded for author-directed paper-figure generation.",
+                      "", "", ""
+                  ])
+          PY
+
+      - name: Generate Están en todas partes still and process video
+        run: |
+          set -euo pipefail
+          python -m desaparecidos run-stage1 \
+            --artwork estan-en-todas-partes \
+            --targets paper-generation/manifests/paper-target.csv \
+            --sources paper-generation/manifests/paper-places.csv \
+            --output paper-generation/outputs \
+            --target-id alfaro-vazquez-daniel-pedro \
+            --seed 17 \
+            --fragment-size 24 \
+            --reuse-limit 8 \
+            --output-width 1200 \
+            --max-contribution-per-source 900 \
+            --video-source-layout match \
+            --video | tee paper-generation/artifact/generation-result.json
+
+      - name: Extract representative process frames and compose figure
+        run: |
+          set -euo pipefail
+          STILL="$(find paper-generation/outputs -type f -name '*.png' | head -n 1)"
+          VIDEO="$(find paper-generation/outputs -type f -name '*.mp4' | head -n 1)"
+          test -n "$STILL"
+          test -n "$VIDEO"
+
+          cp "$STILL" paper-generation/artifact/estan-en-todas-partes-final.png
+          cp "$VIDEO" paper-generation/artifact/estan-en-todas-partes-process.mp4
+          find paper-generation/outputs -type f -name '*.json' -exec cp {} paper-generation/artifact/ \;
+
+          DURATION="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$VIDEO")"
+          read -r EARLY MID <<EOF
+          $(python - "$DURATION" <<'PY'
+          import sys
+          duration = float(sys.argv[1])
+          print(max(0.2, duration * 0.18), max(0.5, duration * 0.58))
+          PY
+          )
+          EOF
+
+          ffmpeg -y -ss "$EARLY" -i "$VIDEO" -frames:v 1 paper-generation/artifact/estan-en-todas-partes-source-reveal.png
+          ffmpeg -y -ss "$MID" -i "$VIDEO" -frames:v 1 paper-generation/artifact/estan-en-todas-partes-assembly.png
+
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          root = Path("paper-generation/artifact")
+          paths = [
+              root / "estan-en-todas-partes-source-reveal.png",
+              root / "estan-en-todas-partes-assembly.png",
+              root / "estan-en-todas-partes-final.png",
+          ]
+          images = [Image.open(path).convert("RGB") for path in paths]
+          target_height = 1200
+          resized = []
+          for image in images:
+              width = round(image.width * target_height / image.height)
+              resized.append(image.resize((width, target_height), Image.Resampling.LANCZOS))
+
+          gap = 28
+          top = 64
+          canvas = Image.new(
+              "RGB",
+              (sum(image.width for image in resized) + gap * 2, target_height + top),
+              "white",
+          )
+          draw = ImageDraw.Draw(canvas)
+          x = 0
+          for label, image in zip(("a", "b", "c"), resized):
+              canvas.paste(image, (x, top))
+              draw.text((x + 16, 16), label, fill="black")
+              x += image.width + gap
+          canvas.save(root / "estan-en-todas-partes-process-triptych.png", quality=95)
+          PY
+
+          cat > paper-generation/artifact/README.txt <<'EOF'
+          Generated by the desaparecidos.uy repository pipeline from the tracked selected portrait of Daniel Pedro Alfaro Vázquez and four provenance-recorded photographs of Uruguayan places.
+
+          Recommended paper figure:
+          estan-en-todas-partes-process-triptych.png
+
+          Panels:
+          (a) approved source image during the source-reveal phase;
+          (b) fragments transferring into the portrait during assembly;
+          (c) generated still showing the resulting incomplete reappearance.
+
+          Candidate caption:
+          Figure X. Process and output from Están en todas partes. The video first reveals an approved photograph of a Uruguayan place, isolates contributing fragments and transfers them into their matched positions, producing a visibly fragmented reappearance of the public memorial portrait. The system does not synthesize missing facial detail or claim identification.
+
+          This output still requires the author's visual and ethical review before publication.
+          EOF
+
+      - name: Upload generated figures
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-society-artwork-figures
+          path: paper-generation/artifact/
+          if-no-files-found: error
+          retention-days: 14

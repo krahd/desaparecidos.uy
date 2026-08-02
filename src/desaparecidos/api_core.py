@@ -91,11 +91,11 @@ class CrawlRequest(BaseModel):
     kind: ManifestKind
     manifest: str
     output_root: str = "data/raw/crawl"
-    max_images_per_page: int = Field(default=12, ge=1, le=50)
+    max_images_per_page: int = Field(default=40, ge=1, le=50)
     label_prefix: str = ""
-    max_depth: int = Field(default=2, ge=0, le=4)
-    max_pages: int = Field(default=60, ge=1, le=500)
-    max_images: int = Field(default=80, ge=1, le=1000)
+    max_depth: int = Field(default=3, ge=0, le=4)
+    max_pages: int = Field(default=150, ge=1, le=500)
+    max_images: int = Field(default=300, ge=1, le=1000)
     cross_domain: bool = False
     delay: float = Field(default=0.7, ge=0, le=10)
     respect_robots: bool = True
@@ -107,11 +107,11 @@ class CombinedCrawlRequest(BaseModel):
     places_manifest: str = "data/manifests/crawled-places.csv"
     people_manifest: str = "data/manifests/crawled-people.csv"
     output_root: str = "data/raw/crawl"
-    max_images_per_page: int = Field(default=12, ge=1, le=50)
+    max_images_per_page: int = Field(default=40, ge=1, le=50)
     label_prefix: str = ""
-    max_depth: int = Field(default=2, ge=0, le=4)
-    max_pages: int = Field(default=60, ge=1, le=500)
-    max_images: int = Field(default=80, ge=1, le=1000)
+    max_depth: int = Field(default=3, ge=0, le=4)
+    max_pages: int = Field(default=150, ge=1, le=500)
+    max_images: int = Field(default=300, ge=1, le=1000)
     cross_domain: bool = False
     delay: float = Field(default=0.7, ge=0, le=10)
     respect_robots: bool = True

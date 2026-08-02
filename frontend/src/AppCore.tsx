@@ -129,49 +129,49 @@ const crawlPresets: CrawlPreset[] = [
     id: 'montevideo-tourism',
     label: 'Montevideo tourism',
     pages: ['https://montevideo.gub.uy/tipo/area-tematica/turismo-y-tiempo-libre'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'Montevideo tourism',
   },
   {
     id: 'montevideo-events',
     label: 'Montevideo events',
     pages: ['https://eventos.montevideo.gub.uy/'],
-    maxImages: 18,
+    maxImages: 40,
     labelPrefix: 'Montevideo event',
   },
   {
     id: 'mintur-news',
     label: 'MINTUR news',
     pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'Uruguay tourism',
   },
   {
     id: 'descubri-montevideo',
     label: 'Descubri Montevideo',
     pages: ['https://www.descubrimontevideo.uy/'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'Descubri Montevideo',
   },
   {
     id: 'montevideo-people-news',
     label: 'Montevideo people',
     pages: ['https://montevideo.gub.uy/noticias'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'Montevideo people',
   },
   {
     id: 'mec-people-news',
     label: 'MEC people',
     pages: ['https://www.gub.uy/ministerio-educacion-cultura/comunicacion/noticias'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'MEC people',
   },
   {
     id: 'mintur-people-events',
     label: 'MINTUR people',
     pages: ['https://www.gub.uy/ministerio-turismo/comunicacion/noticias'],
-    maxImages: 12,
+    maxImages: 40,
     labelPrefix: 'MINTUR people',
   },
 ];
@@ -308,6 +308,8 @@ export function App() {
   const [reviewKind, setReviewKind] = useState<ReviewKind>(() => initialReviewKind());
   const [imageReviewKind, setImageReviewKind] = useState<'places' | 'people'>('places');
   const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
+  const [hideApprovedReview, setHideApprovedReview] = useState(false);
+  const [hideRejectedReview, setHideRejectedReview] = useState(false);
   const [crawlPagesText, setCrawlPagesText] = useState('');
   const [crawlPlacesManifest, setCrawlPlacesManifest] = useState(() => (
     loadStored('crawlPlacesManifest', crawlerManifestDefaults.places)
@@ -315,10 +317,10 @@ export function App() {
   const [crawlPeopleManifest, setCrawlPeopleManifest] = useState(() => (
     loadStored('crawlPeopleManifest', crawlerManifestDefaults.people)
   ));
-  const [crawlMaxImages, setCrawlMaxImages] = useState(12);
-  const [crawlDepth, setCrawlDepth] = useState(2);
-  const [crawlMaxPages, setCrawlMaxPages] = useState(60);
-  const [crawlMaxTotal, setCrawlMaxTotal] = useState(80);
+  const [crawlMaxImages, setCrawlMaxImages] = useState(40);
+  const [crawlDepth, setCrawlDepth] = useState(3);
+  const [crawlMaxPages, setCrawlMaxPages] = useState(150);
+  const [crawlMaxTotal, setCrawlMaxTotal] = useState(300);
   const [crawlCrossDomain, setCrawlCrossDomain] = useState(false);
   const [crawlUseCv, setCrawlUseCv] = useState(true);
   const [crawlLabelPrefix, setCrawlLabelPrefix] = useState('');
@@ -342,6 +344,13 @@ export function App() {
     : reviewKind === 'places'
       ? validation?.sources.rows ?? []
       : validation?.people.rows ?? [];
+  const visibleReviewRows = reviewRows.filter((row) => (
+    !(hideApprovedReview && row.approved)
+    && !(hideRejectedReview && row.values.review_status === 'rejected')
+  ));
+  const visiblePendingRows = visibleReviewRows.filter((row) => (
+    !row.values.review_status || row.values.review_status === 'pending'
+  ));
   const activeTarget = allTargets.find((row) => row.id === targetId)
     ?? approvedTargets[0]
     ?? allTargets[0];
@@ -823,26 +832,29 @@ export function App() {
     });
   }
 
-  async function handleApproveSelected() {
+  async function handleReviewSelected(status: 'approved' | 'rejected') {
     const manifest = manifestForKind(reviewKind, { targets, sources, people });
     const ids = Array.from(selectedReviewIds);
     if (ids.length === 0) {
-      appendLog('Select one or more rows to approve.', 'error');
+      appendLog(`Select one or more rows to ${status === 'approved' ? 'approve' : 'reject'}.`, 'error');
       return;
     }
+    const action = status === 'approved' ? 'Approving' : 'Rejecting';
     const response = await runAction(
-      `Approving ${ids.length} selected ${reviewKind} row${ids.length === 1 ? '' : 's'}.`,
+      `${action} ${ids.length} selected ${reviewKind} row${ids.length === 1 ? '' : 's'}.`,
       async () => {
-        await updateReviewStatusBulk({ manifest, kind: reviewKind, review_status: 'approved', row_ids: ids });
+        await updateReviewStatusBulk({ manifest, kind: reviewKind, review_status: status, row_ids: ids });
         return validateManifests({ targets, sources, people, require_files: true });
       },
       'Review status updated.',
     );
     if (!response) return;
     setValidation(response);
-    if (reviewKind === 'targets') {
+    if (reviewKind === 'targets' && status === 'approved') {
       const firstApproved = response.targets.rows.find((row) => row.approved)?.id;
       if (firstApproved) setTargetId(firstApproved);
+    } else if (reviewKind === 'targets' && ids.includes(targetId)) {
+      setTargetId(response.targets.rows.find((row) => row.approved)?.id ?? '');
     }
   }
 
@@ -1502,11 +1514,19 @@ export function App() {
               </div>
               <button
                 className="text-button"
-                onClick={() => setSelectedReviewIds(new Set(reviewRows.map((row) => row.id)))}
-                disabled={busy || reviewRows.length === 0}
+                onClick={() => setSelectedReviewIds(new Set(visibleReviewRows.map((row) => row.id)))}
+                disabled={busy || visibleReviewRows.length === 0}
                 title={`Select all ${reviewKind}`}
               >
                 <CheckSquare size={14} /> Select all
+              </button>
+              <button
+                className="text-button"
+                onClick={() => setSelectedReviewIds(new Set(visiblePendingRows.map((row) => row.id)))}
+                disabled={busy || visiblePendingRows.length === 0}
+                title="Select all visible pending rows"
+              >
+                <CheckSquare size={14} /> Select pending
               </button>
               <button
                 className="text-button"
@@ -1518,11 +1538,19 @@ export function App() {
               </button>
               <button
                 className="text-button"
-                onClick={() => void handleApproveSelected()}
+                onClick={() => void handleReviewSelected('approved')}
                 disabled={busy || selectedReviewCount === 0}
                 title="Approve selected rows"
               >
                 <CheckCircle2 size={14} /> Approve selected
+              </button>
+              <button
+                className="text-button danger"
+                onClick={() => void handleReviewSelected('rejected')}
+                disabled={busy || selectedReviewCount === 0}
+                title="Reject selected rows"
+              >
+                <Ban size={14} /> Reject selected
               </button>
               <button
                 className="text-button danger"
@@ -1532,11 +1560,28 @@ export function App() {
               >
                 <Trash2 size={14} /> Delete selected
               </button>
+              <label className="checkbox review-filter">
+                <input
+                  type="checkbox"
+                  checked={hideApprovedReview}
+                  onChange={(event) => setHideApprovedReview(event.target.checked)}
+                />
+                Hide approved
+              </label>
+              <label className="checkbox review-filter">
+                <input
+                  type="checkbox"
+                  checked={hideRejectedReview}
+                  onChange={(event) => setHideRejectedReview(event.target.checked)}
+                />
+                Hide rejected
+              </label>
             </div>
           </div>
           <div className="review-grid">
             {reviewRows.length === 0 && <EmptyState text="Validate or crawl manifests to review image rows." />}
-            {reviewRows.map((row) => (
+            {reviewRows.length > 0 && visibleReviewRows.length === 0 && <EmptyState text="All image rows are hidden by the current filters." />}
+            {visibleReviewRows.map((row) => (
               <ReviewCard
                 key={`${row.kind}-${row.id}`}
                 row={row}

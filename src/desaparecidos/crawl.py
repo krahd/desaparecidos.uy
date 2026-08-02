@@ -122,10 +122,23 @@ class PageParser(HTMLParser):
         values = {key.lower(): value or "" for key, value in attrs}
         name = tag.lower()
         if name == "img":
-            srcset = _best_srcset_candidate(values.get("srcset", ""))
-            self._add_image(srcset or values.get("src", ""))
+            srcset = _best_srcset_candidate(
+                values.get("srcset", "")
+                or values.get("data-srcset", "")
+                or values.get("data-lazy-srcset", "")
+            )
+            src = values.get("src", "")
+            self._add_image(
+                srcset
+                or ("" if src.startswith("data:") else src)
+                or values.get("data-src", "")
+                or values.get("data-lazy-src", "")
+                or values.get("data-original", "")
+            )
         elif name == "source":
-            self._add_image(_best_srcset_candidate(values.get("srcset", "")))
+            self._add_image(_best_srcset_candidate(
+                values.get("srcset", "") or values.get("data-srcset", "")
+            ))
         elif name == "meta":
             prop = (values.get("property") or values.get("name") or "").lower()
             if prop in {"og:image", "og:image:url", "twitter:image", "twitter:image:src"}:
@@ -180,14 +193,14 @@ def crawl_pages(
     manifest: str | Path,
     *,
     output_root: str | Path = "data/raw/crawl",
-    max_images_per_page: int = 12,
+    max_images_per_page: int = 40,
     label_prefix: str = "",
     timeout: int = 20,
     max_bytes: int = 15 * 1024 * 1024,
     session: requests.Session | None = None,
-    max_depth: int = 2,
-    max_pages: int = 60,
-    max_images: int = 80,
+    max_depth: int = 3,
+    max_pages: int = 150,
+    max_images: int = 300,
     cross_domain: bool = False,
     delay: float = 0.7,
     respect_robots: bool = True,
@@ -335,14 +348,14 @@ def crawl_pages_combined(
     people_manifest: str | Path,
     *,
     output_root: str | Path = "data/raw/crawl",
-    max_images_per_page: int = 12,
+    max_images_per_page: int = 40,
     label_prefix: str = "",
     timeout: int = 20,
     max_bytes: int = 15 * 1024 * 1024,
     session: requests.Session | None = None,
-    max_depth: int = 2,
-    max_pages: int = 60,
-    max_images: int = 80,
+    max_depth: int = 3,
+    max_pages: int = 150,
+    max_images: int = 300,
     cross_domain: bool = False,
     delay: float = 0.7,
     respect_robots: bool = True,

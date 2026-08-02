@@ -364,6 +364,17 @@ label {
   justify-content: flex-end;
 }
 
+.review-filter {
+  display: inline-flex;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .targets-admin-panel {
   grid-column: 1 / -1;
   min-height: 0;
@@ -775,7 +786,8 @@ label {
   overflow: hidden;
   background: var(--surface);
   display: grid;
-  grid-template-rows: 180px auto auto;
+  grid-template-rows: 180px minmax(58px, auto) auto;
+  height: auto;
 }
 
 .review-delete {
@@ -825,6 +837,9 @@ label {
   border-radius: 0;
   background: transparent;
   cursor: pointer;
+  height: 180px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .review-card.selected {
@@ -906,6 +921,8 @@ label {
   padding: 5px 4px;
   gap: 4px;
   font-size: 11px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .output-list {

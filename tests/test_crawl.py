@@ -61,6 +61,21 @@ def test_srcset_selects_one_largest_candidate() -> None:
     assert _best_srcset_candidate("one.jpg 1x, two.jpg 2x") == "two.jpg"
 
 
+def test_page_parser_discovers_lazy_loaded_images() -> None:
+    parser = crawl_module.PageParser("https://example.test/gallery/")
+    parser.feed(
+        '<img src="data:image/gif;base64,placeholder" data-src="photo.jpg">'
+        '<img data-lazy-srcset="small.jpg 320w, large.jpg 1280w">'
+        '<picture><source data-srcset="wide.jpg 2x"></picture>'
+    )
+
+    assert parser.urls == [
+        "https://example.test/gallery/photo.jpg",
+        "https://example.test/gallery/large.jpg",
+        "https://example.test/gallery/wide.jpg",
+    ]
+
+
 def test_crawl_pages_appends_pending_manifest_rows_and_trail(tmp_path: Path) -> None:
     page = "https://example.test/page"
     image = "https://example.test/photo.png"

@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-07-25 03:29 GMT-3
+Last updated: 2026-08-02 02:20 GMT-3
 
 ## Governing principle
 
@@ -97,6 +97,8 @@ The paper cites the verified runtime revision `5a5a5626f94dfa6b3982234c948d58ebd
 ## Source and network safety
 
 - manifest downloads are size-bounded and require an image response;
+- crawler defaults now traverse to depth 3 across up to 150 same-domain pages, inspect up to 40 candidates per page and 300 per run, and recognise common lazy-loaded image attributes;
+- the Images review page can hide approved and rejected rows independently, select all visible pending rows, approve or reject selected rows in bulk, and keeps contained thumbnails and review actions within naturally sized cards;
 - production network requests reject localhost, private, link-local, reserved, unspecified, multicast and credential-bearing targets;
 - every redirect target is revalidated;
 - explicitly injected test clients remain usable without external DNS;
@@ -135,6 +137,14 @@ GitHub Actions run `30145676564` completed successfully on 25 July 2026:
 - launcher shell-syntax validation — passed.
 
 The verification run tested the current `main` implementation through the PR merge ref. It did not render final exhibition media or perform human source/output review.
+
+Local verification on 2 August 2026 after the crawler and image-review changes:
+
+- `python -m compileall -q src tests` — passed;
+- `python -m pytest -q` — 162 passed with five existing deprecation warnings;
+- `npm --prefix frontend run test` — eight tests passed;
+- `npm --prefix frontend run build` — passed with the existing large-chunk advisory;
+- visual browser inspection was not completed because browser control could not initialise in the restricted environment.
 
 ## Technical and ethical invariants
 
@@ -188,4 +198,4 @@ npm --prefix frontend run build
 bash -n start.sh
 ```
 
-Last updated: 2026-07-25 03:29 GMT-3
+Last updated: 2026-08-02 02:20 GMT-3

@@ -18,7 +18,7 @@ from PIL import Image
 from . import pipeline_core as _core
 from .images import Fragment, crop_from_row, descriptor_for, load_rgb
 from .manifests import ManifestRow, row_file_path
-from .placement_history import render_placements
+from .placement_history import ordered_target_positions, render_placements
 
 # Preserve the complete historical public and test-facing surface, including
 # intentionally private helpers used by the existing regression suite.
@@ -148,46 +148,48 @@ def assemble_target_with_trace(
     placements: list[_core.TilePlacement] = []
 
     grid_image = Image.new("RGB", target.size, _core.BACKGROUND)
-    for y in range(0, target.height, tile):
-        for x in range(0, target.width, tile):
-            target_patch = target.crop((x, y, x + tile, y + tile))
-            target_descriptor = _matching_descriptor(target_patch, settings.matching_mode)
-            distances = np.linalg.norm(descriptors - target_descriptor, axis=1)
-            distances[~available] = np.inf
-            index = int(np.argmin(distances))
-            if not np.isfinite(distances[index]):
-                raise ValueError(
-                    "unique-region, fragment-reuse, or source-contribution limits exhausted; "
-                    "approve or crawl more source images, increase tile size, or reduce output width"
-                )
-
-            fragment = shuffled[index]
-            fragment_use[index] += 1
-            source_index = int(source_of[index])
-            source_use[source_index] += 1
-
-            if fragment_use[index] >= effective_reuse_limit:
-                available[index] = False
-            if cap > 0 and source_use[source_index] >= cap:
-                available[source_of == source_index] = False
-
-            placement = _core.TilePlacement(
-                source_id=fragment.source_id,
-                fragment_id=fragment.fragment_id,
-                image=fragment.image,
-                dest_x=x,
-                dest_y=y,
-                source_x=fragment.x,
-                source_y=fragment.y,
+    # Allocate the strongest unique matches to the eyes, mouth, and central
+    # facial structure before less salient regions consume the same candidates.
+    positions = ordered_target_positions(target.width, target.height, tile, "portrait")
+    for x, y in positions:
+        target_patch = target.crop((x, y, x + tile, y + tile))
+        target_descriptor = _matching_descriptor(target_patch, settings.matching_mode)
+        distances = np.linalg.norm(descriptors - target_descriptor, axis=1)
+        distances[~available] = np.inf
+        index = int(np.argmin(distances))
+        if not np.isfinite(distances[index]):
+            raise ValueError(
+                "unique-region, fragment-reuse, or source-contribution limits exhausted; "
+                "approve or crawl more source images, increase tile size, or reduce output width"
             )
-            placements.append(placement)
-            grid_image.paste(fragment.image, (x, y))
+
+        fragment = shuffled[index]
+        fragment_use[index] += 1
+        source_index = int(source_of[index])
+        source_use[source_index] += 1
+
+        if fragment_use[index] >= effective_reuse_limit:
+            available[index] = False
+        if cap > 0 and source_use[source_index] >= cap:
+            available[source_of == source_index] = False
+
+        placement = _core.TilePlacement(
+            source_id=fragment.source_id,
+            fragment_id=fragment.fragment_id,
+            image=fragment.image,
+            dest_x=x,
+            dest_y=y,
+            source_x=fragment.x,
+            source_y=fragment.y,
+        )
+        placements.append(placement)
+        grid_image.paste(fragment.image, (x, y))
 
     if settings.composition_mode == "grid":
         image = grid_image
     elif settings.composition_mode == "free":
         image = render_placements(
-            placements,
+            sorted(placements, key=lambda placement: (placement.dest_y, placement.dest_x)),
             target.size,
             grammar="overlap",
             seed=settings.seed,

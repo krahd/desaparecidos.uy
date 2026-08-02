@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -285,6 +286,50 @@ def set_review_status(
     review_status: str,
 ) -> ManifestValidation:
     return set_review_status_bulk(path, kind, review_status, row_ids=[row_id])
+
+
+def send_manifest_row(
+    source_path: str | Path,
+    source_kind: Literal["places", "people"],
+    destination_path: str | Path,
+    destination_kind: Literal["places", "people"],
+    row_id: str,
+    *,
+    face_box: tuple[int, int, int, int] | None = None,
+) -> tuple[ManifestValidation, ManifestValidation]:
+    """Copy a row to the other collection as approved and reject the source row."""
+    if source_kind == destination_kind:
+        raise ValueError("source and destination collections must differ")
+    source_file = Path(source_path)
+    destination_file = Path(destination_path)
+    source_validation = read_manifest(source_file, source_kind)
+    row = next((item for item in source_validation.rows if item.id == row_id), None)
+    if row is None:
+        raise ValueError(f"{source_file} has no row with id {row_id!r}")
+    destination_validation = read_manifest(destination_file, destination_kind)
+    if any(item.id == row_id for item in destination_validation.rows):
+        raise ValueError(f"{destination_file} already has row {row_id!r}")
+    if destination_kind == "people" and face_box is None:
+        raise ValueError("a detected face region is required before approval in People")
+
+    values = {field: row.values.get(field, "") for field in EXPECTED_FIELDS[destination_kind]}
+    values["review_status"] = APPROVED
+    source_image = row_file_path(row, source_file)
+    values["local_path"] = os.path.relpath(source_image, destination_file.resolve().parent)
+    if face_box is not None:
+        for field, value in zip(("face_x", "face_y", "face_width", "face_height"), face_box):
+            values[field] = str(value)
+
+    destination_file.parent.mkdir(parents=True, exist_ok=True)
+    exists = destination_file.exists() and destination_file.stat().st_size > 0
+    with destination_file.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=EXPECTED_FIELDS[destination_kind], lineterminator="\n")
+        if not exists:
+            writer.writeheader()
+        writer.writerow(values)
+    source_after = set_review_status(source_file, source_kind, row_id, "rejected")
+    destination_after = validate_manifest(destination_file, destination_kind, require_files=True)
+    return source_after, destination_after
 
 
 def delete_manifest_row(

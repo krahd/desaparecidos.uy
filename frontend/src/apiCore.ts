@@ -492,6 +492,15 @@ export function updateReviewStatusBulk(payload: {
   });
 }
 
+export function sendReviewRow(payload: {
+  source_manifest: string;
+  destination_manifest: string;
+  source_kind: 'places' | 'people';
+  row_id: string;
+}): Promise<{ ok: boolean; source: ManifestValidation; destination: ManifestValidation }> {
+  return request('/api/review/send', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export function deleteReviewRow(payload: {
   manifest: string;
   kind: 'targets' | 'places' | 'people';
@@ -527,6 +536,7 @@ export function generateStage1(payload: {
   search_scan_max_candidates: number;
   video_source_layout: VideoSourceLayout;
   make_video: boolean;
+  colour_output?: boolean;
   target_id?: string;
   artwork: ArtworkKind;
 }): Promise<GenerateResponse> {
@@ -583,6 +593,7 @@ export function autoTraversal(payload: {
   output_width: number;
   reuse_limit?: number;
   max_contribution_per_source?: number;
+  colour_output?: boolean;
 }): Promise<{ ok: boolean; traversal: Traversal; outputs: GenerateResponse['outputs'] }> {
   return request('/api/traversals/auto', { method: 'POST', body: JSON.stringify(payload) });
 }
@@ -614,6 +625,7 @@ export function generateTraversal(payload: {
   output_width: number;
   reuse_limit: number;
   max_contribution_per_source: number;
+  colour_output?: boolean;
 }): Promise<GenerateResponse> {
   return request('/api/generate/traversal', { method: 'POST', body: JSON.stringify(payload) });
 }

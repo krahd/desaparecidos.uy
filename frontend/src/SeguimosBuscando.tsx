@@ -54,6 +54,7 @@ export function SeguimosBuscando({
   const [fps, setFps] = useState(24);
   const [outputWidth, setOutputWidth] = useState(1920);
   const [fragmentSize, setFragmentSize] = useState(24);
+  const [colourOutput, setColourOutput] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Mapillary discovery requires MAPILLARY_ACCESS_TOKEN in the backend environment.');
 
@@ -156,6 +157,7 @@ export function SeguimosBuscando({
         fps,
         fragment_size: fragmentSize,
         output_width: outputWidth,
+        colour_output: colourOutput,
       });
       await refresh(response.traversal.id);
       await onGenerated(response.outputs[0]?.sidecar_path);
@@ -209,6 +211,7 @@ export function SeguimosBuscando({
         output_width: outputWidth,
         reuse_limit: 10000,
         max_contribution_per_source: 0,
+        colour_output: colourOutput,
       });
       await onGenerated(response.outputs[0]?.sidecar_path);
       setMessage('Traversal video generated.');
@@ -363,6 +366,7 @@ export function SeguimosBuscando({
             <label>Frames per second<input type="number" min={1} max={60} value={fps} onChange={(event) => setFps(Number(event.target.value))} /></label>
             <label>Output width (px)<input type="number" min={120} max={4096} step={10} value={outputWidth} onChange={(event) => setOutputWidth(Number(event.target.value))} /></label>
             <label>Fragment size<input type="number" min={8} max={128} value={fragmentSize} onChange={(event) => setFragmentSize(Number(event.target.value))} /></label>
+            <label className="checkbox"><input type="checkbox" checked={colourOutput} onChange={(event) => setColourOutput(event.target.checked)} />Colour output</label>
             <button className="primary" onClick={() => void generate()} disabled={busy || !active || !targetIds.length}><Play size={16} /> Generate traversal video</button>
             <button className="primary" onClick={() => void autoRun()} disabled={busy || !targetIds.length}><Compass size={16} /> Search Uruguay &amp; generate</button>
             <p className="section-note">Search Uruguay &amp; generate runs the whole walk in one step: sample places, discover, acquire, auto-approve CV-accepted frames, and render. Frames remain reviewable afterwards.</p>

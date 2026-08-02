@@ -685,6 +685,7 @@ class TraversalRenderSettings:
     output_width: int = 1920
     reuse_limit: int = 10000
     max_contribution_per_source: int = 0
+    colour_output: bool = False
 
 
 def _fragments_for_frame(frame: dict[str, Any], fragment_size: int, limit: int = 240) -> list[Fragment]:
@@ -899,7 +900,7 @@ def _traversal_video_frames(
             draw = ImageDraw.Draw(output)
             draw.rectangle((0, output.height - 40, output.width, output.height), fill=(0, 0, 0))
             draw.text((18, output.height - 28), targets[target_index].values.get("name", targets[target_index].id), fill=(245, 245, 240), font=font)
-        yield output
+        yield output if settings.colour_output else output.convert("L").convert("RGB")
 
 
 def render_traversal(
@@ -936,7 +937,12 @@ def render_traversal(
     still_path = output_root / f"{stem}.png"
     video_path = output_root / f"{stem}.mp4"
     sidecar_path = output_root / f"{stem}.json"
-    walks[-1].result.image.save(still_path)
+    output_still = (
+        walks[-1].result.image.convert("RGB")
+        if settings.colour_output
+        else walks[-1].result.image.convert("L").convert("RGB")
+    )
+    output_still.save(still_path)
     if not _render_video_ffmpeg(
         _traversal_video_frames(segments, selected, walks, settings),
         walks[0].result.image.size,

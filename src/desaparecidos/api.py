@@ -81,6 +81,7 @@ def create_app():
             composition_mode=request.composition_mode,
             unique_tiles=unique_tiles,
             matching_mode=request.matching_mode,
+            colour_output=request.colour_output,
         )
         try:
             outputs = run_stage1(

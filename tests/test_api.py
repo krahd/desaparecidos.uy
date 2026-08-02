@@ -277,6 +277,37 @@ def test_review_bulk_endpoint_approves_all(monkeypatch: pytest.MonkeyPatch, tmp_
     assert body["manifest"]["approved_count"] == 2
 
 
+def test_review_send_moves_approved_people_row_to_places(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _, places = write_fixture(tmp_path)
+    people = tmp_path / "people.csv"
+    with people.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "id", "title", "source_url", "source_page", "licence_or_terms", "accessed_at",
+            "local_path", "review_status", "location_label", "notes", "crawl_run_id",
+            "content_sha256", "perceptual_hash", "face_x", "face_y", "face_width", "face_height",
+        ])
+        writer.writerow([
+            "misplaced", "Misplaced", "https://example.invalid/s.png", "https://example.invalid/s",
+            "fixture", "2026-08-02", "source.png", "approved", "fixture", "", "", "sha", "hash",
+            "1", "1", "30", "30",
+        ])
+    monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))
+    client = TestClient(create_app())
+
+    response = client.post("/api/review/send", json={
+        "source_manifest": str(people),
+        "destination_manifest": str(places),
+        "source_kind": "people",
+        "row_id": "misplaced",
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"]["rows"][0]["values"]["review_status"] == "rejected"
+    assert any(row["id"] == "misplaced" and row["approved"] for row in body["destination"]["rows"])
+
+
 def test_review_delete_endpoint_removes_row(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     targets, _ = write_fixture(tmp_path)
     monkeypatch.setattr(api_module, "safe_project_path", lambda value: Path(value))

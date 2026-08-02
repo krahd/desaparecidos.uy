@@ -925,6 +925,10 @@ label {
   white-space: nowrap;
 }
 
+.review-actions .review-send {
+  grid-column: 1 / -1;
+}
+
 .output-list {
   display: flex;
   gap: 10px;

@@ -49,6 +49,7 @@ import {
   processPersonPortrait,
   savePerson,
   selectPersonPortrait,
+  sendReviewRow,
   updateReviewStatus,
   updateReviewStatusBulk,
   validateManifests,
@@ -86,6 +87,7 @@ type GenerationSettings = {
   outputWidth: number;
   maxContribution: number;
   videoSourceLayout: VideoSourceLayout;
+  colourOutput: boolean;
 };
 
 const defaultGenerationSettings: GenerationSettings = {
@@ -95,6 +97,7 @@ const defaultGenerationSettings: GenerationSettings = {
   outputWidth: 720,
   maxContribution: 1,
   videoSourceLayout: 'grid',
+  colourOutput: false,
 };
 
 function pageFromHash(): PageId {
@@ -681,6 +684,7 @@ export function App() {
           search_scan_max_candidates: 120,
           video_source_layout: settings.videoSourceLayout,
           make_video: makeVideo,
+          colour_output: settings.colourOutput,
           target_id: selectedTargetId || undefined,
           artwork,
         });
@@ -817,6 +821,26 @@ export function App() {
     if (row.id === targetId) {
       setTargetId(response.targets.rows.find((candidate) => candidate.approved)?.id ?? '');
     }
+  }
+
+  async function handleSendReview(row: ManifestRow) {
+    if (row.kind !== 'places' && row.kind !== 'people') return;
+    const sourceKind = row.kind;
+    const destinationKind = sourceKind === 'places' ? 'people' : 'places';
+    const response = await runAction(
+      `Sending ${row.label} to ${destinationKind}.`,
+      async () => {
+        await sendReviewRow({
+          source_manifest: sourceKind === 'places' ? sources : people,
+          destination_manifest: sourceKind === 'places' ? people : sources,
+          source_kind: sourceKind,
+          row_id: row.id,
+        });
+        return validateManifests({ targets, sources, people, require_files: true });
+      },
+      `Image approved in ${destinationKind} and rejected in ${sourceKind}.`,
+    );
+    if (response) setValidation(response);
   }
 
   function toggleReviewSelection(row: ManifestRow) {
@@ -1592,6 +1616,7 @@ export function App() {
                 onReview={handleReviewStatus}
                 onPick={handlePickReview}
                 onDelete={handleDeleteReview}
+                onSend={handleSendReview}
               />
             ))}
           </div>
@@ -1892,6 +1917,14 @@ export function App() {
               <option value="match">Matched non-grid scatter</option>
             </select>
           </label>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={generationSettings[fragmentArtwork].colourOutput}
+              onChange={(event) => updateGenerationSetting(fragmentArtwork, 'colourOutput', event.target.checked)}
+            />
+            Colour output
+          </label>
           <div className="form-grid">
             <label>
               Seed
@@ -1978,6 +2011,7 @@ function ReviewCard({
   onReview,
   onPick,
   onDelete,
+  onSend,
 }: {
   row: ManifestRow;
   busy: boolean;
@@ -1987,6 +2021,7 @@ function ReviewCard({
   onReview: (row: ManifestRow, status: ReviewStatus) => void;
   onPick: (row: ManifestRow) => void;
   onDelete: (row: ManifestRow) => void;
+  onSend: (row: ManifestRow) => void;
 }) {
   const status = row.values.review_status || 'pending';
   const pickTitle = row.kind === 'targets' ? 'Use as target portrait' : 'View image';
@@ -2029,6 +2064,16 @@ function ReviewCard({
         <button onClick={() => onReview(row, 'pending')} disabled={busy || status === 'pending'}>
           <Eye size={14} /> Pending
         </button>
+        {(row.kind === 'places' || row.kind === 'people') && (
+          <button
+            className="review-send"
+            onClick={() => onSend(row)}
+            disabled={busy}
+            title={`Approve in ${row.kind === 'places' ? 'People' : 'Places'} and reject here`}
+          >
+            <RefreshCw size={14} /> Send to {row.kind === 'places' ? 'People' : 'Places'}
+          </button>
+        )}
       </div>
     </article>
   );

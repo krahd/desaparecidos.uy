@@ -69,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="estan-en-todas-partes",
     )
     run.add_argument("--video", action="store_true")
+    run.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
 
     traversal = subparsers.add_parser("run-traversal", help="Render an approved Seguimos buscando traversal.")
     traversal.add_argument("--traversal", required=True)
@@ -83,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     traversal.add_argument("--fragment-size", type=int, default=24)
     traversal.add_argument("--output-width", type=int, default=1920)
     traversal.add_argument("--output", default="outputs/stage1")
+    traversal.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
 
     outputs = subparsers.add_parser("outputs", help="List generated outputs.")
     outputs.add_argument("--output", default="outputs/stage1")
@@ -126,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
             search_scan_max_candidates=args.search_scan_max_candidates,
             video_source_layout=args.video_source_layout,
             make_video=args.video,
+            colour_output=args.colour,
         )
         outputs = run_stage1(
             args.targets,
@@ -156,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
                 seed=args.seed,
                 fragment_size=args.fragment_size,
                 output_width=args.output_width,
+                colour_output=args.colour,
             ),
             root=args.traversal_root,
         )

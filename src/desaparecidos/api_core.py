@@ -3,17 +3,23 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
+from PIL import Image
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .crawl import crawl_pages, crawl_pages_combined
+from .cv import classify_image
 from .demo import create_demo_fixtures
 from .download import download_manifest
 from .manifests import (
     ManifestKind,
     delete_manifest_rows,
+    read_manifest,
+    row_file_path,
+    send_manifest_row,
     set_review_status,
     set_review_status_bulk,
     validate_manifest,
@@ -82,6 +88,7 @@ class GenerateRequest(BaseModel):
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
+    colour_output: bool = False
     target_id: str | None = None
     artwork: ArtworkKind = "estan-en-todas-partes"
 
@@ -131,6 +138,13 @@ class ReviewBulkRequest(BaseModel):
     review_status: Literal["approved", "pending", "rejected"]
     row_ids: list[str] = []
     all: bool = False
+
+
+class ReviewSendRequest(BaseModel):
+    source_manifest: str
+    destination_manifest: str
+    source_kind: Literal["places", "people"]
+    row_id: str
 
 
 class DeleteRowRequest(BaseModel):
@@ -233,6 +247,7 @@ class TraversalAutoRequest(BaseModel):
     output_width: int = Field(default=1920, ge=120, le=4096)
     reuse_limit: int = Field(default=10000, ge=1, le=100000)
     max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
+    colour_output: bool = False
 
 
 class TraversalReviewRequest(BaseModel):
@@ -256,6 +271,7 @@ class TraversalGenerateRequest(BaseModel):
     output_width: int = Field(default=1920, ge=120, le=4096)
     reuse_limit: int = Field(default=10000, ge=1, le=100000)
     max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
+    colour_output: bool = False
 
 
 def _normalise_contribution_cap(value: int) -> int:
@@ -488,6 +504,34 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"ok": validation.ok, "manifest": validation.to_api()}
 
+    @app.post("/api/review/send")
+    def review_send(request: ReviewSendRequest) -> dict[str, Any]:
+        destination_kind: Literal["places", "people"] = "people" if request.source_kind == "places" else "places"
+        try:
+            source_path = safe_project_path(request.source_manifest)
+            destination_path = safe_project_path(request.destination_manifest)
+            row = next(item for item in read_manifest(source_path, request.source_kind).rows if item.id == request.row_id)
+            face_box = None
+            if destination_kind == "people":
+                with Image.open(row_file_path(row, source_path)) as image:
+                    result = classify_image(image.convert("RGB"), "people")
+                if not result.accept or result.face_box is None:
+                    raise ValueError("this image cannot be sent to People because no eligible face was detected")
+                face_box = result.face_box
+            source_result, destination_result = send_manifest_row(
+                source_path, request.source_kind, destination_path, destination_kind,
+                request.row_id, face_box=face_box,
+            )
+        except StopIteration as exc:
+            raise HTTPException(status_code=404, detail="review row not found") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": source_result.ok and destination_result.ok,
+            "source": source_result.to_api(),
+            "destination": destination_result.to_api(),
+        }
+
     @app.post("/api/review/delete")
     def delete_row(request: DeleteRowRequest) -> dict[str, Any]:
         row_ids = list(request.row_ids)
@@ -569,6 +613,7 @@ def create_app() -> FastAPI:
             output_width=request.output_width,
             reuse_limit=request.reuse_limit,
             max_contribution_per_source=request.max_contribution_per_source,
+            colour_output=request.colour_output,
         )
         try:
             traversal, outputs = run_autonomous_uruguay(
@@ -617,6 +662,7 @@ def create_app() -> FastAPI:
             output_width=request.output_width,
             reuse_limit=request.reuse_limit,
             max_contribution_per_source=request.max_contribution_per_source,
+            colour_output=request.colour_output,
         )
         try:
             generated = render_traversal(
@@ -643,6 +689,7 @@ def create_app() -> FastAPI:
             search_scan_max_candidates=request.search_scan_max_candidates,
             video_source_layout=request.video_source_layout,
             make_video=request.make_video,
+            colour_output=request.colour_output,
         )
         try:
             outputs = run_stage1(

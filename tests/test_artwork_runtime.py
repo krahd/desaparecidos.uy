@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from desaparecidos.artwork_runtime import ArtworkRenderSettings, run_artwork
 from desaparecidos.placement_history import ordered_target_positions
@@ -104,6 +104,10 @@ def test_place_runtime_persists_overlap_history_and_territorial_account(tmp_path
         "artigas", "montevideo", "rocha", "tacuarembo"
     }
     assert Path(generated.still_path).exists()
+    channels = Image.open(generated.still_path).convert("RGB").split()
+    assert ImageChops.difference(channels[0], channels[1]).getbbox() is None
+    assert ImageChops.difference(channels[1], channels[2]).getbbox() is None
+    assert sidecar["settings"]["colour_output"] is False
 
 
 def test_people_runtime_records_controls_without_claiming_anonymity(tmp_path: Path) -> None:

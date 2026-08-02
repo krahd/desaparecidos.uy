@@ -45,6 +45,7 @@ class Stage1Settings:
     composition_mode: CompositionMode = "grid"
     unique_tiles: bool = False
     matching_mode: MatchingMode = "legacy"
+    colour_output: bool = False
 
 
 def _spatial_descriptor_for(image: Image.Image) -> np.ndarray:

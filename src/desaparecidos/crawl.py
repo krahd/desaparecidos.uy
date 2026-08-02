@@ -23,7 +23,7 @@ from .paths import display_path
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 USER_AGENT = "desaparecidos.uy-crawler/0.3"
-PHASH_DUPLICATE_THRESHOLD = 6
+PHASH_DUPLICATE_THRESHOLD = 10
 
 
 @dataclass

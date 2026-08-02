@@ -51,6 +51,7 @@ class Stage1Settings:
     search_scan_max_candidates: int = 120
     video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
+    colour_output: bool = False
 
 
 @dataclass(frozen=True)
@@ -237,6 +238,7 @@ def render_video(
     source_layout: VideoSourceLayout = "grid",
     fps: int = 12,
     seconds: int = 8,
+    colour_output: bool = False,
 ) -> str:
     if assembly is not None and source_rows is not None and source_manifest is not None:
         frames = _process_video_frames(
@@ -255,7 +257,11 @@ def render_video(
     else:
         frames = _reveal_video_frames(still, target_row, seed=seed, fps=fps, seconds=seconds)
 
-    if _render_video_ffmpeg(frames, still.size, output_path, fps=fps):
+    output_frames = (
+        frame.convert("RGB") if colour_output else frame.convert("L").convert("RGB")
+        for frame in frames
+    )
+    if _render_video_ffmpeg(output_frames, still.size, output_path, fps=fps):
         return "h264"
     raise RuntimeError(
         "Browser-playable MP4 rendering requires ffmpeg with libx264. "
@@ -656,7 +662,12 @@ def run_stage1(
         assembly = assemble_target_with_trace(target, target_manifest, fragments, settings)
         stem = f"{target.id}-{settings.seed}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         still_path = root / f"{stem}.png"
-        assembly.image.save(still_path)
+        output_still = (
+            assembly.image.convert("RGB")
+            if settings.colour_output
+            else assembly.image.convert("L").convert("RGB")
+        )
+        output_still.save(still_path)
         search_trail = _search_trail_for_sources(sources)
         available_candidates = _search_candidates_for_sources(sources, source_manifest, search_trail)
         search_candidates = available_candidates[:settings.search_scan_max_candidates]
@@ -678,6 +689,7 @@ def run_stage1(
                 search_scan_frames_per_candidate=settings.search_scan_frames_per_candidate,
                 search_candidate_display=search_candidate_display,
                 source_layout=settings.video_source_layout,
+                colour_output=settings.colour_output,
             )
         sidecar_path = root / f"{stem}.json"
         sidecar = {

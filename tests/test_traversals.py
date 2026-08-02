@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from PIL import Image
+from PIL import Image, ImageChops
 import pytest
 
 import desaparecidos.traversals as traversal_module
@@ -552,6 +552,14 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
     assert sidecar["release_status"] == "internal_unreviewed"
     assert sidecar["composition"] == composition
     assert sidecar["target_mode"] == target_mode
+    assert sidecar["settings"]["colour_output"] is False
+    still_channels = Image.open(outputs[0].still_path).convert("RGB").split()
+    assert ImageChops.difference(still_channels[0], still_channels[1]).getbbox() is None
+    assert ImageChops.difference(still_channels[1], still_channels[2]).getbbox() is None
+    for frame in rendered_frames:
+        channels = frame.convert("RGB").split()
+        assert ImageChops.difference(channels[0], channels[1]).getbbox() is None
+        assert ImageChops.difference(channels[1], channels[2]).getbbox() is None
     segments = sidecar["target_segments"]
     assert list(segments) == target_ids
     all_segment_frames = [frame_id for ids in segments.values() for frame_id in ids]

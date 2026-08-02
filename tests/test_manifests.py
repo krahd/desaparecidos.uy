@@ -10,6 +10,7 @@ from desaparecidos.manifests import (
     delete_manifest_rows,
     set_review_status,
     set_review_status_bulk,
+    send_manifest_row,
     validate_manifest,
 )
 
@@ -302,3 +303,25 @@ def test_delete_manifest_rows_requires_ids(tmp_path: Path, kind: str) -> None:
 
     with pytest.raises(ValueError, match="no row ids provided"):
         delete_manifest_rows(path, kind, [])
+
+
+@pytest.mark.parametrize("source_status", ["pending", "rejected", "approved"])
+def test_send_row_to_other_collection_approves_destination(
+    tmp_path: Path, source_status: str
+) -> None:
+    (tmp_path / "person.png").write_bytes(b"fixture")
+    people = tmp_path / "people.csv"
+    places = tmp_path / "places.csv"
+    write_csv(people, PEOPLE_HEADER, [[
+        "p1", "Person", "https://example.invalid/person.png", "https://example.invalid/page",
+        "fixture", "2026-08-02", "person.png", source_status, "", "reviewed", "run-1",
+        "sha", "phash", "1", "2", "30", "40",
+    ]])
+    write_csv(places, PLACE_HEADER, [])
+
+    source, destination = send_manifest_row(people, "people", places, "places", "p1")
+
+    assert source.rows[0].review_status == "rejected"
+    assert destination.rows[0].approved is True
+    assert destination.rows[0].values["source_page"] == "https://example.invalid/page"
+    assert destination.rows[0].values["local_path"] == "person.png"

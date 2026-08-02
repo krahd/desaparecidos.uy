@@ -64,6 +64,7 @@ class ArtworkRenderSettings:
     make_video: bool = False
     fps: int = 24
     duration_seconds: int = 12
+    colour_output: bool = False
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,11 @@ class ArtworkTraversalSettings:
     reuse_limit: int = 10000
     max_contribution_per_source: int = 0
     visual_grammar: PlacementGrammar = "overlap"
+    colour_output: bool = False
+
+
+def _output_image(image: Image.Image, colour_output: bool) -> Image.Image:
+    return image.convert("RGB") if colour_output else image.convert("L").convert("RGB")
 
 
 def _source_kind(artwork: ArtworkKind) -> Literal["people", "places"]:
@@ -296,9 +302,9 @@ def run_artwork(
         still_path = root / f"{stem}.png"
         video_path = root / f"{stem}.mp4" if settings.make_video else None
         sidecar_path = root / f"{stem}.json"
-        assembly.image.save(still_path)
+        _output_image(assembly.image, settings.colour_output).save(still_path)
         if video_path is not None and not _render_video_ffmpeg(
-            _emergence_frames(assembly, target, settings),
+            (_output_image(frame, settings.colour_output) for frame in _emergence_frames(assembly, target, settings)),
             assembly.image.size,
             video_path,
             fps=settings.fps,
@@ -468,6 +474,7 @@ def render_search_artwork(
         output_width=settings.output_width,
         reuse_limit=settings.reuse_limit,
         max_contribution_per_source=settings.max_contribution_per_source,
+        colour_output=settings.colour_output,
     )
     walks = [
         assemble_walk(target, target_manifest, segment, legacy_settings)
@@ -488,9 +495,9 @@ def render_search_artwork(
         target_id=selected[-1].id,
         background=INK,
     )
-    final_image.save(still_path)
+    _output_image(final_image, settings.colour_output).save(still_path)
     if not _render_video_ffmpeg(
-        _traversal_frames(segments, selected, walks, settings),
+        (_output_image(frame, settings.colour_output) for frame in _traversal_frames(segments, selected, walks, settings)),
         final_image.size,
         video_path,
         fps=settings.fps,
@@ -573,6 +580,7 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--video", action="store_true")
     render.add_argument("--fps", type=int, default=24)
     render.add_argument("--duration", type=int, default=12)
+    render.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
 
     search = subparsers.add_parser("search", help="Render Seguimos buscando from an approved traversal.")
     search.add_argument("--traversal", required=True)
@@ -588,6 +596,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--fragment-size", type=int, default=24)
     search.add_argument("--output-width", type=int, default=1920)
     search.add_argument("--grammar", choices=["grid", "irregular", "overlap"], default="overlap")
+    search.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
     return parser
 
 
@@ -608,6 +617,7 @@ def main(argv: list[str] | None = None) -> int:
             make_video=args.video,
             fps=args.fps,
             duration_seconds=args.duration,
+            colour_output=args.colour,
         )
         outputs = run_artwork(
             safe_project_path(args.targets),
@@ -632,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
                 fragment_size=args.fragment_size,
                 output_width=args.output_width,
                 visual_grammar=args.grammar,
+                colour_output=args.colour,
             ),
             root=safe_project_path(args.traversal_root),
         )

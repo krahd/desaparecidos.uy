@@ -10,7 +10,7 @@ from PIL import Image
 
 import desaparecidos.crawl as crawl_module
 from desaparecidos.cache import CachedClassification, CachedImage, CrawlCache
-from desaparecidos.crawl import _best_srcset_candidate, crawl_pages, crawl_pages_combined
+from desaparecidos.crawl import _best_srcset_candidate, _duplicate_reason, crawl_pages, crawl_pages_combined
 from desaparecidos.cv import CV_POLICY_VERSION, CVResult
 from desaparecidos.manifests import read_manifest, set_review_status
 
@@ -59,6 +59,10 @@ def image_response(body: bytes) -> requests.Response:
 def test_srcset_selects_one_largest_candidate() -> None:
     assert _best_srcset_candidate("small.jpg 320w, large.jpg 1280w") == "large.jpg"
     assert _best_srcset_candidate("one.jpg 1x, two.jpg 2x") == "two.jpg"
+
+
+def test_visual_duplicate_filter_accepts_common_version_distance() -> None:
+    assert _duplicate_reason("new", "00000000000000ff", set(), {"0000000000000000"}) == "duplicate-visual"
 
 
 def test_page_parser_discovers_lazy_loaded_images() -> None:

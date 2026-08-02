@@ -30,6 +30,16 @@ class GenerateRequest(_core.GenerateRequest):
 
 
 def create_app():
+    # Existing tests and integrations monkeypatch names on desaparecidos.api.
+    # Propagate those replacements to the preserved core before it binds route
+    # closures, maintaining the original module's observable behaviour.
+    for name in dir(_core):
+        if (
+            name in globals()
+            and name not in {"_core", "app", "create_app", "GenerateRequest"}
+        ):
+            setattr(_core, name, globals()[name])
+
     application = _core.create_app()
 
     # Replace only the Stage 1 generation route. Every other endpoint remains
@@ -45,6 +55,17 @@ def create_app():
 
     @application.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:
+        fields_set = getattr(
+            request,
+            "model_fields_set",
+            getattr(request, "__fields_set__", set()),
+        )
+        unique_tiles = request.unique_tiles
+        if "unique_tiles" not in fields_set and request.reuse_limit != 1:
+            # Preserve legacy API callers that explicitly request fragment
+            # reuse while making one-use regions the default for new callers.
+            unique_tiles = False
+
         settings = Stage1Settings(
             seed=request.seed,
             fragment_size=request.fragment_size,
@@ -58,7 +79,7 @@ def create_app():
             video_source_layout=request.video_source_layout,
             make_video=request.make_video,
             composition_mode=request.composition_mode,
-            unique_tiles=request.unique_tiles,
+            unique_tiles=unique_tiles,
             matching_mode=request.matching_mode,
         )
         try:

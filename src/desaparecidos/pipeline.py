@@ -148,9 +148,18 @@ def assemble_target_with_trace(
     placements: list[_core.TilePlacement] = []
 
     grid_image = Image.new("RGB", target.size, _core.BACKGROUND)
-    # Allocate the strongest unique matches to the eyes, mouth, and central
-    # facial structure before less salient regions consume the same candidates.
-    positions = ordered_target_positions(target.width, target.height, tile, "portrait")
+    if settings.matching_mode == "spatial":
+        # Allocate the strongest unique matches to the eyes, mouth, and central
+        # facial structure before less salient regions consume the same candidates.
+        positions = ordered_target_positions(target.width, target.height, tile, "portrait")
+    else:
+        # Preserve the exact row-major allocation used by the historical
+        # implementation and its reproducible benchmark.
+        positions = [
+            (x, y)
+            for y in range(0, target.height, tile)
+            for x in range(0, target.width, tile)
+        ]
     for x, y in positions:
         target_patch = target.crop((x, y, x + tile, y + tile))
         target_descriptor = _matching_descriptor(target_patch, settings.matching_mode)

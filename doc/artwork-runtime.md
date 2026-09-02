@@ -204,9 +204,11 @@ python scripts/publish_static_memorial.py \
   --acknowledge-review
 ```
 
-The publisher performs a complete preflight before copying anything. It verifies every selected video, sidecar and evaluation against the exhibition-manifest digests; validates the target and refusal provenance; recomputes temporal causality from the placement histories; verifies the recorded history hash; and confirms the explicit release reviewer, date and non-endorsement acknowledgement. It emits a self-contained static directory, `desaparecidos.uy/web-publication/2.0` configuration and `desaparecidos.uy/web-publication-audit/2.0` audit.
+The publisher performs a complete preflight before copying anything. It verifies every selected loop and segment video, sidecar and evaluation against the exhibition-manifest digests; binds each segment to the declared artwork and target; recomputes both temporal and structural evaluation records; validates target and refusal provenance; verifies the recorded history hash; rejects unresolved licence/permission notes and placeholder release metadata; and confirms the explicit release reviewer, ISO-8601 date and non-endorsement acknowledgement. It emits a self-contained static directory, `desaparecidos.uy/web-publication/2.0` configuration and `desaparecidos.uy/web-publication-audit/2.0` audit. Reusing a destination removes media for works that are no longer approved, preventing stale unpublished files from remaining in the static tree.
 
 `--acknowledge-review` is a deliberate release gate. It records an operator decision; it does not perform or replace the review.
+
+The tracked example publishes no work by default. Set `publish: true` only after replacing the decision fields with completed human-review records.
 
 ## Canonical article evidence
 

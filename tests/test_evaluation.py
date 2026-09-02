@@ -7,6 +7,7 @@ from desaparecidos.evaluation import (
     evaluate_temporal_causality,
     evaluate_history,
     participation_metrics,
+    recorded_temporal_causality_matches,
     require_temporal_causality,
     source_reconstitution_metrics,
     target_structure_metrics,
@@ -108,6 +109,30 @@ def test_temporal_causality_evaluation_hashes_histories_and_blocks_violation() -
     assert invalid["future_source_frames_used"] is True
     with pytest.raises(ValueError, match="temporal causality evaluation failed"):
         require_temporal_causality(histories)
+
+
+def test_temporal_causality_rejects_malformed_or_mislabelled_histories() -> None:
+    wrong_count = _history()
+    wrong_count["placement_count"] = 3
+    with pytest.raises(ValueError, match="placement_count does not match"):
+        evaluate_temporal_causality({"target": wrong_count})
+
+    duplicate_id = _history()
+    duplicate_id["placements"][1]["placement_id"] = "target:0"  # type: ignore[index]
+    with pytest.raises(ValueError, match="duplicate placement id"):
+        evaluate_temporal_causality({"target": duplicate_id})
+
+    with pytest.raises(ValueError, match="target id does not match"):
+        evaluate_temporal_causality({"different-target": _history()})
+
+
+def test_recorded_temporal_causality_includes_target_details() -> None:
+    sidecar = {"temporal_causality": evaluate_temporal_causality({"target": _history()})}
+    computed = evaluate_temporal_causality({"target": _history()})
+    assert recorded_temporal_causality_matches(sidecar, computed)
+
+    sidecar["temporal_causality"]["targets"]["target"]["maximum_encounter_index"] = 99
+    assert not recorded_temporal_causality_matches(sidecar, computed)
 
 
 def test_target_structure_is_low_level_and_distinguishes_change() -> None:

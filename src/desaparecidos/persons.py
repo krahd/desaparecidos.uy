@@ -378,6 +378,12 @@ def record_target_review(
     clean_reviewer = clean_text(reviewer)
     if status in {"approved", "rejected"} and not clean_reviewer:
         raise ValueError("approved or rejected target reviews require a reviewer")
+    clean_reviewed_at = clean_text(reviewed_at)
+    if status in {"approved", "rejected"} and clean_reviewed_at:
+        try:
+            dt.datetime.fromisoformat(clean_reviewed_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("reviewed_at must be an ISO-8601 date or datetime") from exc
     people = load_persons(path)
     person = next((item for item in people if item["id"] == person_id), None)
     if person is None:
@@ -388,8 +394,10 @@ def record_target_review(
         else "rights_review"
     )
     person[f"{prefix}_status"] = status
-    person[f"{prefix}_reviewer"] = clean_reviewer
-    person[f"{prefix}_reviewed_at"] = clean_text(reviewed_at) or utc_now()
+    person[f"{prefix}_reviewer"] = clean_reviewer if status != "pending" else ""
+    person[f"{prefix}_reviewed_at"] = (
+        clean_reviewed_at or utc_now() if status != "pending" else ""
+    )
     person["updated_at"] = utc_now()
     saved = save_persons(path, people)
     return next(item for item in saved if item["id"] == person_id)

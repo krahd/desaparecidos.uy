@@ -10,6 +10,8 @@ from typing import Any, Iterable
 import numpy as np
 from PIL import Image
 
+from .placement_history import PLACEMENT_HISTORY_SCHEMA
+
 TEMPORAL_CAUSALITY_EVALUATOR_SCHEMA = "desaparecidos.uy/temporal-causality-evaluator/1.0"
 
 
@@ -149,21 +151,38 @@ def visual_grammar_metrics(history: dict[str, Any]) -> dict[str, Any]:
 
 
 def temporal_causality_metrics(history: dict[str, Any]) -> dict[str, Any]:
+    if history.get("schema") != PLACEMENT_HISTORY_SCHEMA:
+        raise ValueError("unsupported or missing placement history schema")
     placements = _placements(history)
+    if not placements:
+        raise ValueError("placement history contains no placements")
+    declared_count = history.get("placement_count")
+    if isinstance(declared_count, bool) or not isinstance(declared_count, int):
+        raise ValueError("placement history has no valid placement_count")
+    if declared_count != len(placements):
+        raise ValueError("placement history placement_count does not match placements")
     raw_sequence = history.get("source_sequence")
-    if not isinstance(raw_sequence, list):
+    if not isinstance(raw_sequence, list) or not raw_sequence:
         raise ValueError("placement history has no source_sequence list")
-    sequence = [str(value) for value in raw_sequence]
-    if any(not source for source in sequence):
-        raise ValueError("placement history source_sequence contains an empty source id")
+    if any(not isinstance(value, str) or not value for value in raw_sequence):
+        raise ValueError("placement history source_sequence contains an invalid source id")
+    sequence = list(raw_sequence)
     if len(set(sequence)) != len(sequence):
         raise ValueError("placement history source_sequence contains duplicate source ids")
     source_index = {source: index for index, source in enumerate(sequence)}
     violations: dict[str, list[str]] = {}
     encounter_indexes: list[int] = []
+    placement_ids: set[str] = set()
     for index, placement in enumerate(placements):
-        placement_id = str(placement.get("placement_id", "")) or f"placement[{index}]"
-        source = str(placement.get("source_id", ""))
+        placement_id = placement.get("placement_id")
+        if not isinstance(placement_id, str) or not placement_id:
+            raise ValueError(f"placement history placement[{index}] has no stable id")
+        if placement_id in placement_ids:
+            raise ValueError(f"placement history contains duplicate placement id: {placement_id}")
+        placement_ids.add(placement_id)
+        source = placement.get("source_id")
+        if not isinstance(source, str) or not source:
+            raise ValueError(f"placement {placement_id} has no valid source id")
         time = placement.get("time", {})
         reasons: list[str] = []
         if not isinstance(time, dict):
@@ -199,6 +218,8 @@ def temporal_causality_metrics(history: dict[str, Any]) -> dict[str, Any]:
 
 
 def histories_from_sidecar(sidecar: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if "placement_history" in sidecar and "placement_histories" in sidecar:
+        raise ValueError("sidecar must not contain both placement history forms")
     if "placement_history" in sidecar:
         history = sidecar["placement_history"]
         if not isinstance(history, dict):
@@ -229,10 +250,13 @@ def evaluate_temporal_causality(
     if not histories:
         raise ValueError("temporal causality evaluation requires at least one history")
     ordered = {target_id: histories[target_id] for target_id in sorted(histories)}
-    targets = {
-        target_id: temporal_causality_metrics(history)
-        for target_id, history in ordered.items()
-    }
+    targets: dict[str, dict[str, Any]] = {}
+    for target_id, history in ordered.items():
+        if not target_id:
+            raise ValueError("temporal causality history has an empty target id")
+        if history.get("target_id") != target_id:
+            raise ValueError(f"placement history target id does not match mapping key: {target_id}")
+        targets[target_id] = temporal_causality_metrics(history)
     violation_count = sum(
         int(metrics["causality_violation_count"])
         for metrics in targets.values()
@@ -276,6 +300,7 @@ def recorded_temporal_causality_matches(
         "violation_count",
         "future_source_frames_used",
         "valid",
+        "targets",
     )
     return all(recorded.get(field) == computed.get(field) for field in fields)
 

@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-01 18:59 GMT-6
+Last updated: 2026-09-01 20:59 GMT-6
 
 ## Project purpose
 
@@ -31,7 +31,7 @@ New outputs use `desaparecidos.uy/output-sidecar/3.0`. Canonical and compatibili
 - a reference to the exact `desaparecidos.uy/refusal-paradata/1.0` policy revision;
 - a computed `desaparecidos.uy/temporal-causality-evaluator/1.0` result and evaluated-history hash.
 
-`future_source_frames_used` is derived from the evaluator for **Seguimos buscando**. A violation fails rendering before media finalisation. Exhibition manifests hash every segment video, sidecar and evaluation; publication recomputes causality and validates provenance before copying any file.
+`future_source_frames_used` is derived from the evaluator for **Seguimos buscando**. A violation or malformed placement history fails rendering before media finalisation. Exhibition manifests hash every segment video, sidecar and evaluation; publication binds them to the declared artwork and target, recomputes their evaluation, and validates provenance before copying any file.
 
 The core conversational-memory state model added on 8 August remains intentionally separate from the image runtime. It models participant consent, utterance provenance, uncertainty, correction and withdrawal without adding an LLM provider, speech service or persistence backend. Real testimony must not be committed as a test fixture.
 
@@ -188,6 +188,7 @@ python scripts/publish_static_memorial.py --help
 - `config/exhibition-triptych.example.json` is the exhibition-plan template.
 - `config/refusal-paradata.json` is the versioned refusal-policy source of truth.
 - `web/publication.example.json` uses `desaparecidos.uy/web-publication/2.0` and requires reviewer/date/non-endorsement fields for each published work.
+- Pillow is constrained to `>=12.3,<13` because the earlier permitted 12.2 release has known vulnerabilities; the frontend lockfile similarly pins audited transitive `nanoid` and `postcss` releases.
 
 ## Important files and directories
 
@@ -228,9 +229,19 @@ python scripts/publish_static_memorial.py --help
 - selected portrait derivatives: 202;
 - unresolved public-portrait gaps: `camuyrano-bottini-mario` and `gadea-hernandez-liborio`.
 
-These are project-curation counts, not an authoritative historical total. The pre-existing local edit to `data/persons/disappeared.json` is preserved and was not changed by the current implementation work.
+These are project-curation counts, not an authoritative historical total. The target corpus was not modified by the 1 September audit work.
 
 ## Recent changes
+
+### 1 September 2026 — integrity and dependency audit
+
+- Made placement-history validation strict about schema, target binding, declared counts, unique placement IDs, source sequences and the complete recorded evaluator result.
+- Required artwork-specific input-manifest roles and explicit target IDs for sequence provenance.
+- Prevented unresolved licence/permission notes, placeholder release records and malformed review dates from crossing publication gates; returning a review to `pending` now clears reviewer/date fields.
+- Bound publication segments to their artwork, target, segment-video hash and complete recomputed evaluation; stale media for newly unpublished works is removed from reused destinations.
+- Made the tracked publication example release nothing by default.
+- Removed avoidable Pydantic deprecation access in the generation API.
+- Raised Pillow to `>=12.3,<13` and updated transitive `nanoid` and `postcss` lockfile versions after vulnerability audits.
 
 ### 1 September 2026 — evidence integrity
 
@@ -252,13 +263,14 @@ These are project-curation counts, not an authoritative historical total. The pr
 
 Focused local verification on 1 September 2026:
 
-- `.venv/bin/python -m pytest -q tests/test_refusal_paradata.py tests/test_evaluation.py tests/test_artwork_runtime.py tests/test_traversals.py tests/test_pipeline.py tests/test_persons.py tests/test_publication.py` — 62 passed.
-- `python3 -m py_compile` for the changed policy, provenance, runtime, evaluation and release modules — passed.
-- `.venv/bin/python -m compileall -q src tests` — passed.
-- `.venv/bin/python -m pytest -q` — 183 passed with five existing dependency/API deprecation warnings.
+- focused policy, evaluation, runtime, traversal, pipeline, person, publication and API tests — 91 passed with one dependency warning.
+- Python 3.11, 3.12 and 3.14 compilation of `src`, `tests` and `scripts` — passed.
+- `.venv/bin/python -m pytest -q` — 190 passed with one Starlette/httpx compatibility warning.
 - `npm --prefix frontend test` — eight tests passed.
 - `npm --prefix frontend run build` — passed with the existing large-chunk advisory.
-- `bash -n start.sh`, `git diff --check`, refusal-policy public rendering and JSON parsing — passed.
+- `npm --prefix frontend audit --audit-level=moderate` — zero known vulnerabilities after lockfile remediation.
+- isolated `pip-audit` of the installed project environment — no known third-party vulnerabilities after upgrading Pillow; the local unpublished `desaparecidos-uy` package is not a PyPI audit target.
+- `.venv/bin/python -m pip check`, `bash -n start.sh`, `git diff --check`, refusal-policy public rendering and JSON parsing — passed.
 
 No final exhibition media, article figures or supplementary video have been rendered or visually reviewed in this change.
 
@@ -274,6 +286,8 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - Structural source-fragment metrics do not establish anonymity or source-person non-recognisability.
 - Mapillary coverage and terms, route selection and CV acceptance shape traversal material; public use still requires review.
 - Public removal/contact procedures and institutional/legal review are not yet complete.
+- FastAPI's current test-client shim emits one Starlette/httpx compatibility deprecation warning; it does not affect the passing runtime tests but requires a future dependency-compatible migration.
+- The frontend production build retains a non-blocking large-chunk advisory.
 - Variable fragment masks, live input, real-time rendering, sound and multi-channel synchronisation remain future artistic development, not paper-driven backlog.
 
 ## Pending tasks and next steps
@@ -308,4 +322,4 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required `krahd/tom-work-admin/projects/desaparecidos-uy.md` cross-repository record was updated in the same work session; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-01 18:59 GMT-6
+Last updated: 2026-09-01 20:59 GMT-6

@@ -55,11 +55,9 @@ def create_app():
 
     @application.post("/api/generate")
     def generate(request: GenerateRequest) -> dict[str, Any]:
-        fields_set = getattr(
-            request,
-            "model_fields_set",
-            getattr(request, "__fields_set__", set()),
-        )
+        fields_set = getattr(request, "model_fields_set", None)
+        if fields_set is None:
+            fields_set = getattr(request, "__fields_set__", set())
         unique_tiles = request.unique_tiles
         if "unique_tiles" not in fields_set and request.reuse_limit != 1:
             # Preserve legacy API callers that explicitly request fragment

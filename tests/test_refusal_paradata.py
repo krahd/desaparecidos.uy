@@ -94,6 +94,13 @@ def test_sidecar_provenance_records_policy_commit_and_manifest_hashes(tmp_path) 
     assert manifests["target_manifest"]["sha256"] == sha256_file(targets)
     assert manifests["source_manifest"]["sha256"] == sha256_file(sources)
 
+    missing_role = deepcopy(sidecar)
+    missing_role["runtime_provenance"]["input_manifests"] = [
+        manifests["target_manifest"]
+    ]
+    with pytest.raises(ValueError, match="source_manifest"):
+        validate_output_sidecar_provenance(missing_role)
+
     sidecar["runtime_provenance"]["working_tree_dirty"] = True
     with pytest.raises(ValueError, match="clean working tree"):
         validate_output_sidecar_provenance(sidecar, require_clean_runtime=True)

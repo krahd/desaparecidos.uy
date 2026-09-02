@@ -13,7 +13,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "numpy>=1.26,<3",
   "opencv-python-headless==4.13.0.92",
-  "Pillow>=10.0,<13",
+  "Pillow>=12.3,<13",
   "requests>=2.31,<3",
   "uvicorn[standard]>=0.30,<1"
 ]

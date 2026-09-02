@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from desaparecidos.evaluation import require_sidecar_temporal_causality
+from desaparecidos.evaluation import evaluate_sidecar, require_sidecar_temporal_causality
 from desaparecidos.paths import display_path, safe_project_path
 from desaparecidos.refusal_paradata import validate_output_sidecar_provenance
 from desaparecidos.target_provenance import require_publication_ready_target_provenance
@@ -17,6 +19,7 @@ WORKS = (
     "estan-en-todas-partes",
     "seguimos-buscando",
 )
+_PLACEHOLDER = re.compile(r"(?:replace-with|\btbd\b|^reviewer$)", re.IGNORECASE)
 
 
 def _sha256(path: Path) -> str:
@@ -34,6 +37,20 @@ def _load(path: Path) -> dict[str, Any]:
     return value
 
 
+def _validated_release_metadata(record: dict[str, Any], work: str) -> tuple[str, str]:
+    reviewer = str(record.get("reviewer", "")).strip()
+    decided_at = str(record.get("decided_at", "")).strip()
+    if not reviewer or _PLACEHOLDER.search(reviewer):
+        raise ValueError(f"publication reviewer is missing or still a placeholder for {work}")
+    if not decided_at or _PLACEHOLDER.search(decided_at):
+        raise ValueError(f"publication decision date is missing or still a placeholder for {work}")
+    try:
+        datetime.fromisoformat(decided_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"publication decision date must be ISO-8601 for {work}") from exc
+    return reviewer, decided_at
+
+
 def _verified_segments(exhibition: dict[str, Any], work: str) -> list[dict[str, Any]]:
     segments_by_work = exhibition.get("segments")
     if not isinstance(segments_by_work, dict):
@@ -45,9 +62,11 @@ def _verified_segments(exhibition: dict[str, Any], work: str) -> list[dict[str, 
     for index, record in enumerate(segments):
         if not isinstance(record, dict):
             raise ValueError(f"segment {index} for {work} must be an object")
+        video_path = safe_project_path(str(record.get("video", "")))
         sidecar_path = safe_project_path(str(record.get("sidecar", "")))
         evaluation_path = safe_project_path(str(record.get("evaluation", "")))
         for label, path, digest_field in (
+            ("segment video", video_path, "video_sha256"),
             ("sidecar", sidecar_path, "sidecar_sha256"),
             ("evaluation", evaluation_path, "evaluation_sha256"),
         ):
@@ -62,28 +81,40 @@ def _verified_segments(exhibition: dict[str, Any], work: str) -> list[dict[str, 
                 require_clean_runtime=True,
             )
         )
+        if sidecar.get("artwork") != work:
+            raise ValueError(f"sidecar artwork mismatch for {work} segment {index}")
+        segment_target_id = str(record.get("target_id", ""))
+        if not segment_target_id or segment_target_id != str(sidecar.get("target_id", "")):
+            raise ValueError(f"sidecar target mismatch for {work} segment {index}")
         causality = require_sidecar_temporal_causality(sidecar)
         evaluation = _load(evaluation_path)
+        expected_evaluation = evaluate_sidecar(sidecar_path)
         recorded_causality = evaluation.get("temporal_causality")
         if evaluation.get("evaluation_schema") != "desaparecidos.uy/artwork-evaluation/2.0":
             raise ValueError(f"unsupported evaluation schema for {work} segment {index}")
-        if not isinstance(recorded_causality, dict) or any(
-            recorded_causality.get(field) != causality.get(field)
-            for field in (
-                "evaluator_schema",
-                "evaluated_history_sha256",
-                "history_count",
-                "placement_count",
-                "violation_count",
-                "future_source_frames_used",
-                "valid",
-            )
-        ):
+        if evaluation.get("artwork") != work:
+            raise ValueError(f"evaluation artwork mismatch for {work} segment {index}")
+        if recorded_causality != expected_evaluation["temporal_causality"]:
             raise ValueError(f"evaluation does not match the sidecar for {work} segment {index}")
         if recorded_causality.get("recorded_evaluation_matches") is not True:
             raise ValueError(f"evaluation did not verify sidecar causality for {work} segment {index}")
+        expected_targets = expected_evaluation["targets"]
+        actual_targets = evaluation.get("targets")
+        if not isinstance(actual_targets, dict) or set(actual_targets) != set(expected_targets):
+            raise ValueError(f"evaluation targets do not match the sidecar for {work} segment {index}")
+        for target_id, expected_metrics in expected_targets.items():
+            actual_metrics = actual_targets.get(target_id)
+            if not isinstance(actual_metrics, dict) or any(
+                actual_metrics.get(metric) != value
+                for metric, value in expected_metrics.items()
+            ):
+                raise ValueError(
+                    f"evaluation target metrics do not match the sidecar for {work} segment {index}"
+                )
         verified.append({
             "target_id": str(record.get("target_id", "")),
+            "video": display_path(video_path),
+            "video_sha256": _sha256(video_path),
             "sidecar": display_path(sidecar_path),
             "sidecar_sha256": _sha256(sidecar_path),
             "evaluation": display_path(evaluation_path),
@@ -130,10 +161,7 @@ def publish(
         if publish_work:
             if requested.get("release_decision") != "approved-for-publication":
                 raise ValueError(f"publication release decision is missing for {work}")
-            reviewer = str(requested.get("reviewer", "")).strip()
-            decided_at = str(requested.get("decided_at", "")).strip()
-            if not reviewer or not decided_at:
-                raise ValueError(f"publication reviewer and decision date are required for {work}")
+            reviewer, decided_at = _validated_release_metadata(requested, work)
             if requested.get("rights_clearance_is_not_organisational_endorsement") is not True:
                 raise ValueError(f"the non-endorsement acknowledgement is required for {work}")
             source_record = exhibition_videos.get(work)
@@ -150,6 +178,8 @@ def publish(
                 "source": display_path(source),
                 "sha256": actual,
                 "segments": _verified_segments(exhibition, work),
+                "reviewer": reviewer,
+                "decided_at": decided_at,
             })
         prepared[work] = prepared_record
 
@@ -203,6 +233,8 @@ def publish(
                 "decided_at": requested["decided_at"],
                 "rights_clearance_is_not_organisational_endorsement": True,
             })
+        else:
+            (media / f"{work}.mp4").unlink(missing_ok=True)
         audit["works"][work] = audit_record
 
     (destination / "publication.json").write_text(

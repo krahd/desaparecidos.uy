@@ -13,23 +13,23 @@
       "rights_clearance_is_not_organisational_endorsement": true
     },
     "estan-en-todas-partes": {
-      "publish": true,
+      "publish": false,
       "path": "./media/estan-en-todas-partes.mp4",
       "poster": "",
       "controls": false,
-      "release_decision": "approved-for-publication",
-      "reviewer": "replace-with-reviewer-name",
-      "decided_at": "replace-with-ISO-8601-date",
+      "release_decision": "not-approved-for-publication",
+      "reviewer": "",
+      "decided_at": "",
       "rights_clearance_is_not_organisational_endorsement": true
     },
     "seguimos-buscando": {
-      "publish": true,
+      "publish": false,
       "path": "./media/seguimos-buscando.mp4",
       "poster": "",
       "controls": false,
-      "release_decision": "approved-for-publication",
-      "reviewer": "replace-with-reviewer-name",
-      "decided_at": "replace-with-ISO-8601-date",
+      "release_decision": "not-approved-for-publication",
+      "reviewer": "",
+      "decided_at": "",
       "rights_clearance_is_not_organisational_endorsement": true
     }
   }

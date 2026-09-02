@@ -136,6 +136,21 @@ def test_target_history_and_rights_reviews_are_explicit_and_preserved(tmp_path: 
     assert rights["rights_review_reviewer"] == "Rights Reviewer"
     assert rights["rights_review_reviewed_at"] == "2026-09-02"
 
+    pending = record_target_review(store, "persona", "rights", "pending")
+    assert pending["rights_review_status"] == "pending"
+    assert pending["rights_review_reviewer"] == ""
+    assert pending["rights_review_reviewed_at"] == ""
+
+    with pytest.raises(ValueError, match="ISO-8601"):
+        record_target_review(
+            store,
+            "persona",
+            "rights",
+            "approved",
+            reviewer="Rights Reviewer",
+            reviewed_at="not-a-date",
+        )
+
 
 def test_upsert_person_normalises_old_import_records(tmp_path: Path) -> None:
     store = tmp_path / "persons.json"

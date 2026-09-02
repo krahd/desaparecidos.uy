@@ -16,6 +16,11 @@ NO_ENDORSEMENT_STATEMENT = (
     "archive, memorial organisation, relatives' organisation, rights holder, or depicted person."
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_UNRESOLVED_PERMISSION = re.compile(
+    r"(?:\bunknown\b|\bnot recorded\b|\bpending review\b|\btbd\b|"
+    r"\bverify (?:before|per)\b|replace-with)",
+    re.IGNORECASE,
+)
 
 
 def _text(value: Any) -> str | None:
@@ -144,10 +149,16 @@ def validate_sidecar_target_provenance(sidecar: Any) -> dict[str, Any]:
         raise ValueError("output sidecar has no target provenance")
     target_ids = sidecar.get("target_ids")
     if isinstance(target_ids, list) and target_ids:
+        if len({str(target_id) for target_id in target_ids}) != len(target_ids):
+            raise ValueError("output sidecar target_ids must not contain duplicates")
         expected = {str(target_id) for target_id in target_ids}
     else:
         target_id = str(sidecar.get("target_id", ""))
-        expected = {target_id} if target_id and target_id != "sequence" else set()
+        if target_id == "sequence":
+            raise ValueError("sequence output sidecar has no target_ids")
+        expected = {target_id} if target_id else set()
+    if not expected:
+        raise ValueError("output sidecar has no target ids")
     if expected and set(snapshots) != expected:
         raise ValueError("output sidecar target provenance does not match its target ids")
     for target_id, snapshot in snapshots.items():
@@ -196,6 +207,9 @@ def require_publication_ready_target_provenance(sidecar: Any) -> dict[str, Any]:
         ):
             if not _text(snapshot.get(field)):
                 raise ValueError(f"target {target_id} has no recorded {field}")
+        permission_basis = str(snapshot["licence_or_permission_basis"])
+        if _UNRESOLVED_PERMISSION.search(permission_basis):
+            raise ValueError(f"target {target_id} has an unresolved licence or permission basis")
         metadata = snapshot["metadata_source"]
         if metadata.get("state") != "recorded" or not metadata.get("source_ids"):
             raise ValueError(f"target {target_id} has no recorded canonical metadata sources")

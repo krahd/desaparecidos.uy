@@ -28,6 +28,11 @@ _ARTWORK_IDS = {
 _STABLE_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT = re.compile(r"^[0-9a-f]{40,64}$")
+_REQUIRED_MANIFEST_ROLES = {
+    "todos-somos-familiares": {"target_manifest", "source_manifest"},
+    "estan-en-todas-partes": {"target_manifest", "source_manifest"},
+    "seguimos-buscando": {"target_manifest", "traversal_manifest"},
+}
 
 
 def sha256_file(path: str | Path) -> str:
@@ -287,4 +292,10 @@ def validate_output_sidecar_provenance(
         if role in roles:
             raise ValueError(f"duplicate input manifest role: {role}")
         roles.add(role)
+    missing_roles = sorted(_REQUIRED_MANIFEST_ROLES[artwork] - roles)
+    if missing_roles:
+        raise ValueError(
+            "output sidecar is missing required input-manifest roles: "
+            + ", ".join(missing_roles)
+        )
     return sidecar

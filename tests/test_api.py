@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import warnings
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -106,22 +107,25 @@ def test_generate_endpoint_defaults_to_one_contribution(monkeypatch: pytest.Monk
     monkeypatch.setattr(api_module, "run_stage1", fake_run_stage1)
     client = TestClient(create_app())
 
-    response = client.post(
-        "/api/generate",
-        json={
-            "targets": str(targets),
-            "sources": str(sources),
-            "output_dir": str(tmp_path / "outputs"),
-            "seed": 17,
-            "fragment_size": 16,
-            "reuse_limit": 100,
-            "output_width": 120,
-            "make_video": False,
-        },
-    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        response = client.post(
+            "/api/generate",
+            json={
+                "targets": str(targets),
+                "sources": str(sources),
+                "output_dir": str(tmp_path / "outputs"),
+                "seed": 17,
+                "fragment_size": 16,
+                "reuse_limit": 100,
+                "output_width": 120,
+                "make_video": False,
+            },
+        )
 
     assert response.status_code == 200
     assert captured["cap"] == 1
+    assert not any("__fields_set__" in str(warning.message) for warning in caught)
 
 
 def test_generate_endpoint_preserves_zero_as_unlimited(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

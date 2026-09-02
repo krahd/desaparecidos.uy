@@ -156,6 +156,7 @@ Tracked manifest templates live in `data/manifests/`.
 - `reuse_limit` is enforced per extracted source fragment. `max_contribution_per_source` caps how many output tiles any single source image fills; people generation rejects unlimited contribution, and infeasible caps fail before generation.
 - New sidecars use `desaparecidos.uy/output-sidecar/3.0`. They record the artwork and process data, exact input-manifest hashes, runtime commit, placement history, computed temporal validity, target source/licence/review provenance, target-image SHA-256, and the exact artwork-specific refusal policy. Raw candidate images are not displayed.
 - Target-manifest approval, historical-identification review, rights review and output release are separate states. Missing decisions remain `not_recorded`; rights clearance never implies endorsement by a source, archive, memorial or relatives' organisation, rights holder or depicted person.
+- Publication rejects unresolved permission notes, dirty-runtime outputs, mismatched artwork/target/evaluation records, altered segment media and placeholder reviewer/date fields. The publication example releases no work by default.
 - The public refusal record is [doc/refusal-paradata.md](doc/refusal-paradata.md); [doc/output-sidecar-schema.md](doc/output-sidecar-schema.md) documents the complete sidecar and release contracts.
 - Output deletion in the GUI removes local sidecars and sibling still/video files from the selected output directory.
 

@@ -23,7 +23,47 @@ Every output stores a versioned placement history. Each record identifies:
 - its position within the output process;
 - for traversal work, the frame after which the fragment became available.
 
-The history schema is `desaparecidos.uy/placement-history/1.0`. The output sidecar schema is `desaparecidos.uy/output-sidecar/2.0`.
+The history schema is `desaparecidos.uy/placement-history/1.0`. The output sidecar schema is `desaparecidos.uy/output-sidecar/3.0`.
+
+## Output accountability
+
+Every canonical and compatibility output now carries the same minimum accountability record:
+
+- the exact runtime Git commit and whether the working tree was dirty;
+- SHA-256 hashes for the target, source and traversal manifests that governed the render;
+- a target-provenance snapshot for every represented person;
+- the refusal-policy identifier, schema, SHA-256 digest and applicable refusal identifiers;
+- a versioned placement history and a computed temporal-causality record.
+
+Development renders may record a dirty working tree. Publication rejects them: canonical evidence must have `working_tree_dirty=false` so the recorded commit identifies the exact runtime.
+
+Target provenance keeps the target portrait's page URL, image URL, licence or permission basis, access date, manifest approval state and exact local-image SHA-256 digest. When the canonical target manifest is used, it also snapshots the canonical person store hash and field-level metadata source identifiers. Historical-identification review, portrait-rights review and output release remain separate records. Missing decisions are recorded as `not_recorded`; manifest approval is never promoted into historical or rights clearance. Every snapshot states that rights clearance does not imply endorsement by a source, archive, memorial organisation, relatives' organisation, rights holder or depicted person.
+
+Human reviewers can record the two target decisions independently:
+
+```bash
+python scripts/record_target_review.py PERSON_ID historical-identification approved \
+  --reviewer "REVIEWER" --reviewed-at "YYYY-MM-DD"
+python scripts/record_target_review.py PERSON_ID rights approved \
+  --reviewer "REVIEWER" --reviewed-at "YYYY-MM-DD"
+```
+
+The command records a supplied human decision; it does not inspect evidence or approve a target automatically. Re-export `targets.csv` after changing the canonical person store.
+
+The complete field contract is documented in [output-sidecar-schema.md](output-sidecar-schema.md).
+
+## Paradata of refusal
+
+`config/refusal-paradata.json` is the artwork-specific `desaparecidos.uy/refusal-paradata/1.0` policy. It documents deliberately withheld technical relations, including generative facial completion, biometric identification, full-context contemporary-person reveal and anticipatory traversal assembly. It is not a general ethics ontology.
+
+Validate and render it for curatorial use with:
+
+```bash
+python scripts/render_refusal_paradata.py --access public
+python scripts/render_refusal_paradata.py --access restricted --output PRIVATE_PATH.md
+```
+
+The tracked public rendering is [refusal-paradata.md](refusal-paradata.md). `public` rendering omits restricted records; `restricted` rendering includes both access levels. The policy file remains the source of truth, and every output records its exact SHA-256 digest.
 
 ## Todos somos familiares
 
@@ -85,14 +125,16 @@ desaparecidos-artwork render \
 
 The search runtime retains the existing traversal acquisition and review system. It assembles each target strictly from the frames encountered within its assigned traversal segment. A placement may not use a source frame that the traversal has not yet reached.
 
-The renderer supports the same grid, irregular and overlap grammars as the other works. Its sidecar records:
+The renderer supports the same grid, irregular and overlap grammars as the other works. Before any media is finalised, it evaluates every placement history. A violation raises an error, so an invalid traversal output is not written. Its sidecar records:
 
 - the route and provider attribution;
 - approved frame identifiers;
 - the frames assigned to each target;
 - the causal frame index for every placement;
 - the visual grammar and composition mode;
-- `future_source_frames_used: false`.
+- evaluator schema `desaparecidos.uy/temporal-causality-evaluator/1.0`;
+- evaluated-history SHA-256, placement and violation counts;
+- `future_source_frames_used`, derived from that evaluation rather than written as an assertion.
 
 Example render:
 
@@ -119,7 +161,7 @@ python scripts/evaluate_artwork_output.py \
   --target-manifest data/manifests/targets.csv
 ```
 
-The report includes:
+The `desaparecidos.uy/artwork-evaluation/2.0` report includes:
 
 - realised source participation, maximum source share, HHI and effective source count;
 - same-source adjacency and largest connected same-source target region;
@@ -144,7 +186,7 @@ The acknowledgement permits a controlled internal render only. It does not mark 
 - one concatenated H.264 loop for each work;
 - target-level segment videos and sidecars;
 - an evaluation report for every segment;
-- `exhibition-manifest.json` with exact file hashes, settings and review requirements.
+- `desaparecidos.uy/exhibition-triptych/3.0` as `exhibition-manifest.json`, with exact video, segment-sidecar and evaluation hashes, settings and review requirements.
 
 The triptych is not publication-ready until the required reviews listed in its manifest are complete.
 
@@ -152,7 +194,7 @@ The triptych is not publication-ready until the required reviews listed in its m
 
 The `web/` directory is a minimal static memorial presentation. It contains no analytics, tracking, backend dependency or source corpus. It reads `publication.json` and displays only works explicitly marked `publish: true`.
 
-After completing the required review, copy `web/publication.example.json`, set the publication decisions, and run:
+After completing the required review, copy `web/publication.example.json`, set each selected work's `approved-for-publication` decision, reviewer and decision date, and run:
 
 ```bash
 python scripts/publish_static_memorial.py \
@@ -162,9 +204,21 @@ python scripts/publish_static_memorial.py \
   --acknowledge-review
 ```
 
-The publisher verifies every selected video against the SHA-256 digest in the exhibition manifest before copying it. It emits a self-contained static directory and `publication-audit.json`.
+The publisher performs a complete preflight before copying anything. It verifies every selected video, sidecar and evaluation against the exhibition-manifest digests; validates the target and refusal provenance; recomputes temporal causality from the placement histories; verifies the recorded history hash; and confirms the explicit release reviewer, date and non-endorsement acknowledgement. It emits a self-contained static directory, `desaparecidos.uy/web-publication/2.0` configuration and `desaparecidos.uy/web-publication-audit/2.0` audit.
 
 `--acknowledge-review` is a deliberate release gate. It records an operator decision; it does not perform or replace the review.
+
+## Canonical article evidence
+
+Article figures and supplementary media must be derivatives of exact canonical outputs, not independently assembled illustrations. The production sequence is:
+
+1. select a target with explicit historical-identification and portrait-rights review;
+2. render one **Están en todas partes** output and one approved **Seguimos buscando** traversal;
+3. retain their media, sidecars, evaluations and exhibition-manifest hashes outside version control;
+4. complete human and release review;
+5. derive figures and the supplementary MP4 from those exact files, retaining derivative hashes alongside the manuscript package.
+
+This repository does not currently contain a target with the newly explicit historical-identification and rights-review states recorded in the generation input. Existing `approved` target rows therefore must not be described as rights-cleared canonical paper evidence until those distinct reviews are completed.
 
 ## Reproducibility and verification
 

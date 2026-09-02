@@ -546,7 +546,13 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
     assert len(rendered_frames) == 2
     sidecar = json.loads(Path(outputs[0].sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["artwork"] == "seguimos-buscando"
+    assert sidecar["sidecar_schema"] == "desaparecidos.uy/output-sidecar/3.0"
     assert sidecar["future_source_frames_used"] is False
+    assert sidecar["temporal_causality"]["future_source_frames_used"] is False
+    assert sidecar["temporal_causality"]["violation_count"] == 0
+    assert sidecar["temporal_causality"]["valid"] is True
+    assert "anticipatory-traversal-assembly" in sidecar["refusal_policy"]["applicable_refusal_ids"]
+    assert set(sidecar["target_provenance"]) == set(target_ids)
     assert sidecar["assembly_policy"] == "incremental-found-fragments"
     assert sidecar["approved_frame_ids"] == [frame["id"] for frame in acquired["frames"]]
     assert sidecar["release_status"] == "internal_unreviewed"

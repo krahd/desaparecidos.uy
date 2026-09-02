@@ -14,6 +14,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from .cache import image_events_for_runs, page_trail_for_runs
+from .evaluation import require_temporal_causality
 from .images import (
     Fragment,
     crop_from_row,
@@ -24,6 +25,9 @@ from .images import (
 )
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
+from .placement_history import build_placement_history
+from .refusal_paradata import output_sidecar_provenance
+from .target_provenance import target_provenance_snapshots
 
 BACKGROUND = (245, 245, 242)
 INK = (18, 18, 17)
@@ -660,6 +664,24 @@ def run_stage1(
     outputs: list[Stage1Output] = []
     for target in targets:
         assembly = assemble_target_with_trace(target, target_manifest, fragments, settings)
+        release_status = "internal_unreviewed" if source_kind == "people" else "review_required"
+        source_sequence = list(assembly.source_usage.keys())
+        history = build_placement_history(
+            assembly.placements,
+            assembly.image.size,
+            grammar="overlap" if getattr(settings, "composition_mode", "grid") == "free" else "grid",
+            seed=settings.seed,
+            target_id=target.id,
+            source_sequence=source_sequence,
+        )
+        causality = require_temporal_causality({target.id: history})
+        provenance = output_sidecar_provenance(
+            artwork,
+            {
+                "source_manifest": source_manifest,
+                "target_manifest": target_manifest,
+            },
+        )
         stem = f"{target.id}-{settings.seed}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         still_path = root / f"{stem}.png"
         output_still = (
@@ -693,8 +715,10 @@ def run_stage1(
             )
         sidecar_path = root / f"{stem}.json"
         sidecar = {
+            **provenance,
             "artwork": artwork,
             "source_kind": source_kind,
+            "release_status": release_status,
             "source_manifest": display_path(source_manifest),
             "target_id": target.id,
             "target_name": target.values.get("name", target.id),
@@ -712,8 +736,15 @@ def run_stage1(
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,
-            "source_sequence": list(assembly.source_usage.keys()),
+            "source_sequence": source_sequence,
             "tile_count": len(assembly.placements),
+            "placement_history": history,
+            "temporal_causality": causality,
+            "target_provenance": target_provenance_snapshots(
+                [target],
+                target_manifest,
+                output_release_decision=release_status,
+            ),
             "max_fragment_reuse_observed": max(assembly.fragment_usage.values()) if assembly.fragment_usage else 0,
             "per_source_animated_fragment_cap": MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
             "search_trail": search_trail,

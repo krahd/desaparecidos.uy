@@ -7305,8 +7305,9 @@
     "notes": "",
     "source_page": "https://sitiosdememoria.uy/diaz-de-cardenas-fernando-rafael-santiago",
     "sources": [
+      "https://sitiosdememoria.uy/desaparicion-forzada",
       "https://sitiosdememoria.uy/diaz-de-cardenas-fernando-rafael-santiago",
-      "https://sitiosdememoria.uy/desaparicion-forzada"
+      "https://sitiosdememoria.uy/sites/default/files/styles/ficha_lugares_800px/public/2023-06/fernando-diaz-de-cardenas.jpg?itok=avWwiaSX"
     ],
     "field_sources": {
       "full_name": "sitios-de-memoria",
@@ -7342,7 +7343,7 @@
         "sha256": "fc8277c1b326cab4712a3e74b43d46012b410a74221f0d9fe13c1e94a65acc8d",
         "width": 650,
         "height": 866,
-        "status": "candidate",
+        "status": "selected",
         "confidence": "",
         "notes": ""
       },
@@ -7367,7 +7368,7 @@
     "selected_portrait_id": "portrait-01",
     "review_status": "pending",
     "created_at": "2026-06-20T02:59:20Z",
-    "updated_at": "2026-06-21T14:09:11Z",
+    "updated_at": "2026-08-03T18:50:48Z",
     "missing_fields": [
       "place_of_disappearance",
       "remains_status"

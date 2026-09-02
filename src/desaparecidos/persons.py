@@ -9,7 +9,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -311,6 +311,18 @@ def normalise_person(raw: dict[str, Any]) -> dict[str, Any]:
         "sources": ensure_list(raw.get("sources")),
         "field_sources": field_sources,
         "field_source_refs": dict(raw.get("field_source_refs") or {}),
+        "historical_identification_review_status": clean_text(
+            raw.get("historical_identification_review_status")
+        ),
+        "historical_identification_review_reviewer": clean_text(
+            raw.get("historical_identification_review_reviewer")
+        ),
+        "historical_identification_review_reviewed_at": clean_text(
+            raw.get("historical_identification_review_reviewed_at")
+        ),
+        "rights_review_status": clean_text(raw.get("rights_review_status")),
+        "rights_review_reviewer": clean_text(raw.get("rights_review_reviewer")),
+        "rights_review_reviewed_at": clean_text(raw.get("rights_review_reviewed_at")),
         "portrait_status": clean_text(raw.get("portrait_status")) or ("ok" if candidates else "missing"),
         "portrait_candidates": candidates,
         "selected_portrait_id": selected_id,
@@ -343,6 +355,44 @@ def save_persons(path: str | Path, people: list[dict[str, Any]]) -> list[dict[st
         encoding="utf-8",
     )
     return normalised
+
+
+TargetReviewKind = Literal["historical-identification", "rights"]
+TargetReviewStatus = Literal["pending", "approved", "rejected"]
+
+
+def record_target_review(
+    path: str | Path,
+    person_id: str,
+    kind: TargetReviewKind,
+    status: TargetReviewStatus,
+    *,
+    reviewer: str = "",
+    reviewed_at: str = "",
+) -> dict[str, Any]:
+    """Record a human target review without inferring it from manifest approval."""
+    if kind not in {"historical-identification", "rights"}:
+        raise ValueError(f"unsupported target review kind: {kind}")
+    if status not in PERSON_REVIEW_STATUSES:
+        raise ValueError(f"unsupported target review status: {status}")
+    clean_reviewer = clean_text(reviewer)
+    if status in {"approved", "rejected"} and not clean_reviewer:
+        raise ValueError("approved or rejected target reviews require a reviewer")
+    people = load_persons(path)
+    person = next((item for item in people if item["id"] == person_id), None)
+    if person is None:
+        raise ValueError(f"unknown person id: {person_id}")
+    prefix = (
+        "historical_identification_review"
+        if kind == "historical-identification"
+        else "rights_review"
+    )
+    person[f"{prefix}_status"] = status
+    person[f"{prefix}_reviewer"] = clean_reviewer
+    person[f"{prefix}_reviewed_at"] = clean_text(reviewed_at) or utc_now()
+    person["updated_at"] = utc_now()
+    saved = save_persons(path, people)
+    return next(item for item in saved if item["id"] == person_id)
 
 
 def person_to_api(person: dict[str, Any]) -> dict[str, Any]:

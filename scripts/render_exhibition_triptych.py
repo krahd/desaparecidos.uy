@@ -120,8 +120,11 @@ def _fragment_loop(
             {
                 "target_id": target_id,
                 "video": display_path(video),
+                "video_sha256": _sha256(video),
                 "sidecar": generated.sidecar_path,
+                "sidecar_sha256": _sha256(sidecar),
                 "evaluation": display_path(evaluation_path),
+                "evaluation_sha256": _sha256(evaluation_path),
             }
         )
     loop = output_root / f"{artwork}.mp4"
@@ -232,7 +235,7 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         "seguimos-buscando": traversal_loop,
     }
     manifest = {
-        "schema": "desaparecidos.uy/exhibition-triptych/2.0",
+        "schema": "desaparecidos.uy/exhibition-triptych/3.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "release_status": "internal_unreviewed",
         "plan": plan,
@@ -256,8 +259,11 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
                 {
                     "target_id": traversal_output.target_id,
                     "video": traversal_output.video_path,
+                    "video_sha256": _sha256(traversal_video),
                     "sidecar": traversal_output.sidecar_path,
+                    "sidecar_sha256": _sha256(traversal_sidecar),
                     "evaluation": display_path(traversal_evaluation_path),
+                    "evaluation_sha256": _sha256(traversal_evaluation_path),
                 }
             ],
         },

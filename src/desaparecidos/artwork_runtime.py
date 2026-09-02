@@ -12,6 +12,7 @@ from typing import Any, Iterable, Literal, Sequence
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from .evaluation import require_temporal_causality
 from .images import Fragment, crop_from_row, descriptor_for, extract_fragments, load_rgb
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path, safe_project_path
@@ -33,7 +34,9 @@ from .placement_history import (
     placements_visible_after,
     render_placements,
 )
+from .refusal_paradata import output_sidecar_provenance
 from .territorial import balance_territorial_sources, territorial_group, territorial_usage
+from .target_provenance import target_provenance_snapshots
 from .traversals import (
     DEFAULT_TRAVERSAL_ROOT,
     CompositionMode,
@@ -43,6 +46,7 @@ from .traversals import (
     _split_segments,
     assemble_walk,
     load_traversal,
+    traversal_manifest_path,
 )
 
 ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
@@ -297,6 +301,24 @@ def run_artwork(
     outputs: list[Stage1Output] = []
     for target in targets:
         assembly = _assemble(target, target_manifest, fragments, settings)
+        release_status = "internal_unreviewed" if source_kind == "people" else "review_required"
+        source_sequence = _source_sequence(assembly.placements)
+        history = build_placement_history(
+            assembly.placements,
+            assembly.image.size,
+            grammar=settings.visual_grammar,
+            seed=settings.seed,
+            target_id=target.id,
+            source_sequence=source_sequence,
+        )
+        causality = require_temporal_causality({target.id: history})
+        provenance = output_sidecar_provenance(
+            artwork,
+            {
+                "source_manifest": source_manifest,
+                "target_manifest": target_manifest,
+            },
+        )
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         stem = f"{artwork}-{target.id}-{settings.seed}-{timestamp}"
         still_path = root / f"{stem}.png"
@@ -310,24 +332,15 @@ def run_artwork(
             fps=settings.fps,
         ):
             raise RuntimeError("browser-playable MP4 rendering requires ffmpeg with libx264")
-        source_sequence = _source_sequence(assembly.placements)
-        history = build_placement_history(
-            assembly.placements,
-            assembly.image.size,
-            grammar=settings.visual_grammar,
-            seed=settings.seed,
-            target_id=target.id,
-            source_sequence=source_sequence,
-        )
         sidecar: dict[str, Any] = {
-            "sidecar_schema": "desaparecidos.uy/output-sidecar/2.0",
+            **provenance,
             "artwork": artwork,
             "source_kind": source_kind,
             "target_id": target.id,
             "target_name": target.values.get("name", target.id),
             "settings": asdict(settings),
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "release_status": "internal_unreviewed" if source_kind == "people" else "review_required",
+            "release_status": release_status,
             "source_manifest": display_path(source_manifest),
             "still_path": display_path(still_path),
             "video_path": display_path(video_path) if video_path else None,
@@ -338,6 +351,12 @@ def run_artwork(
             "source_sequence": source_sequence,
             "tile_count": len(assembly.placements),
             "placement_history": history,
+            "temporal_causality": causality,
+            "target_provenance": target_provenance_snapshots(
+                [target],
+                target_manifest,
+                output_release_decision=release_status,
+            ),
             "source_person_risk_controls": {
                 "identity_matching": False,
                 "raw_source_reveal": False,
@@ -480,6 +499,26 @@ def render_search_artwork(
         assemble_walk(target, target_manifest, segment, legacy_settings)
         for target, segment in zip(selected, segments)
     ]
+    histories = {
+        target.id: build_placement_history(
+            walk.result.placements,
+            walk.result.image.size,
+            grammar=settings.visual_grammar,
+            seed=settings.seed,
+            target_id=target.id,
+            source_sequence=walk.segment_frame_ids,
+            placed_after_frame=walk.placed_after_frame,
+        )
+        for target, walk in zip(selected, walks)
+    }
+    causality = require_temporal_causality(histories)
+    provenance = output_sidecar_provenance(
+        "seguimos-buscando",
+        {
+            "target_manifest": target_manifest,
+            "traversal_manifest": traversal_manifest_path(root, traversal_id),
+        },
+    )
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -503,20 +542,8 @@ def render_search_artwork(
         fps=settings.fps,
     ):
         raise RuntimeError("browser-playable MP4 rendering requires ffmpeg with libx264")
-    histories = {
-        target.id: build_placement_history(
-            walk.result.placements,
-            walk.result.image.size,
-            grammar=settings.visual_grammar,
-            seed=settings.seed,
-            target_id=target.id,
-            source_sequence=walk.segment_frame_ids,
-            placed_after_frame=walk.placed_after_frame,
-        )
-        for target, walk in zip(selected, walks)
-    }
     sidecar = {
-        "sidecar_schema": "desaparecidos.uy/output-sidecar/2.0",
+        **provenance,
         "artwork": "seguimos-buscando",
         "source_kind": "street-level-traversal",
         "traversal_id": traversal_id,
@@ -540,8 +567,14 @@ def render_search_artwork(
             target.id: walk.result.source_usage for target, walk in zip(selected, walks)
         },
         "assembly_policy": "incremental-found-fragments",
-        "future_source_frames_used": False,
+        "future_source_frames_used": causality["future_source_frames_used"],
         "placement_histories": histories,
+        "temporal_causality": causality,
+        "target_provenance": target_provenance_snapshots(
+            selected,
+            target_manifest,
+            output_release_decision="internal_unreviewed",
+        ),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "still_path": display_path(still_path),
         "video_path": display_path(video_path),

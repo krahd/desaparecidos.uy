@@ -98,6 +98,12 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     assert sidecar["tile_count"] == 16
     assert sidecar["source_sequence"]
     assert sidecar["search_trail"]["urls"]
+    assert sidecar["sidecar_schema"] == "desaparecidos.uy/output-sidecar/3.0"
+    assert sidecar["refusal_policy"]["policy_id"] == "memorial-refusals-2026-01"
+    assert sidecar["target_provenance"]["person-1"]["local_target_image_sha256"] == digest(
+        tmp_path / "target.png"
+    )
+    assert sidecar["temporal_causality"]["valid"] is True
 
 
 def test_stage1_outputs_grayscale_by_default_and_colour_on_request(tmp_path: Path) -> None:

@@ -19,10 +19,12 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from .cv import classify_image
+from .evaluation import require_temporal_causality
 from .geography import sample_uruguay_cells
 from .images import Fragment, crop_from_row, descriptor_for, load_rgb
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
+from .placement_history import build_placement_history
 from .pipeline import (
     AssemblyResult,
     Stage1Output,
@@ -31,6 +33,8 @@ from .pipeline import (
     _render_video_ffmpeg,
     _target_canvas,
 )
+from .refusal_paradata import output_sidecar_provenance
+from .target_provenance import target_provenance_snapshots
 
 TraversalMode = Literal["manual", "import", "autonomous"]
 TraversalScope = Literal["drawn", "uruguay"]
@@ -394,6 +398,11 @@ def _route_path(root: str | Path, traversal_id: str) -> Path:
     path = (root_path / traversal_id / "route.json").resolve()
     path.relative_to(root_path)
     return path
+
+
+def traversal_manifest_path(root: str | Path, traversal_id: str) -> Path:
+    """Return the validated on-disk manifest path for a traversal."""
+    return _route_path(root, traversal_id)
 
 
 def save_traversal(traversal: dict[str, Any], root: str | Path = DEFAULT_TRAVERSAL_ROOT) -> dict[str, Any]:
@@ -931,6 +940,26 @@ def render_traversal(
         assemble_walk(target, target_manifest, segment, settings)
         for target, segment in zip(selected, segments)
     ]
+    histories = {
+        target.id: build_placement_history(
+            walk.result.placements,
+            walk.result.image.size,
+            grammar="grid",
+            seed=settings.seed,
+            target_id=target.id,
+            source_sequence=walk.segment_frame_ids,
+            placed_after_frame=walk.placed_after_frame,
+        )
+        for target, walk in zip(selected, walks)
+    }
+    causality = require_temporal_causality(histories)
+    provenance = output_sidecar_provenance(
+        "seguimos-buscando",
+        {
+            "target_manifest": target_manifest,
+            "traversal_manifest": traversal_manifest_path(root, traversal_id),
+        },
+    )
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
     stem = f"seguimos-buscando-{traversal_id}-{settings.seed}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
@@ -951,6 +980,7 @@ def render_traversal(
     ):
         raise RuntimeError("Browser-playable MP4 rendering requires ffmpeg with libx264")
     sidecar = {
+        **provenance,
         "artwork": "seguimos-buscando",
         "source_kind": "street-level-traversal",
         "traversal_id": traversal_id,
@@ -972,7 +1002,14 @@ def render_traversal(
         "source_usage": {target.id: walk.result.source_usage for target, walk in zip(selected, walks)},
         "source_image_display": "approved-traversal-with-contributing-fragments",
         "assembly_policy": "incremental-found-fragments",
-        "future_source_frames_used": False,
+        "future_source_frames_used": causality["future_source_frames_used"],
+        "placement_histories": histories,
+        "temporal_causality": causality,
+        "target_provenance": target_provenance_snapshots(
+            selected,
+            target_manifest,
+            output_release_decision="internal_unreviewed",
+        ),
         "generated_at": _now(),
         "still_path": display_path(still_path),
         "video_path": display_path(video_path),

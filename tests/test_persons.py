@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
 from PIL import Image, ImageDraw
 
 from desaparecidos.persons import (
@@ -11,6 +12,7 @@ from desaparecidos.persons import (
     missing_fields,
     process_selected_portrait,
     portrait_review_summary,
+    record_target_review,
     save_persons,
     search_plan,
     upsert_person,
@@ -101,6 +103,38 @@ def test_process_selected_portrait_and_export_manifest(tmp_path: Path) -> None:
     assert row["review_status"] == "pending"
     assert row["birth_date"] == "1940-01-01"
     assert row["disappearance_place"] == "Buenos Aires"
+
+
+def test_target_history_and_rights_reviews_are_explicit_and_preserved(tmp_path: Path) -> None:
+    store = tmp_path / "persons.json"
+    save_persons(store, [{"id": "persona", "full_name": "Persona"}])
+
+    with pytest.raises(ValueError, match="require a reviewer"):
+        record_target_review(store, "persona", "rights", "approved")
+
+    historical = record_target_review(
+        store,
+        "persona",
+        "historical-identification",
+        "approved",
+        reviewer="Historical Reviewer",
+        reviewed_at="2026-09-01",
+    )
+    assert historical["historical_identification_review_status"] == "approved"
+    assert historical["historical_identification_review_reviewer"] == "Historical Reviewer"
+    assert historical["historical_identification_review_reviewed_at"] == "2026-09-01"
+
+    rights = record_target_review(
+        store,
+        "persona",
+        "rights",
+        "rejected",
+        reviewer="Rights Reviewer",
+        reviewed_at="2026-09-02",
+    )
+    assert rights["rights_review_status"] == "rejected"
+    assert rights["rights_review_reviewer"] == "Rights Reviewer"
+    assert rights["rights_review_reviewed_at"] == "2026-09-02"
 
 
 def test_upsert_person_normalises_old_import_records(tmp_path: Path) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections import Counter, defaultdict, deque
@@ -9,12 +10,16 @@ from typing import Any, Iterable
 import numpy as np
 from PIL import Image
 
+TEMPORAL_CAUSALITY_EVALUATOR_SCHEMA = "desaparecidos.uy/temporal-causality-evaluator/1.0"
+
 
 def _placements(history: dict[str, Any]) -> list[dict[str, Any]]:
     placements = history.get("placements")
     if not isinstance(placements, list):
         raise ValueError("placement history has no placements list")
-    return [placement for placement in placements if isinstance(placement, dict)]
+    if any(not isinstance(placement, dict) for placement in placements):
+        raise ValueError("placement history contains a non-object placement")
+    return placements
 
 
 def participation_metrics(history: dict[str, Any]) -> dict[str, Any]:
@@ -145,28 +150,144 @@ def visual_grammar_metrics(history: dict[str, Any]) -> dict[str, Any]:
 
 def temporal_causality_metrics(history: dict[str, Any]) -> dict[str, Any]:
     placements = _placements(history)
-    sequence = [str(value) for value in history.get("source_sequence", [])]
+    raw_sequence = history.get("source_sequence")
+    if not isinstance(raw_sequence, list):
+        raise ValueError("placement history has no source_sequence list")
+    sequence = [str(value) for value in raw_sequence]
+    if any(not source for source in sequence):
+        raise ValueError("placement history source_sequence contains an empty source id")
+    if len(set(sequence)) != len(sequence):
+        raise ValueError("placement history source_sequence contains duplicate source ids")
     source_index = {source: index for index, source in enumerate(sequence)}
-    violations: list[str] = []
+    violations: dict[str, list[str]] = {}
     encounter_indexes: list[int] = []
-    for placement in placements:
-        placement_id = str(placement.get("placement_id", ""))
+    for index, placement in enumerate(placements):
+        placement_id = str(placement.get("placement_id", "")) or f"placement[{index}]"
         source = str(placement.get("source_id", ""))
         time = placement.get("time", {})
-        encounter = int(time.get("encounter_index", -1))
+        reasons: list[str] = []
+        if not isinstance(time, dict):
+            encounter = -1
+            reasons.append("missing-time-record")
+        else:
+            raw_encounter = time.get("encounter_index")
+            if isinstance(raw_encounter, bool) or not isinstance(raw_encounter, int):
+                encounter = -1
+                reasons.append("invalid-encounter-index")
+            else:
+                encounter = raw_encounter
         encounter_indexes.append(encounter)
         known = source_index.get(source)
-        if known is not None and encounter < known:
-            violations.append(placement_id)
         if encounter < 0:
-            violations.append(placement_id)
+            reasons.append("negative-encounter-index")
+        if encounter >= len(sequence):
+            reasons.append("encounter-index-out-of-range")
+        if known is None:
+            reasons.append("source-not-in-sequence")
+        elif encounter < known:
+            reasons.append("source-used-before-encounter")
+        if reasons:
+            violations[placement_id] = sorted(set(reasons))
     return {
         "source_sequence_length": len(sequence),
         "maximum_encounter_index": max(encounter_indexes, default=-1),
-        "causality_violation_count": len(set(violations)),
-        "violating_placement_ids": sorted(set(violations)),
+        "causality_violation_count": len(violations),
+        "violating_placement_ids": sorted(violations),
+        "violation_reasons": dict(sorted(violations.items())),
         "future_sources_used": bool(violations),
     }
+
+
+def histories_from_sidecar(sidecar: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if "placement_history" in sidecar:
+        history = sidecar["placement_history"]
+        if not isinstance(history, dict):
+            raise ValueError("sidecar placement_history must be an object")
+        return {str(sidecar.get("target_id", "target")): history}
+    histories = sidecar.get("placement_histories")
+    if not isinstance(histories, dict) or not histories:
+        raise ValueError("sidecar contains no placement history")
+    if any(not isinstance(history, dict) for history in histories.values()):
+        raise ValueError("sidecar placement_histories must contain objects")
+    return {str(target_id): history for target_id, history in histories.items()}
+
+
+def _canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def evaluate_temporal_causality(
+    histories: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Evaluate and hash a complete set of placement histories."""
+    if not histories:
+        raise ValueError("temporal causality evaluation requires at least one history")
+    ordered = {target_id: histories[target_id] for target_id in sorted(histories)}
+    targets = {
+        target_id: temporal_causality_metrics(history)
+        for target_id, history in ordered.items()
+    }
+    violation_count = sum(
+        int(metrics["causality_violation_count"])
+        for metrics in targets.values()
+    )
+    return {
+        "evaluator_schema": TEMPORAL_CAUSALITY_EVALUATOR_SCHEMA,
+        "evaluated_history_sha256": _canonical_sha256(ordered),
+        "history_count": len(ordered),
+        "placement_count": sum(len(_placements(history)) for history in ordered.values()),
+        "violation_count": violation_count,
+        "future_source_frames_used": violation_count > 0,
+        "valid": violation_count == 0,
+        "targets": targets,
+    }
+
+
+def require_temporal_causality(
+    histories: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    evaluation = evaluate_temporal_causality(histories)
+    if not evaluation["valid"]:
+        raise ValueError(
+            "temporal causality evaluation failed: "
+            f"{evaluation['violation_count']} placement violation(s)"
+        )
+    return evaluation
+
+
+def recorded_temporal_causality_matches(
+    sidecar: dict[str, Any],
+    computed: dict[str, Any],
+) -> bool:
+    recorded = sidecar.get("temporal_causality")
+    if not isinstance(recorded, dict):
+        return False
+    fields = (
+        "evaluator_schema",
+        "evaluated_history_sha256",
+        "history_count",
+        "placement_count",
+        "violation_count",
+        "future_source_frames_used",
+        "valid",
+    )
+    return all(recorded.get(field) == computed.get(field) for field in fields)
+
+
+def require_sidecar_temporal_causality(sidecar: dict[str, Any]) -> dict[str, Any]:
+    computed = require_temporal_causality(histories_from_sidecar(sidecar))
+    if not recorded_temporal_causality_matches(sidecar, computed):
+        raise ValueError("recorded temporal causality evaluation does not match placement histories")
+    if sidecar.get("artwork") == "seguimos-buscando":
+        if sidecar.get("future_source_frames_used") != computed["future_source_frames_used"]:
+            raise ValueError("future_source_frames_used does not match temporal causality evaluation")
+    return computed
 
 
 def _luminance(image: Image.Image, size: tuple[int, int]) -> np.ndarray:
@@ -214,16 +335,18 @@ def evaluate_history(history: dict[str, Any]) -> dict[str, Any]:
 def evaluate_sidecar(path: str | Path) -> dict[str, Any]:
     sidecar_path = Path(path)
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
-    if "placement_history" in sidecar:
-        histories = {str(sidecar.get("target_id", "target")): sidecar["placement_history"]}
-    else:
-        histories = sidecar.get("placement_histories", {})
-    if not isinstance(histories, dict) or not histories:
-        raise ValueError("sidecar contains no placement history")
+    histories = histories_from_sidecar(sidecar)
+    causality = evaluate_temporal_causality(histories)
     return {
-        "evaluation_schema": "desaparecidos.uy/artwork-evaluation/1.0",
+        "evaluation_schema": "desaparecidos.uy/artwork-evaluation/2.0",
         "sidecar": str(sidecar_path),
         "artwork": sidecar.get("artwork"),
+        "temporal_causality": {
+            **causality,
+            "recorded_evaluation_matches": recorded_temporal_causality_matches(
+                sidecar, causality
+            ),
+        },
         "targets": {
             target_id: evaluate_history(history)
             for target_id, history in histories.items()

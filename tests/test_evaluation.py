@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from PIL import Image, ImageDraw
+import pytest
 
 from desaparecidos.evaluation import (
+    evaluate_temporal_causality,
     evaluate_history,
     participation_metrics,
+    require_temporal_causality,
     source_reconstitution_metrics,
     target_structure_metrics,
     temporal_causality_metrics,
@@ -87,6 +90,24 @@ def test_temporal_causality_detects_future_source_use() -> None:
     metrics = temporal_causality_metrics(history)
     assert metrics["future_sources_used"] is True
     assert metrics["causality_violation_count"] == 1
+    assert metrics["violation_reasons"]["target:2"] == ["source-used-before-encounter"]
+
+
+def test_temporal_causality_evaluation_hashes_histories_and_blocks_violation() -> None:
+    histories = {"target": _history()}
+    valid = evaluate_temporal_causality(histories)
+
+    assert valid["evaluator_schema"] == "desaparecidos.uy/temporal-causality-evaluator/1.0"
+    assert valid["valid"] is True
+    assert valid["violation_count"] == 0
+    assert len(valid["evaluated_history_sha256"]) == 64
+
+    histories["target"]["placements"][2]["time"]["encounter_index"] = 0  # type: ignore[index]
+    invalid = evaluate_temporal_causality(histories)
+    assert invalid["evaluated_history_sha256"] != valid["evaluated_history_sha256"]
+    assert invalid["future_source_frames_used"] is True
+    with pytest.raises(ValueError, match="temporal causality evaluation failed"):
+        require_temporal_causality(histories)
 
 
 def test_target_structure_is_low_level_and_distinguishes_change() -> None:

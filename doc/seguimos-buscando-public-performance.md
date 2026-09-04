@@ -53,7 +53,7 @@ Optional performance documentation may be attached separately when participants 
 
 The memorial should never infer that participation, activation or submission equals permission for publication or every later use.
 
-## Ever-growing memorial
+## Growing memorial
 
 The public site should accumulate reviewed activation records that participants or groups choose to contribute over time. A visitor can therefore encounter both the disappeared and the continuing history of searches carried out in the present, even when no participant-facing documentation of those performances exists.
 
@@ -72,9 +72,17 @@ The project should separate rights layers rather than treating "open" as one bla
 
 The goal is that the method can be reused publicly without turning sensitive historical or participant material into an unrestricted data commons.
 
-## Relation to the 2020 desaparecidos.uy
+## Naming note
 
-The title pays homage to the 2020 virtual Marcha del Silencio, which used `desaparecidos.uy` to gather public contributions to collective remembrance during the pandemic. Tomas Laurenzo later acquired the domain and took the present project's name from that history. The current work does not claim authorship or continuity of ownership over the 2020 platform; it deliberately inherits the name as a reference to that networked public-memory gesture.
+Tomas Laurenzo acquired the `desaparecidos.uy` domain and the current project takes its name from that domain. Do **not** claim that `desaparecidos.uy` was used by the 2020 virtual Marcha del Silencio without primary evidence.
+
+A primary 2020 Uruguayan human-rights report identifies `marchadelsilencio.uy` as the site that aggregated social-media posts carrying the Marcha hashtags and `vivosennuestramemoria.com` as the site that distributed the 197 portraits for virtual participation. The earlier claim connecting `desaparecidos.uy` to that mobilisation was unsupported and has been withdrawn.
+
+## Current urgency
+
+The search is not a closed historical matter. In May 2026 the Institución Nacional de Derechos Humanos y Defensoría del Pueblo reported work on 243 investigations concerning allegations of enforced disappearance, including 162 active cases and 81 allegations still under analysis. The same month, the INDDHH reported continuing forensic investigation and excavation at Batallón 14. The 2026 Marcha del Silencio read 205 names.
+
+These facts may ground the work's current urgency, but the artwork must not claim institutional authority, investigative status or endorsement from memory organisations merely because it addresses an active public search.
 
 ## Current implementation boundary
 

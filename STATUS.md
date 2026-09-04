@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-01 20:59 GMT-6
+Last updated: 2026-09-04 15:44 GMT-6
 
 ## Project purpose
 
@@ -34,6 +34,8 @@ New outputs use `desaparecidos.uy/output-sidecar/3.0`. Canonical and compatibili
 `future_source_frames_used` is derived from the evaluator for **Seguimos buscando**. A violation or malformed placement history fails rendering before media finalisation. Exhibition manifests hash every segment video, sidecar and evaluation; publication binds them to the declared artwork and target, recomputes their evaluation, and validates provenance before copying any file.
 
 The core conversational-memory state model added on 8 August remains intentionally separate from the image runtime. It models participant consent, utterance provenance, uncertainty, correction and withdrawal without adding an LLM provider, speech service or persistence backend. Real testimony must not be committed as a test fixture.
+
+Public reuse is now explicitly scoped. Software source and associated technical documentation authored by Tomas Laurenzo are MIT-licensed; the `Seguimos buscando` public-performance protocol is CC BY 4.0. Historical portraits, canonical person records, third-party/source imagery, participant material and generated memorial outputs are excluded from those blanket grants unless item-level rights state otherwise. This licensing change does not change the implementation boundary: direct ingestion of self-captured participant sequences and a reviewed human-performed pilot remain unfinished.
 
 ## Active focus
 
@@ -207,6 +209,7 @@ python scripts/publish_static_memorial.py --help
 - `doc/development-roadmap.md` — checked implementation state and remaining artistic work.
 - `doc/artwork-runtime.md` and `doc/output-sidecar-schema.md` — runtime and evidence contracts.
 - `doc/refusal-paradata.md` — generated public refusal record.
+- `LICENSE`, `LICENSE-PROTOCOL.md` and `LICENSING.md` — explicit software/protocol licence grants and exclusions for historical, third-party, participant and generated material.
 
 ## Current capabilities
 
@@ -232,6 +235,14 @@ python scripts/publish_static_memorial.py --help
 These are project-curation counts, not an authoritative historical total. The target corpus was not modified by the 1 September audit work.
 
 ## Recent changes
+
+### 4 September 2026 — public reuse licensing and ZKM prototype boundary
+
+- Added an MIT licence for software source and associated technical documentation authored by Tomas Laurenzo.
+- Licensed the `Seguimos buscando` public-performance protocol under CC BY 4.0 while explicitly excluding historical portraits, canonical person records, third-party/source imagery, participant material and generated memorial outputs from blanket relicensing.
+- Updated the public-performance document so the planned memorial and human-walk activation are consistently described as prototype behaviour rather than already deployed operation.
+- The ZKM / Arte Útil submission text now leads with the implemented traversal invariant and explicitly states that participant-sequence ingestion, activation records and a reviewed human-performed pilot remain in development.
+- No runtime behaviour or dependencies changed; no runtime tests were required for this documentation/licensing-only update.
 
 ### 1 September 2026 — integrity and dependency audit
 
@@ -285,6 +296,7 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - `Todos somos familiares` remains internal pending source policy, legal/contextual review and complete output review.
 - Structural source-fragment metrics do not establish anonymity or source-person non-recognisability.
 - Mapillary coverage and terms, route selection and CV acceptance shape traversal material; public use still requires review.
+- Direct ingestion of self-captured participant sequences, public activation records and a reviewed human-performed `Seguimos buscando` pilot are not yet implemented/completed.
 - Public removal/contact procedures and institutional/legal review are not yet complete.
 - FastAPI's current test-client shim emits one Starlette/httpx compatibility deprecation warning; it does not affect the passing runtime tests but requires a future dependency-compatible migration.
 - The frontend production build retains a non-blocking large-chunk advisory.
@@ -298,6 +310,8 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 4. Generate evaluations and an exhibition manifest; complete full-duration, historical, rights, contextual and recognisability review.
 5. Derive AI & Society figures and the supplementary MP4 only from those exact artifacts; retain derivative hashes in the manuscript repository.
 6. Update the canonical manuscript repository with the resulting evidence state; the required `krahd/tom-work-admin` project record is already current.
+
+For the ZKM / Arte Útil submission, the remaining project-level evidence improvement is a complete human-performed activation using self-captured encounter material. Until that exists, the submission must retain Prototype certification and prospective wording for the human-walk path.
 
 ## Longer-term steps
 
@@ -314,12 +328,14 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - Temporal causality is an executable integrity property of **Seguimos buscando**, not a descriptive Boolean.
 - Canonical figures and supplementary media must remain traceable to exact media, sidecars, evaluations, runtime commit, policy hash and input hashes.
 - Sensitive source imagery, traversal caches and generated evidence stay outside version control.
+- Open licensing applies by layer: software under MIT and the public-performance protocol under CC BY 4.0; source portraits, canonical person records, third-party/participant material and generated outputs retain their own rights conditions.
 
 ## Documentation alignment notes
 
 - `README.md`, `doc/artwork-runtime.md`, `doc/output-sidecar-schema.md`, `doc/refusal-paradata.md`, `doc/development-roadmap.md`, `web/publication.example.json` and this status report reflect the 3.0 sidecar and current release contracts.
+- `doc/seguimos-buscando-public-performance.md`, `LICENSE`, `LICENSE-PROTOCOL.md` and `LICENSING.md` reflect the current prototype and public-reuse boundaries.
 - `doc/STATUS.md` remains a pointer to this canonical report.
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required `krahd/tom-work-admin/projects/desaparecidos-uy.md` cross-repository record was updated in the same work session; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-01 20:59 GMT-6
+Last updated: 2026-09-04 15:44 GMT-6

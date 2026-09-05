@@ -202,6 +202,8 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
 ) -> None:
     targets, _places = _manifests(tmp_path, kind="places")
     traversal_root, traversal_id = _traversal(tmp_path)
+    # An exact structural candidate arrives later, so corrupting its encounter is observable.
+    Image.open(tmp_path / "target.png").save(traversal_root / traversal_id / "frame-1.png")
 
     def fake_render(frames: object, _size: tuple[int, int], output: Path, *, fps: int) -> bool:
         del fps
@@ -230,6 +232,22 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
     assert sidecar["temporal_causality"]["valid"] is True
     assert sidecar["temporal_causality"]["violation_count"] == 0
     assert len(sidecar["temporal_causality"]["evaluated_history_sha256"]) == 64
+
+    with pytest.raises(ValueError, match="escala de grises"):
+        render_search_artwork(
+            traversal_id,
+            targets,
+            tmp_path / "search-colour",
+            ["person-1"],
+            ArtworkTraversalSettings(
+                duration_seconds=1,
+                fps=2,
+                fragment_size=24,
+                output_width=96,
+                colour_output=True,
+            ),
+            root=traversal_root,
+        )
 
     original_builder = artwork_runtime_module.build_placement_history
 

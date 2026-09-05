@@ -7,33 +7,37 @@ import math
 import os
 import random
 import xml.etree.ElementTree as ET
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Literal, Protocol
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
-import numpy as np
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 from .cv import classify_image
 from .evaluation import require_temporal_causality
 from .geography import sample_uruguay_cells
-from .images import Fragment, crop_from_row, descriptor_for, load_rgb
+from .images import crop_from_row, load_rgb
 from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
 from .placement_history import build_placement_history
 from .pipeline import (
     AssemblyResult,
     Stage1Output,
-    TilePlacement,
-    _feasibility_error,
     _render_video_ffmpeg,
     _target_canvas,
 )
 from .refusal_paradata import output_sidecar_provenance
+from .structural_search import StructuralSettings, search_regions
+from .search_video import (
+    VideoSettings,
+    complete_search_video_frames,
+    video_canvas_size,
+    video_presentation_metadata,
+)
 from .target_provenance import target_provenance_snapshots
 
 TraversalMode = Literal["manual", "import", "autonomous"]
@@ -684,35 +688,17 @@ def review_traversal_frames(
 
 
 @dataclass(frozen=True)
-class TraversalRenderSettings:
-    composition: CompositionMode = "overlay"
+class TraversalRenderSettings(VideoSettings, StructuralSettings):
+    composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
     duration_seconds: int = 60
     fps: int = 24
     seed: int = 17
-    fragment_size: int = 24
+    fragment_size: int = 96
     output_width: int = 1920
     reuse_limit: int = 10000
     max_contribution_per_source: int = 0
     colour_output: bool = False
-
-
-def _fragments_for_frame(frame: dict[str, Any], fragment_size: int, limit: int = 240) -> list[Fragment]:
-    with Image.open(str(frame["local_path"])) as source_image:
-        image = source_image.convert("RGB")
-    candidates: list[Fragment] = []
-    for y in range(0, max(1, image.height - fragment_size + 1), fragment_size):
-        for x in range(0, max(1, image.width - fragment_size + 1), fragment_size):
-            patch = image.crop((x, y, x + fragment_size, y + fragment_size))
-            if patch.size != (fragment_size, fragment_size):
-                patch = patch.resize((fragment_size, fragment_size))
-            candidates.append(Fragment(
-                str(frame["id"]), f"{frame['id']}:{x}:{y}", patch, descriptor_for(patch), x, y
-            ))
-    if len(candidates) > limit:
-        indexes = [int(index * (len(candidates) - 1) / (limit - 1)) for index in range(limit)]
-        candidates = [candidates[index] for index in indexes]
-    return candidates
 
 
 @dataclass(frozen=True)
@@ -721,6 +707,8 @@ class WalkAssembly:
     result: AssemblyResult
     placed_after_frame: list[int]
     segment_frame_ids: list[str]
+    decisions: list[dict[str, Any]] = field(default_factory=list)
+    coverage: float = 0.0
 
 
 def assemble_walk(
@@ -729,113 +717,11 @@ def assemble_walk(
     frames: list[dict[str, Any]],
     settings: "TraversalRenderSettings",
 ) -> WalkAssembly:
-    """Assemble the target incrementally from the bits found along the walk.
-
-    Frames are consumed in traversal order. After each frame is reached, its
-    fragments join the found pool and a proportional share of the still-empty
-    target tiles is filled with the best-matching found fragment, so no tile
-    is ever matched against a frame the walk has not reached yet.
-    """
+    """Each encountered frame can supply one structurally correlated region."""
     target = crop_from_row(load_rgb(row_file_path(target_row, target_manifest)), target_row)
     target = _target_canvas(target, settings.output_width, settings.fragment_size)
-    tile = settings.fragment_size
-    positions = [(x, y) for y in range(0, target.height, tile) for x in range(0, target.width, tile)]
-    tile_descriptors = np.stack([
-        descriptor_for(target.crop((x, y, x + tile, y + tile))) for x, y in positions
-    ]).astype(np.float32)
-
-    rng = random.Random(settings.seed + sum(ord(char) for char in target_row.id))
-    per_frame: list[list[Fragment]] = []
-    for frame in frames:
-        fragments = _fragments_for_frame(frame, tile)
-        rng.shuffle(fragments)
-        per_frame.append(fragments)
-    total_fragments = sum(len(fragments) for fragments in per_frame)
-    cap = max(0, settings.max_contribution_per_source)
-    error = _feasibility_error(len(positions), total_fragments, settings.reuse_limit, len(frames), cap)
-    if error:
-        raise ValueError(error)
-
-    pool: list[Fragment] = []
-    descriptors = np.zeros((total_fragments, tile_descriptors.shape[1]), dtype=np.float32)
-    source_of = np.zeros(total_fragments, dtype=np.intp)
-    available = np.zeros(total_fragments, dtype=bool)
-    frag_use = np.zeros(total_fragments, dtype=np.int64)
-    source_use = np.zeros(len(frames), dtype=np.int64)
-    best_dist = np.full(len(positions), np.inf, dtype=np.float32)
-    best_idx = np.full(len(positions), -1, dtype=np.intp)
-    filled = np.zeros(len(positions), dtype=bool)
-
-    output = Image.new("RGB", target.size, (0, 0, 0))
-    placements: list[TilePlacement] = []
-    placed_after: list[int] = []
-    offset = 0
-    for frame_index, fragments in enumerate(per_frame):
-        count = len(fragments)
-        for local_index, fragment in enumerate(fragments):
-            descriptors[offset + local_index] = fragment.descriptor
-        pool.extend(fragments)
-        source_of[offset:offset + count] = frame_index
-        available[offset:offset + count] = True
-        open_tiles = np.flatnonzero(~filled)
-        if open_tiles.size and count:
-            distances = np.linalg.norm(
-                tile_descriptors[open_tiles][:, None, :] - descriptors[offset:offset + count][None, :, :],
-                axis=2,
-            )
-            new_best = distances.argmin(axis=1)
-            new_dist = distances[np.arange(open_tiles.size), new_best]
-            better = new_dist < best_dist[open_tiles]
-            best_dist[open_tiles[better]] = new_dist[better]
-            best_idx[open_tiles[better]] = offset + new_best[better]
-        offset += count
-        quota = math.ceil(len(positions) * (frame_index + 1) / len(per_frame))
-        while len(placements) < quota:
-            open_tiles = np.flatnonzero(~filled)
-            stale = open_tiles[(best_idx[open_tiles] < 0) | ~available[np.maximum(best_idx[open_tiles], 0)]]
-            for tile_index in stale:
-                candidates = np.flatnonzero(available[:offset])
-                if candidates.size == 0:
-                    raise ValueError("fragment reuse / contribution limits exhausted")
-                distances = np.linalg.norm(descriptors[candidates] - tile_descriptors[tile_index], axis=1)
-                pick = int(np.argmin(distances))
-                best_idx[tile_index] = int(candidates[pick])
-                best_dist[tile_index] = float(distances[pick])
-            tile_index = int(open_tiles[int(np.argmin(best_dist[open_tiles]))])
-            pool_index = int(best_idx[tile_index])
-            fragment = pool[pool_index]
-            x, y = positions[tile_index]
-            output.paste(fragment.image, (x, y))
-            placements.append(TilePlacement(
-                source_id=fragment.source_id,
-                fragment_id=fragment.fragment_id,
-                image=fragment.image,
-                dest_x=x,
-                dest_y=y,
-                source_x=fragment.x,
-                source_y=fragment.y,
-            ))
-            placed_after.append(frame_index)
-            filled[tile_index] = True
-            frag_use[pool_index] += 1
-            source_index = int(source_of[pool_index])
-            source_use[source_index] += 1
-            if frag_use[pool_index] >= settings.reuse_limit:
-                available[pool_index] = False
-            if cap > 0 and source_use[source_index] >= cap:
-                available[np.flatnonzero(source_of[:offset] == source_index)] = False
-
-    source_usage = {
-        str(frames[index]["id"]): int(count)
-        for index, count in enumerate(source_use)
-        if count > 0
-    }
-    fragment_usage: dict[str, int] = {}
-    for index, count in enumerate(frag_use):
-        if count > 0:
-            fragment_usage[pool[index].fragment_id] = int(count)
-    result = AssemblyResult(output, target, source_usage, fragment_usage, placements)
-    return WalkAssembly(result, placed_after, [str(frame["id"]) for frame in frames])
+    result, encounters, decisions, coverage = search_regions(target, frames, settings)
+    return WalkAssembly(result, encounters, [str(frame["id"]) for frame in frames], decisions, coverage)
 
 
 def _split_segments(frames: list[dict[str, Any]], count: int) -> list[list[dict[str, Any]]]:
@@ -848,68 +734,41 @@ def _split_segments(frames: list[dict[str, Any]], count: int) -> list[list[dict[
     return [frames[bounds[index]:bounds[index + 1]] for index in range(count)]
 
 
-def _fit(image: Image.Image, size: tuple[int, int]) -> Image.Image:
-    copy = image.copy()
-    copy.thumbnail(size, Image.Resampling.LANCZOS)
-    canvas = Image.new("RGB", size, (0, 0, 0))
-    canvas.paste(copy, ((size[0] - copy.width) // 2, (size[1] - copy.height) // 2))
-    return canvas
-
-
-def _walk_progress(walk: WalkAssembly, reached_frame: int) -> Image.Image:
-    assembly = walk.result
-    mosaic = Image.new("RGB", assembly.image.size, (0, 0, 0))
-    mask = Image.new("L", assembly.image.size, 0)
-    draw = ImageDraw.Draw(mask)
-    for placement, placed_after in zip(assembly.placements, walk.placed_after_frame):
-        if placed_after > reached_frame:
-            continue
-        mosaic.paste(placement.image, (placement.dest_x, placement.dest_y))
-        draw.rectangle(
-            (placement.dest_x, placement.dest_y, placement.dest_x + placement.image.width, placement.dest_y + placement.image.height),
-            fill=255,
-        )
-    return Image.composite(mosaic, Image.new("RGB", assembly.image.size, (0, 0, 0)), mask)
-
-
 def _traversal_video_frames(
     segments: list[list[dict[str, Any]]],
     targets: list[ManifestRow],
     walks: list[WalkAssembly],
     settings: TraversalRenderSettings,
 ) -> Iterable[Image.Image]:
-    total = max(settings.fps, settings.duration_seconds * settings.fps)
-    segment_length = max(1, total // len(targets))
-    font = ImageFont.load_default()
-    for output_index in range(total):
-        target_index = min(len(targets) - 1, output_index // segment_length)
-        local_index = output_index - target_index * segment_length
-        progress = local_index / max(1, segment_length - 1)
-        frames = segments[target_index]
-        walk = walks[target_index]
-        frame_count = max(1, math.ceil(len(frames) * progress))
-        with Image.open(str(frames[min(len(frames) - 1, frame_count - 1)]["local_path"])) as source_image:
-            street = _fit(source_image.convert("RGB"), walk.result.image.size)
-        portrait = _walk_progress(walk, frame_count - 1)
-        if progress > 0.80:
-            portrait = Image.blend(portrait, walk.result.image, min(1.0, (progress - 0.80) / 0.10))
-        if progress > 0.93:
-            portrait = Image.blend(portrait, Image.new("RGB", portrait.size, (0, 0, 0)), (progress - 0.93) / 0.07)
-        if settings.composition == "split":
-            output = Image.new("RGB", street.size, (0, 0, 0))
-            half = street.width // 2
-            output.paste(street.crop((0, 0, half, street.height)), (0, 0))
-            output.paste(portrait.resize((street.width - half, street.height)), (half, 0))
-        elif settings.composition == "alternate":
-            phase = (local_index // max(1, settings.fps * 2)) % 2
-            output = street if phase == 0 and progress < 0.80 else portrait
-        else:
-            output = Image.blend(street, portrait, min(0.82, progress * 0.95))
-        if 0.80 <= progress <= 0.95:
-            draw = ImageDraw.Draw(output)
-            draw.rectangle((0, output.height - 40, output.width, output.height), fill=(0, 0, 0))
-            draw.text((18, output.height - 28), targets[target_index].values.get("name", targets[target_index].id), fill=(245, 245, 240), font=font)
-        yield output if settings.colour_output else output.convert("L").convert("RGB")
+    progress_images: dict[str, Image.Image] = {}
+    progress_counts: dict[str, int] = {}
+
+    def render_progress(walk: WalkAssembly, target: ManifestRow, count: int) -> Image.Image:
+        image = progress_images.setdefault(
+            target.id,
+            Image.new("RGB", walk.result.image.size, (0, 0, 0)),
+        )
+        previous = progress_counts.get(target.id, 0)
+        if count < previous:
+            image.paste((0, 0, 0), (0, 0, image.width, image.height))
+            previous = 0
+        for placement in walk.result.placements[previous:count]:
+            image.paste(placement.image, (placement.dest_x, placement.dest_y))
+        progress_counts[target.id] = count
+        return image.copy()
+
+    yield from complete_search_video_frames(
+        segments,
+        targets,
+        walks,
+        [walk.result.image for walk in walks],
+        duration_seconds=settings.duration_seconds,
+        fps=settings.fps,
+        output_width=settings.output_width,
+        composition=settings.composition,
+        render_progress=render_progress,
+        settings=settings,
+    )
 
 
 def render_traversal(
@@ -922,6 +781,8 @@ def render_traversal(
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,
 ) -> list[Stage1Output]:
     settings = settings or TraversalRenderSettings()
+    if settings.colour_output:
+        raise ValueError("Seguimos buscando solo admite video en escala de grises")
     traversal = load_traversal(traversal_id, root)
     frames = [
         frame for frame in traversal.get("frames", [])
@@ -949,6 +810,8 @@ def render_traversal(
             target_id=target.id,
             source_sequence=walk.segment_frame_ids,
             placed_after_frame=walk.placed_after_frame,
+            empty_reason="no-accepted-structural-regions" if not walk.result.placements else None,
+            contribution_policy="single-current-frame",
         )
         for target, walk in zip(selected, walks)
     }
@@ -966,15 +829,11 @@ def render_traversal(
     still_path = output_root / f"{stem}.png"
     video_path = output_root / f"{stem}.mp4"
     sidecar_path = output_root / f"{stem}.json"
-    output_still = (
-        walks[-1].result.image.convert("RGB")
-        if settings.colour_output
-        else walks[-1].result.image.convert("L").convert("RGB")
-    )
+    output_still = walks[-1].result.image.convert("L").convert("RGB")
     output_still.save(still_path)
     if not _render_video_ffmpeg(
         _traversal_video_frames(segments, selected, walks, settings),
-        walks[0].result.image.size,
+        video_canvas_size(settings.output_width),
         video_path,
         fps=settings.fps,
     ):
@@ -1001,7 +860,16 @@ def render_traversal(
         "settings": asdict(settings),
         "source_usage": {target.id: walk.result.source_usage for target, walk in zip(selected, walks)},
         "source_image_display": "approved-traversal-with-contributing-fragments",
-        "assembly_policy": "incremental-found-fragments",
+        "assembly_policy": "single-current-frame-structural-region",
+        "region_search": {target.id: {"decisions": walk.decisions, "coverage": walk.coverage} for target, walk in zip(selected, walks)},
+        "video_presentation": video_presentation_metadata(
+            settings.output_width,
+            settings.duration_seconds,
+            settings.fps,
+            settings.composition,
+            [target.id for target in selected],
+            settings=settings, walks=walks,
+        ),
         "future_source_frames_used": causality["future_source_frames_used"],
         "placement_histories": histories,
         "temporal_causality": causality,

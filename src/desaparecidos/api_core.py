@@ -75,19 +75,49 @@ class DownloadRequest(BaseModel):
     output_root: str = "data/raw"
 
 
-class GenerateRequest(BaseModel):
+class VideoOptionsRequest(BaseModel):
+    split_orientation: Literal["side-by-side", "stacked"] = "side-by-side"
+    contribution_seconds: float = Field(default=2.5, gt=0, le=60)
+    scan_seconds: float = Field(default=0.18, gt=0, le=60)
+    final_hold_seconds: float = Field(default=4, gt=0, le=60)
+    details_hold_seconds: float = Field(default=3, gt=0, le=60)
+    text_hold_seconds: float = Field(default=2, gt=0, le=60)
+    fade_seconds: float = Field(default=1, gt=0, le=60)
+    closing_text: str = Field(default="", max_length=240)
+    show_match_marks: bool = True
+
+
+class StructuralOptionsRequest(VideoOptionsRequest):
+    reconstruction_mode: Literal["fixed", "largest-first", "refine"] = "refine"
+    max_region_size: int = Field(default=384, ge=8, le=2048)
+    structure_threshold: float = Field(default=0.72, gt=0, le=1)
+    min_structure: float = Field(default=0.035, gt=0, le=1)
+    refinement_margin: float = Field(default=0.04, ge=0, le=1)
+
+
+def video_options(request: VideoOptionsRequest) -> dict[str, Any]:
+    return {name: getattr(request, name) for name in VideoOptionsRequest.model_fields}
+
+
+def structural_options(request: StructuralOptionsRequest) -> dict[str, Any]:
+    return {name: getattr(request, name) for name in StructuralOptionsRequest.model_fields}
+
+
+class GenerateRequest(VideoOptionsRequest):
     targets: str = "data/manifests/targets.csv"
     sources: str = "data/manifests/places.csv"
     output_dir: str = "outputs/stage1"
     seed: int = 17
     fragment_size: int = Field(default=24, ge=8, le=128)
     reuse_limit: int = Field(default=8, ge=1, le=10000)
-    output_width: int = Field(default=720, ge=120, le=4096)
+    output_width: int = Field(default=1920, ge=120, le=4096)
     max_contribution_per_source: int = Field(default=DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, ge=0, le=1000000)
     search_scan_frames_per_candidate: int = Field(default=2, ge=1, le=24)
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
+    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    fps: int = Field(default=24, ge=1, le=60)
     colour_output: bool = False
     target_id: str | None = None
     artwork: ArtworkKind = "estan-en-todas-partes"
@@ -228,7 +258,7 @@ class TraversalAcquireRequest(BaseModel):
     auto_approve: bool = False
 
 
-class TraversalAutoRequest(BaseModel):
+class TraversalAutoRequest(StructuralOptionsRequest):
     name: str = "Seguimos buscando · Uruguay"
     regions: int = Field(default=4, ge=1, le=12)
     duration_seconds: int = Field(default=60, ge=1, le=3600)
@@ -240,10 +270,10 @@ class TraversalAutoRequest(BaseModel):
     output_dir: str = "outputs/stage1"
     target_ids: list[str]
     target_mode: TargetMode = "single"
-    composition: CompositionMode = "overlay"
+    composition: CompositionMode = "split"
     fps: int = Field(default=24, ge=1, le=60)
     render_seed: int = 17
-    fragment_size: int = Field(default=24, ge=8, le=128)
+    fragment_size: int = Field(default=96, ge=8, le=1024)
     output_width: int = Field(default=1920, ge=120, le=4096)
     reuse_limit: int = Field(default=10000, ge=1, le=100000)
     max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
@@ -256,18 +286,18 @@ class TraversalReviewRequest(BaseModel):
     root: str = "data/raw/traversals"
 
 
-class TraversalGenerateRequest(BaseModel):
+class TraversalGenerateRequest(StructuralOptionsRequest):
     traversal_id: str
     targets: str = "data/manifests/targets.csv"
     output_dir: str = "outputs/stage1"
     traversal_root: str = "data/raw/traversals"
     target_ids: list[str]
     target_mode: TargetMode = "single"
-    composition: CompositionMode = "overlay"
+    composition: CompositionMode = "split"
     duration_seconds: int = Field(default=60, ge=1, le=3600)
     fps: int = Field(default=24, ge=1, le=60)
     seed: int = 17
-    fragment_size: int = Field(default=24, ge=8, le=128)
+    fragment_size: int = Field(default=96, ge=8, le=1024)
     output_width: int = Field(default=1920, ge=120, le=4096)
     reuse_limit: int = Field(default=10000, ge=1, le=100000)
     max_contribution_per_source: int = Field(default=0, ge=0, le=1000000)
@@ -604,6 +634,7 @@ def create_app() -> FastAPI:
     @app.post("/api/traversals/auto")
     def traversal_auto(request: TraversalAutoRequest) -> dict[str, Any]:
         settings = TraversalRenderSettings(
+            **structural_options(request),
             composition=request.composition,
             target_mode=request.target_mode,
             duration_seconds=request.duration_seconds,
@@ -653,6 +684,7 @@ def create_app() -> FastAPI:
     @app.post("/api/generate/traversal")
     def generate_traversal(request: TraversalGenerateRequest) -> dict[str, Any]:
         settings = TraversalRenderSettings(
+            **structural_options(request),
             composition=request.composition,
             target_mode=request.target_mode,
             duration_seconds=request.duration_seconds,
@@ -689,6 +721,8 @@ def create_app() -> FastAPI:
             search_scan_max_candidates=request.search_scan_max_candidates,
             video_source_layout=request.video_source_layout,
             make_video=request.make_video,
+            duration_seconds=request.duration_seconds, fps=request.fps,
+            **video_options(request),
             colour_output=request.colour_output,
         )
         try:

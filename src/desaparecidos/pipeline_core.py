@@ -27,12 +27,13 @@ from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
 from .placement_history import build_placement_history
 from .refusal_paradata import output_sidecar_provenance
+from .search_video import VideoSettings, fragment_video_frames, fragment_walk, video_canvas_size, video_presentation_metadata
 from .target_provenance import target_provenance_snapshots
 
-BACKGROUND = (245, 245, 242)
-INK = (18, 18, 17)
-ACCENT = (109, 47, 38)
-PROCESS_VIDEO_STYLE = "source-reveal-fragment-transfer"
+BACKGROUND = (0, 0, 0)
+INK = (18, 18, 18)
+ACCENT = (140, 140, 140)
+PROCESS_VIDEO_STYLE = "search-reconstruction-details-text"
 MAX_ANIMATED_FRAGMENTS_PER_SOURCE = 48
 DEFAULT_MAX_CONTRIBUTION_PER_SOURCE = 1
 ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes", "seguimos-buscando"]
@@ -44,11 +45,11 @@ ARTWORK_SOURCE_KIND: dict[str, Literal["people", "places"]] = {
 
 
 @dataclass(frozen=True)
-class Stage1Settings:
+class Stage1Settings(VideoSettings):
     seed: int = 17
     fragment_size: int = 24
     reuse_limit: int = 8
-    output_width: int = 720
+    output_width: int = 1920
     max_fragments_per_source: int = 240
     max_contribution_per_source: int = DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
     search_scan_frames_per_candidate: int = 2
@@ -56,6 +57,8 @@ class Stage1Settings:
     video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
     colour_output: bool = False
+    fps: int = 24
+    duration_seconds: int = 60
 
 
 @dataclass(frozen=True)
@@ -75,6 +78,8 @@ class TilePlacement:
     dest_y: int
     source_x: int
     source_y: int
+    source_width: int | None = None
+    source_height: int | None = None
 
 
 @dataclass(frozen=True)
@@ -244,6 +249,8 @@ def render_video(
     seconds: int = 8,
     colour_output: bool = False,
 ) -> str:
+    if colour_output:
+        raise ValueError("All memorials require grayscale output")
     if assembly is not None and source_rows is not None and source_manifest is not None:
         frames = _process_video_frames(
             target_row,
@@ -641,6 +648,8 @@ def run_stage1(
     artwork: ArtworkKind = "estan-en-todas-partes",
 ) -> list[Stage1Output]:
     settings = settings or Stage1Settings()
+    if settings.colour_output:
+        raise ValueError("All memorials require grayscale output")
     if artwork == "seguimos-buscando":
         raise ValueError("seguimos-buscando generation requires /api/generate/traversal")
     source_kind = ARTWORK_SOURCE_KIND[artwork]
@@ -698,21 +707,12 @@ def run_stage1(
         video_format: str | None = None
         if settings.make_video:
             video_path = root / f"{stem}.mp4"
-            video_format = render_video(
-                assembly.image,
-                target,
-                video_path,
-                seed=settings.seed,
-                assembly=assembly,
-                source_rows=sources,
-                source_manifest=source_manifest,
-                search_trail=search_trail["urls"],
-                search_candidates=search_candidates,
-                search_scan_frames_per_candidate=settings.search_scan_frames_per_candidate,
-                search_candidate_display=search_candidate_display,
-                source_layout=settings.video_source_layout,
-                colour_output=settings.colour_output,
-            )
+            frames = fragment_video_frames(assembly, target, settings, artwork, sources, source_manifest,
+                grammar="overlap" if getattr(settings, "composition_mode", "grid") == "free" else "grid",
+                reveal_sources=settings.video_source_layout == "grid")
+            if not _render_video_ffmpeg(frames, video_canvas_size(settings.output_width), video_path, fps=settings.fps):
+                raise RuntimeError("Browser-playable MP4 rendering requires ffmpeg with libx264")
+            video_format = "h264"
         sidecar_path = root / f"{stem}.json"
         sidecar = {
             **provenance,
@@ -728,11 +728,14 @@ def run_stage1(
             "video_format": video_format,
             "video_process_style": PROCESS_VIDEO_STYLE if video_path else None,
             "source_image_display": (
-                "reviewed-face-region-reveal" if video_path and source_kind == "people"
+                "contributing-fragments-only" if video_path and settings.video_source_layout == "match"
+                else "reviewed-face-region-reveal" if video_path and source_kind == "people"
                 else "approved-place-source-reveal" if video_path
                 else None
             ),
             "video_source_layout": settings.video_source_layout if video_path else None,
+            "video_presentation": video_presentation_metadata(settings.output_width, settings.duration_seconds,
+                settings.fps, target_ids=[target.id], settings=settings, walks=[fragment_walk(assembly)], artwork=artwork) if video_path else None,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,

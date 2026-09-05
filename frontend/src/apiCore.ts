@@ -1,3 +1,4 @@
+import type { VideoOptions, StructuralOptions } from './VideoControls';
 export const API_BASE =
   import.meta.env.VITE_API_BASE?.replace(/\/$/, '') ?? 'http://127.0.0.1:8765';
 
@@ -539,7 +540,9 @@ export function generateStage1(payload: {
   colour_output?: boolean;
   target_id?: string;
   artwork: ArtworkKind;
-}): Promise<GenerateResponse> {
+  duration_seconds?: number;
+  fps?: number;
+} & Partial<VideoOptions>): Promise<GenerateResponse> {
   return request('/api/generate', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -562,6 +565,7 @@ export function discoverTraversal(payload: {
   regions?: number;
   rural_probability?: number;
   seed?: number;
+  render_seed?: number;
   root?: string;
 }): Promise<{ ok: boolean; traversal: Traversal }> {
   return request('/api/traversals/discover', { method: 'POST', body: JSON.stringify(payload) });
@@ -583,6 +587,7 @@ export function autoTraversal(payload: {
   max_frames?: number;
   rural_probability?: number;
   seed?: number;
+  render_seed?: number;
   targets: string;
   output_dir: string;
   target_ids: string[];
@@ -594,7 +599,7 @@ export function autoTraversal(payload: {
   reuse_limit?: number;
   max_contribution_per_source?: number;
   colour_output?: boolean;
-}): Promise<{ ok: boolean; traversal: Traversal; outputs: GenerateResponse['outputs'] }> {
+} & Partial<VideoOptions> & Partial<StructuralOptions>): Promise<{ ok: boolean; traversal: Traversal; outputs: GenerateResponse['outputs'] }> {
   return request('/api/traversals/auto', { method: 'POST', body: JSON.stringify(payload) });
 }
 
@@ -626,7 +631,7 @@ export function generateTraversal(payload: {
   reuse_limit: number;
   max_contribution_per_source: number;
   colour_output?: boolean;
-}): Promise<GenerateResponse> {
+} & Partial<VideoOptions> & Partial<StructuralOptions>): Promise<GenerateResponse> {
   return request('/api/generate/traversal', { method: 'POST', body: JSON.stringify(payload) });
 }
 

@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-01 20:59 GMT-6
+Last updated: 2026-09-04 17:56 GMT-6
 
 ## Project purpose
 
@@ -21,7 +21,11 @@ The repository contains two maintained runtime surfaces:
 - the localhost GUI, FastAPI backend and `desaparecidos` compatibility CLI for corpus administration, review, crawling, traversal acquisition and generation;
 - the canonical `desaparecidos-artwork` runtime for artwork-oriented fragment placement, evaluation, exhibition rendering and publication evidence.
 
-The canonical runtime supports grid, irregular and overlap grammars; deterministic scale, rotation, opacity and z-order; target salience; source contribution and adjacency controls; territorial balancing; and incremental traversal assembly. Grayscale is the default output and colour is an explicit recorded option.
+The first two works support grid, irregular and overlap grammars, target salience, contribution/adjacency controls and territorial balancing. **Seguimos buscando** now searches variable rectangular regions using normalised grayscale organisation and signed directional gradients. Each approved traversal frame can contribute at most one region at its own encounter. Weak or structureless candidates are skipped; larger qualifying regions are preferred, and better later candidates may replace whole regions or smaller parts. Multiple coherent walks in a saved traversal accumulate into one portrait in single-target mode. Partial and entirely empty searches are supported without forced completion.
+
+All three works use the same monochrome video form: search at left and reconstruction at right, then the assembled fragment image, person details and closing text. Defaults are 1920×1080 landscape at 24 fps. The GUI/API/CLI expose contribution and scan durations, image/details/text holds, fades, match marks and closing text. Requested duration is a minimum: all encounters and closing phases survive, and a video extends when they cannot fit. The artist interface, map, image/video previews and static memorial styles are monochrome; colour output requests are rejected. `search-video-presentation/2.0` records exact phase counts and actual duration.
+
+Traversal reconstruction modes are `fixed`, `largest-first` and `refine` (default). Default minimum/maximum region extents are 96/384 px, structural threshold 0.72, minimum structure 0.035 and improvement margin 0.04. These are heuristic artistic controls, not semantic recognition or probability estimates. `region_search` records every acceptance, refinement or skip and realised coverage. Native source rectangles remain distinct from resized target rectangles. Structural histories retain exact placement geometry and require `contribution_policy: "single-current-frame"`; an explicitly marked empty search is valid, while unmarked or malformed empty histories remain invalid.
 
 New outputs use `desaparecidos.uy/output-sidecar/3.0`. Canonical and compatibility outputs now contain:
 
@@ -37,14 +41,9 @@ The core conversational-memory state model added on 8 August remains intentional
 
 ## Active focus
 
-The active technical focus is evidence integrity for an AI & Society paper improvement without allowing the paper to redefine the artwork. Implemented work is limited to documentary accountability already required by the memorial:
+The active focus is the artist-directed structural search and common video form. Review how the portrait accumulates across substantially more approved walks; assess region extent, correlation threshold, pacing and refinement without demanding a completed face. The available 13-frame local traversal is too small to substantiate a complete reconstruction.
 
-1. artwork-specific paradata of refusal;
-2. complete target provenance snapshots;
-3. computed temporal validity and release blocking;
-4. reconciled schema, roadmap and release documentation.
-
-The remaining article-evidence work is production and review, not a new image-system feature. It requires one carefully selected and explicitly rights-reviewed target for **Están en todas partes**, one approved **Seguimos buscando** traversal, a clean committed runtime revision, human review and figures derived from those exact hash-bound outputs.
+Publication/article evidence still requires explicit target historical-identification and portrait-rights decisions, a clean committed runtime, full output review and figures derived from the exact hash-bound outputs. The implementation and internal preview do not resolve those separate requirements.
 
 ## Architecture overview
 
@@ -53,12 +52,13 @@ The localhost administration surface and canonical render path share reviewed in
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 390" role="img" aria-labelledby="architecture-title architecture-desc">
   <title id="architecture-title">desaparecidos.uy architecture</title>
   <desc id="architecture-desc">Reviewed target, source and traversal inputs enter the local and canonical runtimes. Generated media and versioned sidecars are evaluated before exhibition and publication.</desc>
+  <rect x="0" y="0" width="100%" height="100%" fill="#fff"/>
   <defs>
     <marker id="architecture-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
     </marker>
   </defs>
-  <g fill="#f7f5ef" stroke="#333" stroke-width="2">
+  <g fill="#f5f5f5" stroke="#333" stroke-width="2">
     <rect x="20" y="55" width="220" height="100" rx="8"/>
     <rect x="300" y="55" width="260" height="100" rx="8"/>
     <rect x="620" y="40" width="330" height="130" rx="8"/>
@@ -82,6 +82,7 @@ The localhost administration surface and canonical render path share reviewed in
     <text x="430" y="82" font-size="16" font-weight="bold">Local runtimes</text>
     <text x="430" y="108" font-size="13">GUI + API + compatibility CLI</text>
     <text x="430" y="130" font-size="13">canonical artwork renderer</text>
+    <text x="430" y="149" font-size="12">shared video / structural search</text>
     <text x="785" y="72" font-size="16" font-weight="bold">Generated manifestation</text>
     <text x="785" y="99" font-size="13">still / H.264 process video</text>
     <text x="785" y="121" font-size="13">placement histories</text>
@@ -103,24 +104,25 @@ The localhost administration surface and canonical render path share reviewed in
 
 ## Output and release flow
 
-Temporal validation precedes output finalisation. Publication has a separate preflight so a corrupted history, stale evaluation or mismatched artifact cannot coexist with a nominal release decision.
+Structural traversal decisions record accepted, refined and skipped regions. Temporal validation checks one contribution per current frame before output finalisation. Publication has a separate preflight so a corrupted history, stale evaluation or mismatched artifact cannot coexist with a nominal release decision.
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 300" role="img" aria-labelledby="flow-title flow-desc">
   <title id="flow-title">Render, validation and publication flow</title>
   <desc id="flow-desc">A render builds placement histories, evaluates temporal causality, hashes valid artifacts, undergoes human review and passes publication preflight. Invalid histories stop without a final output.</desc>
+  <rect x="0" y="0" width="100%" height="100%" fill="#fff"/>
   <defs>
     <marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
     </marker>
   </defs>
-  <g fill="#f7f5ef" stroke="#333" stroke-width="2">
+  <g fill="#f5f5f5" stroke="#333" stroke-width="2">
     <rect x="20" y="55" width="150" height="75" rx="8"/>
     <rect x="205" y="55" width="160" height="75" rx="8"/>
     <rect x="400" y="55" width="160" height="75" rx="8"/>
     <rect x="595" y="55" width="160" height="75" rx="8"/>
     <rect x="790" y="55" width="160" height="75" rx="8"/>
     <rect x="985" y="55" width="135" height="75" rx="8"/>
-    <rect x="205" y="205" width="160" height="65" rx="8" fill="#f4e8e5"/>
+    <rect x="205" y="205" width="160" height="65" rx="8" fill="#ededed"/>
   </g>
   <g fill="none" stroke="#333" stroke-width="2" marker-end="url(#flow-arrow)">
     <line x1="170" y1="92" x2="205" y2="92"/>
@@ -193,6 +195,9 @@ python scripts/publish_static_memorial.py --help
 ## Important files and directories
 
 - `src/desaparecidos/artwork_runtime.py` — canonical renderer.
+- `src/desaparecidos/structural_search.py` — abstaining multiscale correlation search and refinement.
+- `src/desaparecidos/search_video.py` — shared four-phase compositor, exact encounter scheduler and presentation metadata.
+- `frontend/src/VideoControls.tsx` — common artist presentation controls.
 - `src/desaparecidos/refusal_paradata.py` — refusal validation, rendering and sidecar policy provenance.
 - `src/desaparecidos/target_provenance.py` — target provenance snapshots and validation.
 - `src/desaparecidos/evaluation.py` — artwork metrics and temporal-causality evaluator.
@@ -233,6 +238,26 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Recent changes
 
+### 4 September 2026 — structural traversal and common monochrome form
+
+- Replaced proportional tile filling and the found-fragment pool with one structurally qualified region per current frame, preserving skipped encounters and incomplete results.
+- Added variable square/rectangular extents, largest-first selection and optional later refinement, with source rectangles, decisions and coverage in sidecars.
+- Made all three production render paths share the 1920×1080 search-left/reconstruction-right sequence and complete image/details/text closing phases; removed colour output choices.
+- Added artist controls and matching API/CLI settings, plus shared exhibition presentation options and separate traversal region settings.
+- Preserved all search encounters and minimum holds by extending short requests; cached repeated held images rather than resizing them for every encoded frame.
+- Extended causal validation to enforce one contribution per current frame and accept only explicitly marked empty structural searches.
+- An initial threshold of 0.82 rejected all 13 local frames. Comparison at 0.65 and visual review of corresponding source/target regions informed the 0.72 starting threshold. This small local exercise is not general calibration.
+- A 60-second, 1920×1080, 24 fps internal preview accepts eight of 13 approved frames, skips five and covers 11.1% of the portrait. The incomplete result, matching contours, closing cards and representative video frames were visually inspected. Sources, candidates, portraits and their review states were not changed.
+
+### 4 September 2026 — complete Seguimos buscando video form
+
+- Added one shared search-video compositor for the canonical runtime, compatibility CLI and localhost API/GUI path.
+- Made split-screen 16:9 presentation the default, with traversal/search at left, incremental reconstruction at right and restrained source-to-destination marks.
+- Added the complete Spanish closing sequence: completed fragment reconstruction, fade to black, name/date/detail card, fade, **Seguimos Buscando** card and final fade.
+- Made **Seguimos buscando** grayscale-only while retaining overlay and alternating CLI/API overrides for deliberate use.
+- Added Spanish date formatting, scalable fonts, explicit phase allocation and `search-video-presentation/1.0` sidecar metadata.
+- Generated a 60-second, 1920×1080, 24 fps H.264 internal review render for `abeledo-sotuyo-horacio-adolfo` from 13 approved local traversal frames. The output remains ignored, `internal_unreviewed`, generated from a dirty worktree and unsuitable for publication evidence.
+
 ### 1 September 2026 — integrity and dependency audit
 
 - Made placement-history validation strict about schema, target binding, declared counts, unique placement IDs, source sequences and the complete recorded evaluator result.
@@ -261,6 +286,27 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Tests and verification status
 
+Verification of the structural-search change on 4 September 2026:
+
+- `.venv/bin/python -m pytest -q` — 205 tests passed with the existing Starlette/httpx warning.
+- Targeted API, video and structural tests — 35 passed, including custom artist options reaching both traversal endpoints and both fragment works.
+- `.venv/bin/python -m compileall -q src tests scripts` — passed.
+- `npm --prefix frontend test` — eight tests passed; `npm --prefix frontend run build` — passed with the existing chunk-size advisory.
+- Canonical and compatibility H.264 smoke renders for both fragment works — passed; encoded durations match the shared timeline metadata.
+- Inline status SVG diagrams — rendered with `rsvg-convert` and visually inspected.
+- Real local H.264 preview — `ffprobe` confirmed 1920×1080, 24 fps, 1,440 frames, yuv420p and exactly 60 seconds; eight sampled frames had identical RGB channels. Source/target comparisons and the full timeline contact sheet were visually inspected.
+- Browser GUI inspection could not run: the browser runtime reported no available connection and an empty browser list. UI verification is limited to transport tests, TypeScript compilation and the build.
+
+Earlier local verification on 4 September 2026 (before structural search):
+
+
+- `.venv/bin/python -m compileall -q src tests` — passed.
+- `.venv/bin/python -m pytest -q` — 192 passed with the existing Starlette/httpx compatibility warning.
+- `npm --prefix frontend test` — eight tests passed.
+- `npm --prefix frontend run build` — passed with the existing large-chunk advisory.
+- Short end-to-end H.264 smoke render — passed at 320×180, 18 seconds and 4 fps; the complete timeline was visually inspected.
+- Full internal review render — passed at 1920×1080, 60 seconds and 24 fps. `ffprobe` confirmed H.264/yuv420p and exact duration; ten representative frames were pixel-wise grayscale; the contact sheet and closing cards were visually inspected; the sidecar records 8,560 temporally valid placements and zero causality violations.
+
 Focused local verification on 1 September 2026:
 
 - focused policy, evaluation, runtime, traversal, pipeline, person, publication and API tests — 91 passed with one dependency warning.
@@ -272,7 +318,7 @@ Focused local verification on 1 September 2026:
 - isolated `pip-audit` of the installed project environment — no known third-party vulnerabilities after upgrading Pillow; the local unpublished `desaparecidos-uy` package is not a PyPI audit target.
 - `.venv/bin/python -m pip check`, `bash -n start.sh`, `git diff --check`, refusal-policy public rendering and JSON parsing — passed.
 
-No final exhibition media, article figures or supplementary video have been rendered or visually reviewed in this change.
+No final exhibition media, article figures or publication-cleared supplementary video have been produced; local previews remain internal and incomplete.
 
 Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 2026: Python 3.11/3.12, frontend tests/build and launcher syntax passed. That run predates the current changes.
 
@@ -280,7 +326,7 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 
 - No target currently records the newly explicit historical-identification and rights-review states required for canonical article evidence. Existing `review_status=approved` values are generation gates, not rights clearance.
 - The current approved canonical target row uses a permission note that still requires verification; it is not sufficient to claim an explicitly licensed paper artifact.
-- A local approved traversal exists, but pairing it with a target and creating a paper artifact remains an artistic selection and human-review task.
+- A local approved traversal and one internal Abeledo review render exist, but the target lacks the independent historical-identification and rights decisions required for public or paper evidence. The render was also produced from a dirty worktree and remains `internal_unreviewed`.
 - Rendering from the current uncommitted worktree records the prior Git commit with `working_tree_dirty=true`; the publication preflight rejects such outputs, so canonical evidence must be rendered from a clean committed revision.
 - `Todos somos familiares` remains internal pending source policy, legal/contextual review and complete output review.
 - Structural source-fragment metrics do not establish anonymity or source-person non-recognisability.
@@ -288,13 +334,18 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - Public removal/contact procedures and institutional/legal review are not yet complete.
 - FastAPI's current test-client shim emits one Starlette/httpx compatibility deprecation warning; it does not affect the passing runtime tests but requires a future dependency-compatible migration.
 - The frontend production build retains a non-blocking large-chunk advisory.
-- Variable fragment masks, live input, real-time rendering, sound and multi-channel synchronisation remain future artistic development, not paper-driven backlog.
+- Arbitrary fragment masks, live input, real-time rendering, sound and multi-channel synchronisation remain future artistic development. Variable rectangular traversal regions are implemented.
+- Structural search uses a finite multiscale lattice and two source scales, not exhaustive semantic matching. The current 13-frame review gives only 11.1% coverage; larger approved traversals and artist review are needed.
+- Minimum encounter holds can make fragment-work videos substantially longer than requested; output metadata records the actual length.
+- Browser interaction remains unverified in this session because no browser was connected.
 
 ## Pending tasks and next steps
 
+Review the new artist controls in a connected browser and accumulate additional approved walks for structural-search review. Test further threshold/extent choices and refinement on real material; synthetic tests already cover replacements.
+
 1. Review and explicitly record historical-identification and portrait-rights decisions for a carefully selected target; record reviewer and date.
 2. Commit and verify the evidence-integrity implementation so sidecars can cite a clean runtime revision.
-3. Render one canonical **Están en todas partes** output and one approved **Seguimos buscando** traversal from that revision.
+3. Render one canonical **Están en todas partes** output and re-render the approved **Seguimos buscando** traversal from that clean revision.
 4. Generate evaluations and an exhibition manifest; complete full-duration, historical, rights, contextual and recognisability review.
 5. Derive AI & Society figures and the supplementary MP4 only from those exact artifacts; retain derivative hashes in the manuscript repository.
 6. Update the canonical manuscript repository with the resulting evidence state; the required `krahd/tom-work-admin` project record is already current.
@@ -304,9 +355,12 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - Complete exhibition-quality loops and installation playback testing.
 - Establish removal/contact procedures and complete appropriate legal and institutional review.
 - Continue corpus consultation and source stewardship without presenting the project as an official archive.
-- Develop unchecked roadmap items only when supported by the artwork: partial searches, broader traversal sources, sound, installation synchronisation and future live forms.
+- Develop unchecked roadmap items only when supported by the artwork: broader traversal sources, arbitrary masks, sound, installation synchronisation and future live forms.
 
 ## Decisions and rationale
+
+- Artist direction on 4 September 2026: monochrome throughout; landscape search-left/reconstruction-right; at most one structural contribution per traversal frame; skip inadequate structure; prefer large regions and allow better later replacements; share search → reconstructed image → details → text across the triptych.
+- A partial reconstruction expresses the material found. No completion quota, target overlay or earlier-source fallback may conceal a failed search. Approved unmatched traversal frames remain visible as continuing search; this does not permit revealing rejected imagery or unreviewed contemporary contexts.
 
 - Refusal paradata is artwork-specific. It records constitutive non-actions but does not create a general compliance ontology.
 - Target approval, historical identification, portrait rights, public release and organisational endorsement remain distinct because one cannot evidence another.
@@ -317,9 +371,9 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 
 ## Documentation alignment notes
 
-- `README.md`, `doc/artwork-runtime.md`, `doc/output-sidecar-schema.md`, `doc/refusal-paradata.md`, `doc/development-roadmap.md`, `web/publication.example.json` and this status report reflect the 3.0 sidecar and current release contracts.
+- `README.md`, `doc/artwork-runtime.md`, `doc/output-sidecar-schema.md`, `doc/refusal-paradata.md`, `doc/development-roadmap.md`, `web/publication.example.json` and this status report reflect the 3.0 sidecar, presentation schema 2.0, structural search, common monochrome video form and current release contracts.
 - `doc/STATUS.md` remains a pointer to this canonical report.
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
-- The required `krahd/tom-work-admin/projects/desaparecidos-uy.md` cross-repository record was updated in the same work session; registry lifecycle state and deadline did not change.
+- The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the structural-video milestone, verification, incomplete preview and next artistic review. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-01 20:59 GMT-6
+Last updated: 2026-09-04 17:56 GMT-6

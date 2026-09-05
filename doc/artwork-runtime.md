@@ -8,7 +8,7 @@ The canonical runtime follows `doc/artistic-computational-principles.md`: the me
 
 ## Shared architecture
 
-Every generated image is assembled from matched fragments, but the final composition is not restricted to a photomosaic grid. The supported visual grammars are:
+Every generated image is assembled from matched fragments, but the final composition is not restricted to a photomosaic grid. For the first two works, the supported visual grammars are:
 
 - `grid`: the original regular target grid, retained as a baseline and a valid visual strategy;
 - `irregular`: deterministic scale, position and rotation variation without strongly layered fragments;
@@ -24,6 +24,14 @@ Every output stores a versioned placement history. Each record identifies:
 - for traversal work, the frame after which the fragment became available.
 
 The history schema is `desaparecidos.uy/placement-history/1.0`. The output sidecar schema is `desaparecidos.uy/output-sidecar/3.0`.
+
+## Shared video form
+
+All three memorials default to 1920×1080 landscape, 24 fps, grayscale only, with search on the left and reconstruction on the right. The shared compositor then shows the reconstructed image, Spanish person details and the memorial title or artist-supplied closing text. It never overlays the target portrait to manufacture completion. The artist interface is monochrome too.
+
+`--contribution-seconds` (2.5), `--scan-seconds` (0.18, traversal only), `--final-hold-seconds` (4), `--details-hold-seconds` (3), `--text-hold-seconds` (2), `--fade-seconds` (1), `--closing-text`, `--hide-match-marks`, `--fps`, `--duration` and `--output-width` expose the presentation choices in both CLIs. Equivalent fields are available on the localhost artist screens/API. `--split-orientation stacked` is an optional override; the default is `side-by-side`. The deprecated colour flags are rejected.
+
+Requested duration is a minimum: every encounter and closing phase is preserved, extending the video when required. A contribution appears one third of the way through its encounter; the remaining hold makes it inspectable. `video_presentation` records actual duration and phase allocations. Large fragment-work editions can therefore be much longer than their requested duration.
 
 ## Output accountability
 
@@ -125,13 +133,23 @@ desaparecidos-artwork render \
 
 The search runtime retains the existing traversal acquisition and review system. It assembles each target strictly from the frames encountered within its assigned traversal segment. A placement may not use a source frame that the traversal has not yet reached.
 
-The renderer supports the same grid, irregular and overlap grammars as the other works. Before any media is finalised, it evaluates every placement history. A violation raises an error, so an invalid traversal output is not written. Its sidecar records:
+The default `refine` method searches square and rectangular regions from `--fragment-size 96` through `--max-region-size 384`, selecting the largest qualifying rectangle on a bounded multiscale lattice. `--reconstruction-mode largest-first` preserves accepted regions; `fixed` uses only the minimum square size. Each source frame can supply at most one region, only at its own encounter. There is no found-fragment pool, per-frame filling quota or forced completion. The target persists across the coherent walks within a traversal. Empty areas stay black.
+
+Matching compares normalised grayscale organisation and signed directional gradients. Flat regions are ineligible. The controls are `--structure-threshold 0.72`, `--min-structure 0.035` and `--refinement-margin 0.04`. Scores express this heuristic correlation, not semantic identification or calibrated confidence. Later replacements must improve both the current rectangle's measured structure and the recorded quality of every covered area by the margin. Refinement can replace a whole earlier region or a smaller part. Histories retain all contributions in encounter order, including superseded material; `source_usage` counts historical contributions.
+
+Structural matches retain their exact target rectangles. The canonical search runtime therefore uses the `grid` placement grammar even for variable rectangles, and rejects jitter/rotation grammars that would move a match away from its correlated region. Search defaults to split composition, with overlay and alternating overrides available in the artist screen and CLI.
+
+Before any media is finalised, the renderer evaluates every placement history. A violation raises an error, so an invalid traversal output is not written. Its sidecar records:
 
 - the route and provider attribution;
 - approved frame identifiers;
 - the frames assigned to each target;
 - the causal frame index for every placement;
 - the visual grammar and composition mode;
+- `video_presentation` version 2.0, including the canvas, grayscale palette, text, requested/actual duration and exact phase lengths;
+- `region_search` decisions and coverage, including scores for unsuccessful searches;
+- `contribution_policy: "single-current-frame"`, checked by the causal evaluator;
+- explicit `empty_reason: "no-accepted-structural-regions"` for zero-placement searches; unmarked empty histories remain invalid;
 - evaluator schema `desaparecidos.uy/temporal-causality-evaluator/1.0`;
 - evaluated-history SHA-256, placement and violation counts;
 - `future_source_frames_used`, derived from that evaluation rather than written as an assertion.
@@ -144,8 +162,11 @@ desaparecidos-artwork search \
   --targets data/manifests/targets.csv \
   --target-id PERSON_ID \
   --target-mode single \
-  --composition overlay \
-  --grammar overlap \
+  --composition split \
+  --grammar grid \
+  --reconstruction-mode refine \
+  --fragment-size 96 \
+  --max-region-size 384 \
   --duration 60 \
   --output-width 1920 \
   --output outputs/artwork/search
@@ -230,3 +251,5 @@ This repository does not currently contain a target with the newly explicit hist
 - Generated media, reviewed source corpora and local traversal caches remain outside version control.
 
 No test or render should be reported as successful unless its command was actually executed and its result recorded.
+
+The exhibition example uses shared `video_options` and separate `traversal_reconstruction` settings. `traversal_fragment_size` controls traversal extent independently of the first two works. Durations can extend independently; multi-channel synchronisation remains future work.

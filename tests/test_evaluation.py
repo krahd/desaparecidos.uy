@@ -148,3 +148,23 @@ def test_target_structure_is_low_level_and_distinguishes_change() -> None:
     assert same["gradient_mae"] == 0.0
     assert different["luminance_mae"] > same["luminance_mae"]
     assert "not face recognition" in str(same["interpretation"])
+
+
+def test_structural_history_rejects_multiple_contributions_from_one_frame() -> None:
+    history = _history()
+    history['contribution_policy'] = 'single-current-frame'
+    result = temporal_causality_metrics(history)
+    assert result['causality_violation_count'] == 1
+    assert 'multiple-contributions-from-frame' in result['violation_reasons']['target:1']
+
+
+def test_empty_structural_search_is_valid_only_with_explicit_outcome() -> None:
+    history = _history()
+    history.update(placements=[], placement_count=0)
+    with pytest.raises(ValueError, match='no placements'):
+        temporal_causality_metrics(history)
+    history.update(contribution_policy='single-current-frame', empty_reason='no-accepted-structural-regions')
+    assert temporal_causality_metrics(history)['causality_violation_count'] == 0
+    history['placement_count'] = 1
+    with pytest.raises(ValueError, match='does not match'):
+        temporal_causality_metrics(history)

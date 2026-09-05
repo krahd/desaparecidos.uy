@@ -163,7 +163,8 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         max_sources=int(plan.get("people_max_sources", 0)),
         make_video=True,
         fps=fps,
-        duration_seconds=int(plan.get("people_segment_duration_seconds", 12)),
+        duration_seconds=int(plan.get("people_segment_duration_seconds", 60)),
+        **plan.get("video_options", {}),
     )
     places_settings = ArtworkRenderSettings(
         seed=seed,
@@ -177,7 +178,8 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
         max_sources=int(plan.get("places_max_sources", 0)),
         make_video=True,
         fps=fps,
-        duration_seconds=int(plan.get("places_segment_duration_seconds", 12)),
+        duration_seconds=int(plan.get("places_segment_duration_seconds", 60)),
+        **plan.get("video_options", {}),
     )
 
     people_loop, people_segments = _fragment_loop(
@@ -198,16 +200,18 @@ def render(plan: dict[str, Any], *, allow_internal_people_render: bool) -> Path:
     )
 
     traversal_settings = ArtworkTraversalSettings(
-        composition=str(plan.get("traversal_composition", "overlay")),  # type: ignore[arg-type]
+        composition=str(plan.get("traversal_composition", "split")),  # type: ignore[arg-type]
         target_mode="sequence",
         duration_seconds=int(plan.get("traversal_duration_seconds", 180)),
         fps=fps,
         seed=seed,
-        fragment_size=fragment_size,
+        fragment_size=int(plan.get("traversal_fragment_size", 96)),
         output_width=output_width,
         reuse_limit=int(plan.get("traversal_reuse_limit", 10000)),
         max_contribution_per_source=int(plan.get("traversal_source_cap", 0)),
-        visual_grammar=str(plan.get("traversal_visual_grammar", "overlap")),  # type: ignore[arg-type]
+        visual_grammar=str(plan.get("traversal_visual_grammar", "grid")),  # type: ignore[arg-type]
+        **plan.get("video_options", {}),
+        **plan.get("traversal_reconstruction", {}),
     )
     traversal_output = render_search_artwork(
         str(plan["traversal_id"]),

@@ -292,7 +292,7 @@ def test_run_autonomous_uruguay_renders_in_one_step(
     assert all(frame["review_policy"] == "auto-cv-accepted" for frame in acquired)
     assert rendered_frames
     sidecar = json.loads(Path(outputs[0].sidecar_path).read_text(encoding="utf-8"))
-    assert sidecar["assembly_policy"] == "incremental-found-fragments"
+    assert sidecar["assembly_policy"] == "single-current-frame-structural-region"
     assert sidecar["artwork"] == "seguimos-buscando"
     assert sidecar["release_status"] == "internal_unreviewed"
 
@@ -479,17 +479,17 @@ def test_assemble_walk_uses_only_already_found_frames(tmp_path: Path) -> None:
         frames,
         TraversalRenderSettings(fragment_size=8, output_width=32),
     )
-    tile_count = (walk.result.image.width // 8) * (walk.result.image.height // 8)
-    assert len(walk.result.placements) == tile_count
-    assert len(walk.placed_after_frame) == tile_count
+    assert len(walk.result.placements) <= len(frames)
+    assert len(walk.placed_after_frame) == len(walk.result.placements)
+    assert len(set(walk.placed_after_frame)) == len(walk.placed_after_frame)
     assert walk.placed_after_frame == sorted(walk.placed_after_frame)
     assert walk.segment_frame_ids == ["walk-frame-1", "walk-frame-2"]
-    # Tiles placed before the second frame is reached can only use bits found in the first frame.
-    for placement, placed_after in zip(walk.result.placements, walk.placed_after_frame):
-        if placed_after == 0:
-            assert placement.source_id == "walk-frame-1"
-    # Half of the portrait is scheduled from the first frame, the rest after the second.
-    assert sum(1 for value in walk.placed_after_frame if value == 0) == tile_count // 2
+    for placement, encountered in zip(walk.result.placements, walk.placed_after_frame):
+        assert placement.source_id == frames[encountered]["id"]
+    assert len(walk.decisions) == len(frames)
+    # These flat fixture targets have no usable graphic structure.
+    assert all(item['action'] == 'skip' for item in walk.decisions)
+    assert walk.coverage == 0
 
 
 @pytest.mark.parametrize(
@@ -520,9 +520,11 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
         traversal["id"], [frame["id"] for frame in acquired["frames"]], "approved", root=tmp_path / "routes"
     )
     rendered_frames: list[Image.Image] = []
+    rendered_sizes: list[tuple[int, int]] = []
 
     def fake_render(frames: object, size: tuple[int, int], output_path: Path, *, fps: int) -> bool:
-        del size, fps
+        del fps
+        rendered_sizes.append(size)
         rendered_frames.extend(list(frames))  # type: ignore[arg-type]
         output_path.write_bytes(b"mp4")
         return True
@@ -543,7 +545,9 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
         ),
         root=tmp_path / "routes",
     )
-    assert len(rendered_frames) == 2
+    assert len(rendered_frames) > 2  # complete closing phases and every encounter survive
+    assert rendered_sizes == [(32, 18)]
+    assert all(frame.size == (32, 18) for frame in rendered_frames)
     sidecar = json.loads(Path(outputs[0].sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["artwork"] == "seguimos-buscando"
     assert sidecar["sidecar_schema"] == "desaparecidos.uy/output-sidecar/3.0"
@@ -553,12 +557,24 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
     assert sidecar["temporal_causality"]["valid"] is True
     assert "anticipatory-traversal-assembly" in sidecar["refusal_policy"]["applicable_refusal_ids"]
     assert set(sidecar["target_provenance"]) == set(target_ids)
-    assert sidecar["assembly_policy"] == "incremental-found-fragments"
+    assert sidecar["assembly_policy"] == "single-current-frame-structural-region"
     assert sidecar["approved_frame_ids"] == [frame["id"] for frame in acquired["frames"]]
     assert sidecar["release_status"] == "internal_unreviewed"
     assert sidecar["composition"] == composition
     assert sidecar["target_mode"] == target_mode
     assert sidecar["settings"]["colour_output"] is False
+    presentation = sidecar['video_presentation']
+    assert presentation['schema'] == 'desaparecidos.uy/search-video-presentation/2.0'
+    assert presentation['canvas'] == {'width': 32, 'height': 18, 'aspect_ratio': '16:9'}
+    assert presentation['palette'] == 'grayscale'
+    assert presentation['text_language'] == 'es'
+    assert presentation['closing_sequence'] == ['reconstruccion-final', 'nombre-fechas-y-detalles', 'seguimos-buscando']
+    assert presentation['actual_duration_seconds'] == len(rendered_frames) / 2
+    assert set(presentation['timeline_frames_by_target']) == set(target_ids)
+    assert sum(sum(plan.values()) for plan in presentation['timeline_frames_by_target'].values()) == len(rendered_frames)
+    assert all(all(count > 0 for count in plan.values()) for plan in presentation['timeline_frames_by_target'].values())
+    assert all(item['coverage'] == 0 for item in sidecar['region_search'].values())
+    assert all(history['empty_reason'] == 'no-accepted-structural-regions' for history in sidecar['placement_histories'].values())
     still_channels = Image.open(outputs[0].still_path).convert("RGB").split()
     assert ImageChops.difference(still_channels[0], still_channels[1]).getbbox() is None
     assert ImageChops.difference(still_channels[1], still_channels[2]).getbbox() is None

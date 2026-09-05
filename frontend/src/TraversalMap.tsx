@@ -13,7 +13,7 @@ const style: maplibregl.StyleSpecification = {
       attribution: '© OpenStreetMap contributors',
     },
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -1 } }],
 };
 
 function feature(geometry: RouteGeometry): GeoJSON.Feature {
@@ -51,12 +51,12 @@ export function TraversalMap({
       instance.addSource('route', { type: 'geojson', data: feature(latest.current) });
       instance.addLayer({
         id: 'route-fill', type: 'fill', source: 'route',
-        paint: { 'fill-color': '#8f3f32', 'fill-opacity': 0.18 },
+        paint: { 'fill-color': '#4f4f4f', 'fill-opacity': 0.18 },
         filter: ['==', '$type', 'Polygon'],
       });
       instance.addLayer({
         id: 'route-line', type: 'line', source: 'route',
-        paint: { 'line-color': '#bc5a49', 'line-width': 4 },
+        paint: { 'line-color': '#6e6e6e', 'line-width': 4 },
       });
     });
     instance.on('click', (event) => {

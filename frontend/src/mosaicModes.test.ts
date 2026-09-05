@@ -40,6 +40,13 @@ describe('mosaic generation facade', () => {
       video_source_layout: 'grid',
       make_video: false,
       artwork: 'estan-en-todas-partes',
+      contribution_seconds: 4,
+      final_hold_seconds: 6,
+      closing_text: 'Están en todas partes',
+      duration_seconds: 90,
+      fps: 30,
+      split_orientation: 'side-by-side',
+      colour_output: false,
     });
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
@@ -50,5 +57,12 @@ describe('mosaic generation facade', () => {
     expect(body.composition_mode).toBe('free');
     expect(body.unique_tiles).toBe(true);
     expect(body.matching_mode).toBe('spatial');
+    expect(body.contribution_seconds).toBe(4);
+    expect(body.final_hold_seconds).toBe(6);
+    expect(body.duration_seconds).toBe(90);
+    expect(body.fps).toBe(30);
+    expect(body.closing_text).toBe('Están en todas partes');
+    expect(body.split_orientation).toBe('side-by-side');
+    expect(body.colour_output).toBe(false);
   });
 });

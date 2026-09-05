@@ -31,10 +31,17 @@ from .placement_history import (
     TargetSalience,
     build_placement_history,
     ordered_target_positions,
-    placements_visible_after,
     render_placements,
 )
 from .refusal_paradata import output_sidecar_provenance
+from .render_options import add_render_options, render_options
+from .structural_search import StructuralSettings
+from .search_video import (
+    VideoSettings, fragment_video_frames, fragment_walk,
+    complete_search_video_frames,
+    video_canvas_size,
+    video_presentation_metadata,
+)
 from .territorial import balance_territorial_sources, territorial_group, territorial_usage
 from .target_provenance import target_provenance_snapshots
 from .traversals import (
@@ -42,7 +49,6 @@ from .traversals import (
     CompositionMode,
     TargetMode,
     TraversalRenderSettings,
-    _fit,
     _split_segments,
     assemble_walk,
     load_traversal,
@@ -53,11 +59,11 @@ ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
 
 
 @dataclass(frozen=True)
-class ArtworkRenderSettings:
+class ArtworkRenderSettings(VideoSettings):
     seed: int = 17
     fragment_size: int = 24
     reuse_limit: int = 8
-    output_width: int = 720
+    output_width: int = 1920
     max_fragments_per_source: int = 240
     max_contribution_per_source: int = 1
     visual_grammar: PlacementGrammar = "grid"
@@ -67,22 +73,22 @@ class ArtworkRenderSettings:
     max_sources: int = 0
     make_video: bool = False
     fps: int = 24
-    duration_seconds: int = 12
+    duration_seconds: int = 60
     colour_output: bool = False
 
 
 @dataclass(frozen=True)
-class ArtworkTraversalSettings:
-    composition: CompositionMode = "overlay"
+class ArtworkTraversalSettings(VideoSettings, StructuralSettings):
+    composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
     duration_seconds: int = 60
     fps: int = 24
     seed: int = 17
-    fragment_size: int = 24
+    fragment_size: int = 96
     output_width: int = 1920
     reuse_limit: int = 10000
     max_contribution_per_source: int = 0
-    visual_grammar: PlacementGrammar = "overlap"
+    visual_grammar: PlacementGrammar = "grid"
     colour_output: bool = False
 
 
@@ -277,6 +283,8 @@ def run_artwork(
     artwork: ArtworkKind = "estan-en-todas-partes",
 ) -> list[Stage1Output]:
     settings = settings or ArtworkRenderSettings()
+    if settings.colour_output:
+        raise ValueError("All memorials require grayscale output")
     source_kind = _source_kind(artwork)
     if source_kind == "people" and settings.max_contribution_per_source <= 0:
         raise ValueError("people-source generation requires a positive source contribution cap")
@@ -326,8 +334,9 @@ def run_artwork(
         sidecar_path = root / f"{stem}.json"
         _output_image(assembly.image, settings.colour_output).save(still_path)
         if video_path is not None and not _render_video_ffmpeg(
-            (_output_image(frame, settings.colour_output) for frame in _emergence_frames(assembly, target, settings)),
-            assembly.image.size,
+            fragment_video_frames(assembly, target, settings, artwork, sources, source_manifest,
+                                  grammar=settings.visual_grammar, reveal_sources=False),
+            video_canvas_size(settings.output_width),
             video_path,
             fps=settings.fps,
         ):
@@ -345,7 +354,9 @@ def run_artwork(
             "still_path": display_path(still_path),
             "video_path": display_path(video_path) if video_path else None,
             "video_format": "h264" if video_path else None,
-            "video_process_style": "fragment-emergence-without-raw-source-reveal" if video_path else None,
+            "video_process_style": "search-reconstruction-details-text" if video_path else None,
+            "video_presentation": video_presentation_metadata(settings.output_width, settings.duration_seconds,
+                settings.fps, target_ids=[target.id], settings=settings, walks=[fragment_walk(assembly)], artwork=artwork) if video_path else None,
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,
             "source_sequence": source_sequence,
@@ -392,68 +403,47 @@ def _traversal_frames(
     walks: Sequence[Any],
     settings: ArtworkTraversalSettings,
 ) -> Iterable[Image.Image]:
-    total = max(settings.fps, settings.duration_seconds * settings.fps)
-    segment_length = max(1, total // len(targets))
-    font = ImageFont.load_default()
-    for output_index in range(total):
-        target_index = min(len(targets) - 1, output_index // segment_length)
-        local_index = output_index - target_index * segment_length
-        progress = local_index / max(1, segment_length - 1)
-        frames = segments[target_index]
-        walk = walks[target_index]
-        reached_count = max(1, math.ceil(len(frames) * progress))
-        reached_index = reached_count - 1
-        with Image.open(str(frames[reached_index]["local_path"])) as source:
-            street = _fit(source.convert("RGB"), walk.result.image.size)
-        visible = placements_visible_after(
+    final_images = [
+        render_placements(
             walk.result.placements,
-            walk.placed_after_frame,
-            reached_index,
-        )
-        portrait = render_placements(
-            visible,
             walk.result.image.size,
             grammar=settings.visual_grammar,
             seed=settings.seed,
-            target_id=targets[target_index].id,
+            target_id=target.id,
             background=INK,
         )
-        if progress > 0.82:
-            final = render_placements(
-                walk.result.placements,
-                walk.result.image.size,
-                grammar=settings.visual_grammar,
-                seed=settings.seed,
-                target_id=targets[target_index].id,
-                background=INK,
-            )
-            portrait = Image.blend(portrait, final, min(1.0, (progress - 0.82) / 0.08))
-        if progress > 0.94:
-            portrait = Image.blend(
-                portrait,
-                Image.new("RGB", portrait.size, INK),
-                min(1.0, (progress - 0.94) / 0.06),
-            )
-        if settings.composition == "split":
-            output = Image.new("RGB", street.size, INK)
-            half = street.width // 2
-            output.paste(street.crop((0, 0, half, street.height)), (0, 0))
-            output.paste(portrait.resize((street.width - half, street.height)), (half, 0))
-        elif settings.composition == "alternate":
-            phase = (local_index // max(1, settings.fps * 2)) % 2
-            output = street if phase == 0 and progress < 0.82 else portrait
-        else:
-            output = Image.blend(street, portrait, min(0.84, progress * 0.96))
-        if 0.82 <= progress <= 0.95:
-            draw = ImageDraw.Draw(output)
-            draw.rectangle((0, output.height - 42, output.width, output.height), fill=INK)
-            draw.text(
-                (18, output.height - 29),
-                targets[target_index].values.get("name", targets[target_index].id),
-                fill=(245, 245, 240),
-                font=font,
-            )
-        yield output
+        for target, walk in zip(targets, walks)
+    ]
+
+    progress_cache: dict[str, tuple[int, Image.Image]] = {}
+
+    def render_progress(walk: Any, target: ManifestRow, count: int) -> Image.Image:
+        cached = progress_cache.get(target.id)
+        if cached is not None and cached[0] == count:
+            return cached[1]
+        image = render_placements(
+            walk.result.placements[:count],
+            walk.result.image.size,
+            grammar=settings.visual_grammar,
+            seed=settings.seed,
+            target_id=target.id,
+            background=INK,
+        )
+        progress_cache[target.id] = (count, image)
+        return image
+
+    yield from complete_search_video_frames(
+        segments,
+        targets,
+        walks,
+        final_images,
+        duration_seconds=settings.duration_seconds,
+        fps=settings.fps,
+        output_width=settings.output_width,
+        composition=settings.composition,
+        render_progress=render_progress,
+        settings=settings,
+    )
 
 
 def render_search_artwork(
@@ -466,6 +456,10 @@ def render_search_artwork(
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,
 ) -> list[Stage1Output]:
     settings = settings or ArtworkTraversalSettings()
+    if settings.colour_output:
+        raise ValueError("Seguimos buscando solo admite video en escala de grises")
+    if settings.visual_grammar != "grid":
+        raise ValueError("Structural traversal regions require exact placement (grid grammar)")
     traversal = load_traversal(traversal_id, root)
     frames = [
         frame
@@ -494,6 +488,7 @@ def render_search_artwork(
         reuse_limit=settings.reuse_limit,
         max_contribution_per_source=settings.max_contribution_per_source,
         colour_output=settings.colour_output,
+        **{name: getattr(settings, name) for name in StructuralSettings.__dataclass_fields__},
     )
     walks = [
         assemble_walk(target, target_manifest, segment, legacy_settings)
@@ -508,6 +503,8 @@ def render_search_artwork(
             target_id=target.id,
             source_sequence=walk.segment_frame_ids,
             placed_after_frame=walk.placed_after_frame,
+            empty_reason="no-accepted-structural-regions" if not walk.result.placements else None,
+            contribution_policy="single-current-frame",
         )
         for target, walk in zip(selected, walks)
     }
@@ -534,10 +531,10 @@ def render_search_artwork(
         target_id=selected[-1].id,
         background=INK,
     )
-    _output_image(final_image, settings.colour_output).save(still_path)
+    _output_image(final_image, False).save(still_path)
     if not _render_video_ffmpeg(
-        (_output_image(frame, settings.colour_output) for frame in _traversal_frames(segments, selected, walks, settings)),
-        final_image.size,
+        _traversal_frames(segments, selected, walks, settings),
+        video_canvas_size(settings.output_width),
         video_path,
         fps=settings.fps,
     ):
@@ -566,7 +563,16 @@ def render_search_artwork(
         "source_usage": {
             target.id: walk.result.source_usage for target, walk in zip(selected, walks)
         },
-        "assembly_policy": "incremental-found-fragments",
+        "assembly_policy": "single-current-frame-structural-region",
+        "region_search": {target.id: {"decisions": walk.decisions, "coverage": walk.coverage} for target, walk in zip(selected, walks)},
+        "video_presentation": video_presentation_metadata(
+            settings.output_width,
+            settings.duration_seconds,
+            settings.fps,
+            settings.composition,
+            [target.id for target in selected],
+            settings=settings, walks=walks,
+        ),
         "future_source_frames_used": causality["future_source_frames_used"],
         "placement_histories": histories,
         "temporal_causality": causality,
@@ -612,8 +618,9 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--max-sources", type=int, default=0)
     render.add_argument("--video", action="store_true")
     render.add_argument("--fps", type=int, default=24)
-    render.add_argument("--duration", type=int, default=12)
-    render.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
+    render.add_argument("--duration", type=int, default=60)
+    add_render_options(render)
+    render.add_argument("--colour", action="store_true", help="unsupported: all memorials are grayscale")
 
     search = subparsers.add_parser("search", help="Render Seguimos buscando from an approved traversal.")
     search.add_argument("--traversal", required=True)
@@ -621,15 +628,15 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--targets", default="data/manifests/targets.csv")
     search.add_argument("--target-id", action="append", required=True)
     search.add_argument("--target-mode", choices=["single", "sequence"], default="single")
-    search.add_argument("--composition", choices=["overlay", "alternate", "split"], default="overlay")
+    search.add_argument("--composition", choices=["overlay", "alternate", "split"], default="split")
     search.add_argument("--output", default="outputs/artwork")
     search.add_argument("--duration", type=int, default=60)
     search.add_argument("--fps", type=int, default=24)
     search.add_argument("--seed", type=int, default=17)
-    search.add_argument("--fragment-size", type=int, default=24)
+    search.add_argument("--fragment-size", type=int, default=96)
+    add_render_options(search, structural=True)
     search.add_argument("--output-width", type=int, default=1920)
-    search.add_argument("--grammar", choices=["grid", "irregular", "overlap"], default="overlap")
-    search.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
+    search.add_argument("--grammar", choices=["grid"], default="grid")
     return parser
 
 
@@ -637,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "render":
         settings = ArtworkRenderSettings(
+            **render_options(args),
             seed=args.seed,
             fragment_size=args.fragment_size,
             reuse_limit=args.reuse_limit,
@@ -667,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
             safe_project_path(args.output),
             args.target_id,
             ArtworkTraversalSettings(
+                **render_options(args, structural=True),
                 composition=args.composition,
                 target_mode=args.target_mode,
                 duration_seconds=args.duration,
@@ -675,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
                 fragment_size=args.fragment_size,
                 output_width=args.output_width,
                 visual_grammar=args.grammar,
-                colour_output=args.colour,
+                colour_output=False,
             ),
             root=safe_project_path(args.traversal_root),
         )

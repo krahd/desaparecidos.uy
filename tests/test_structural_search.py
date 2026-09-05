@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+import pytest
+
+from desaparecidos.structural_search import search_regions, structure_descriptor
+from desaparecidos.traversals import TraversalRenderSettings
+
+
+def pattern() -> Image.Image:
+    image = Image.new('L', (64, 64), 30)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((8, 10, 21, 50), fill=210)
+    draw.line((10, 49, 52, 39), fill=160, width=6)
+    draw.ellipse((38, 6, 57, 25), fill=245)
+    return image.convert('RGB')
+
+
+def frames_at(root: Path, *images: Image.Image) -> list[dict]:
+    frames = []
+    for index, image in enumerate(images):
+        path = root / f'frame-{index}.png'
+        image.save(path)
+        frames.append({'id': f'frame-{index}', 'local_path': str(path)})
+    return frames
+
+
+def settings(**kwargs) -> TraversalRenderSettings:
+    return replace(TraversalRenderSettings(fragment_size=32, max_region_size=64,
+                   output_width=64, min_structure=0.02, structure_threshold=0.8), **kwargs)
+
+
+def test_descriptor_rejects_same_tone_different_structure_and_ignores_brightness() -> None:
+    original = pattern()
+    a, strength = structure_descriptor(original)
+    b, _ = structure_descriptor(original.transpose(Image.Transpose.ROTATE_90))
+    c, _ = structure_descriptor(original.point(lambda value: value * 0.6 + 30))
+    flat, flat_strength = structure_descriptor(Image.new('RGB', (64, 64), (130, 130, 130)))
+    assert strength > 0.02
+    assert float(a @ b) < 0.8
+    assert float(a @ c) > 0.99
+    assert flat_strength == 0 and np.linalg.norm(flat) == 0
+
+
+def test_current_frame_only_single_region_skips_and_largest_first(tmp_path: Path) -> None:
+    target = pattern()
+    frames = frames_at(tmp_path, Image.new('RGB', target.size, 120), target)
+    result, encounters, decisions, coverage = search_regions(target, frames, settings())
+    assert encounters == [1]
+    assert [d['action'] for d in decisions] == ['skip', 'place']
+    assert len(result.placements) == 1
+    assert result.placements[0].image.size == (64, 64)
+    assert result.source_usage == {'frame-1': 1}
+    assert coverage == 1
+
+
+def test_later_better_candidate_refines_but_equal_or_worse_does_not(tmp_path: Path) -> None:
+    target = pattern()
+    approximate = target.filter(ImageFilter.GaussianBlur(2))
+    frames = frames_at(tmp_path, approximate, target, approximate, target)
+    result, encounters, decisions, _ = search_regions(target, frames, settings(refinement_margin=0.005))
+    assert encounters == [0, 1]
+    assert [d['action'] for d in decisions] == ['place', 'refine', 'skip', 'skip']
+    assert decisions[1]['score'] > decisions[0]['score']
+    assert np.array_equal(np.asarray(result.image), np.asarray(target))
+    frozen, after, _, _ = search_regions(target, frames, settings(reconstruction_mode='largest-first'))
+    assert after == [0] and len(frozen.placements) == 1
+
+
+def test_fixed_regions_variable_regions_and_partial_results(tmp_path: Path) -> None:
+    target = pattern()
+    frames = frames_at(tmp_path, target)
+    fixed, _, _, coverage = search_regions(target, frames, settings(reconstruction_mode='fixed'))
+    assert len(fixed.placements) == 1 and fixed.placements[0].image.size == (32, 32)
+    assert coverage == 0.25
+    blank, encounters, decisions, coverage = search_regions(target, frames_at(tmp_path, Image.new('RGB', (64, 64), 0)), settings())
+    assert not blank.placements and not encounters and coverage == 0
+    assert decisions[0]['action'] == 'skip' and blank.image.getbbox() is None
+
+
+def test_smaller_later_region_refines_only_part_of_a_large_match(tmp_path: Path) -> None:
+    target = pattern()
+    approximate = target.filter(ImageFilter.GaussianBlur(2))
+    source = Image.new('RGB', target.size, 0)
+    source.paste(target.crop((0, 0, 32, 32)), (0, 0))
+    result, encounters, decisions, _ = search_regions(target, frames_at(tmp_path, approximate, source), settings(refinement_margin=0.005))
+    assert encounters == [0, 1]
+    assert result.placements[0].image.size == (64, 64)
+    assert result.placements[1].image.size != (64, 64)
+    assert decisions[1]['action'] == 'refine'
+
+
+def test_source_cannot_contribute_again_and_source_rect_stays_in_bounds(tmp_path: Path) -> None:
+    frames = frames_at(tmp_path, pattern().resize((32, 32)))
+    result, _, decisions, _ = search_regions(pattern(), frames * 2, settings())
+    assert len(result.placements) <= 1
+    if result.placements:
+        p = result.placements[0]
+        assert p.source_x + p.source_width <= 32
+        assert p.source_y + p.source_height <= 32
+        assert decisions[-1]['reason'] == 'source-already-contributed'
+
+
+def test_invalid_size_range_fails(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match='minimum'):
+        search_regions(pattern(), frames_at(tmp_path, pattern()), settings(fragment_size=96))

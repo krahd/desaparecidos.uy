@@ -14,7 +14,8 @@ This is a completion goal, not a list of optional ideas. Items may be revised wh
 - [x] Preserve the existing grid renderer as one visual strategy.
 - [x] Add irregular non-overlapping placement.
 - [x] Add overlapping and layered placement with opacity and z-order.
-- [ ] Support variable fragment sizes and masks.
+- [x] Support variable rectangular regions for traversal search.
+- [ ] Support arbitrary fragment masks and variable regions across the remaining grammars.
 - [ ] Support fragment scale, rotation, entrance time, exit time, and motion path.
 - [x] Persist complete placement histories for every generated output.
 - [x] Version the output-sidecar schema.
@@ -53,7 +54,8 @@ This is a completion goal, not a list of optional ideas. Items may be revised wh
 - [x] Preserve the strict rule that no fragment may be used before it is encountered.
 - [x] Persist the temporal availability history of every fragment used.
 - [x] Make the relation between route, search, found material, and portrait assembly perceptible.
-- [ ] Support partial and incomplete searches without forcing a completed portrait.
+- [x] Support partial and incomplete searches without forcing a completed portrait.
+- [x] Limit each traversal frame to one structural contribution, with optional later refinement.
 - [ ] Support multiple traversal sources, including open street-level imagery, self-captured footage, commissioned footage, and future live input.
 - [x] Make route changes produce traceably different source histories and outputs.
 - [x] Support the face becoming recognisable and then dissolving or returning to search.
@@ -68,7 +70,8 @@ This is a completion goal, not a list of optional ideas. Items may be revised wh
 - [x] Remove interface-like or explanatory elements from exhibition outputs unless they are artistically necessary.
 - [ ] Develop sound as a restrained temporal layer without sentimentality or simulated testimony.
 - [ ] Support deterministic editions and variable/live manifestations.
-- [ ] Define how names, dates, and minimal public information appear in each mode.
+- [x] Share the monochrome search → reconstruction → details → text video form, with artist timing controls.
+- [x] Define how names, dates, and minimal public information appear in each mode.
 - [x] Build web presentation around the memorial rather than around a technical dashboard.
 - [ ] Support multi-channel installation synchronisation.
 - [ ] Document display requirements, orientation, duration, codec, looping, and fallback behaviour.

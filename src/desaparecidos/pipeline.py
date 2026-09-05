@@ -18,6 +18,7 @@ from PIL import Image
 from . import pipeline_core as _core
 from .images import Fragment, crop_from_row, descriptor_for, load_rgb
 from .manifests import ManifestRow, row_file_path
+from .search_video import VideoSettings
 from .placement_history import ordered_target_positions, render_placements
 
 # Preserve the complete historical public and test-facing surface, including
@@ -31,11 +32,11 @@ MatchingMode = Literal["legacy", "spatial"]
 
 
 @dataclass(frozen=True)
-class Stage1Settings:
+class Stage1Settings(VideoSettings):
     seed: int = 17
     fragment_size: int = 24
     reuse_limit: int = 8
-    output_width: int = 720
+    output_width: int = 1920
     max_fragments_per_source: int = 240
     max_contribution_per_source: int = _core.DEFAULT_MAX_CONTRIBUTION_PER_SOURCE
     search_scan_frames_per_candidate: int = 2
@@ -46,6 +47,8 @@ class Stage1Settings:
     unique_tiles: bool = False
     matching_mode: MatchingMode = "legacy"
     colour_output: bool = False
+    duration_seconds: int = 60
+    fps: int = 24
 
 
 def _spatial_descriptor_for(image: Image.Image) -> np.ndarray:

@@ -1,3 +1,4 @@
+import { VideoControls, defaultVideoOptions, defaultStructuralOptions, type StructuralOptions } from './VideoControls';
 import { Check, Compass, Download, Map, Play, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -50,11 +51,13 @@ export function SeguimosBuscando({
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
   const [targetMode, setTargetMode] = useState<'single' | 'sequence'>('single');
   const [targetIds, setTargetIds] = useState<string[]>([]);
-  const [composition, setComposition] = useState<'overlay' | 'alternate' | 'split'>('overlay');
   const [fps, setFps] = useState(24);
   const [outputWidth, setOutputWidth] = useState(1920);
-  const [fragmentSize, setFragmentSize] = useState(24);
-  const [colourOutput, setColourOutput] = useState(false);
+  const [fragmentSize, setFragmentSize] = useState(96);
+  const [videoOptions, setVideoOptions] = useState({ ...defaultVideoOptions });
+  const [structure, setStructure] = useState({ ...defaultStructuralOptions });
+  const [composition, setComposition] = useState<'split' | 'overlay' | 'alternate'>('split');
+  const [renderSeed, setRenderSeed] = useState(17);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Mapillary discovery requires MAPILLARY_ACCESS_TOKEN in the backend environment.');
 
@@ -154,10 +157,13 @@ export function SeguimosBuscando({
         target_ids: targetIds,
         target_mode: targetMode,
         composition,
+        ...videoOptions,
+        ...structure,
         fps,
+        render_seed: renderSeed,
         fragment_size: fragmentSize,
         output_width: outputWidth,
-        colour_output: colourOutput,
+        colour_output: false,
       });
       await refresh(response.traversal.id);
       await onGenerated(response.outputs[0]?.sidecar_path);
@@ -204,14 +210,16 @@ export function SeguimosBuscando({
         target_ids: targetIds,
         target_mode: targetMode,
         composition,
+        ...videoOptions,
+        ...structure,
         duration_seconds: duration,
         fps,
-        seed: 17,
+        seed: renderSeed,
         fragment_size: fragmentSize,
         output_width: outputWidth,
         reuse_limit: 10000,
-        max_contribution_per_source: 0,
-        colour_output: colourOutput,
+        max_contribution_per_source: 1,
+        colour_output: false,
       });
       await onGenerated(response.outputs[0]?.sidecar_path);
       setMessage('Traversal video generated.');
@@ -358,15 +366,22 @@ export function SeguimosBuscando({
             )}
           </div>
           <div>
-            <label>Composition
-              <select value={composition} onChange={(event) => setComposition(event.target.value as typeof composition)}>
-                <option value="overlay">Traversal overlay</option><option value="alternate">Alternating phases</option><option value="split">Split screen</option>
-              </select>
-            </label>
+            <p className="section-note">Each frame contributes at most one structural region. Unmatched frames continue the walk; empty areas remain empty. Multiple walks in the saved traversal build the same portrait.</p>
+            <label>Reconstruction method<select value={structure.reconstruction_mode} onChange={e => setStructure({ ...structure, reconstruction_mode: e.target.value as StructuralOptions['reconstruction_mode'] })}>
+              <option value="refine">Largest regions first · refine with better matches</option>
+              <option value="largest-first">Largest regions first · preserve accepted regions</option>
+              <option value="fixed">Fixed region size · preserve accepted regions</option>
+            </select></label>
+            <label>Maximum region size (px)<input type="number" min={fragmentSize} max={2048} value={structure.max_region_size} onChange={e => setStructure({ ...structure, max_region_size: Number(e.target.value) })} /></label>
+            <label>Minimum structural similarity (0–1)<input type="number" min={0.01} max={1} step={0.01} value={structure.structure_threshold} onChange={e => setStructure({ ...structure, structure_threshold: Number(e.target.value) })} /></label>
+            <label>Minimum visible structure (0–1)<input type="number" min={0.001} max={1} step={0.005} value={structure.min_structure} onChange={e => setStructure({ ...structure, min_structure: Number(e.target.value) })} /></label>
+            <label>Required improvement for replacement<input type="number" min={0} max={1} step={0.01} disabled={structure.reconstruction_mode !== 'refine'} value={structure.refinement_margin} onChange={e => setStructure({ ...structure, refinement_margin: Number(e.target.value) })} /></label>
+            <label>Search composition<select value={composition} onChange={e => setComposition(e.target.value as typeof composition)}><option value="split">Two equal halves</option><option value="overlay">Overlay</option><option value="alternate">Alternate</option></select></label>
+            <VideoControls value={videoOptions} onChange={setVideoOptions} traversal />
+            <label>Render seed<input type="number" value={renderSeed} onChange={e => setRenderSeed(Number(e.target.value))} /></label>
             <label>Frames per second<input type="number" min={1} max={60} value={fps} onChange={(event) => setFps(Number(event.target.value))} /></label>
             <label>Output width (px)<input type="number" min={120} max={4096} step={10} value={outputWidth} onChange={(event) => setOutputWidth(Number(event.target.value))} /></label>
-            <label>Fragment size<input type="number" min={8} max={128} value={fragmentSize} onChange={(event) => setFragmentSize(Number(event.target.value))} /></label>
-            <label className="checkbox"><input type="checkbox" checked={colourOutput} onChange={(event) => setColourOutput(event.target.checked)} />Colour output</label>
+            <label>Minimum region size (px)<input type="number" min={8} max={1024} value={fragmentSize} onChange={(event) => setFragmentSize(Number(event.target.value))} /></label>
             <button className="primary" onClick={() => void generate()} disabled={busy || !active || !targetIds.length}><Play size={16} /> Generate traversal video</button>
             <button className="primary" onClick={() => void autoRun()} disabled={busy || !targetIds.length}><Compass size={16} /> Search Uruguay &amp; generate</button>
             <p className="section-note">Search Uruguay &amp; generate runs the whole walk in one step: sample places, discover, acquire, auto-approve CV-accepted frames, and render. Frames remain reviewable afterwards.</p>

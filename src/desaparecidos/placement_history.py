@@ -224,6 +224,8 @@ def build_placement_history(
     target_id: str,
     source_sequence: Sequence[str] | None = None,
     placed_after_frame: Sequence[int] | None = None,
+    empty_reason: str | None = None,
+    contribution_policy: str | None = None,
 ) -> dict[str, Any]:
     """Build a versioned, replayable account of how an output was constituted."""
     if placed_after_frame is not None and len(placed_after_frame) != len(placements):
@@ -255,8 +257,8 @@ def build_placement_history(
                 "source_rect": {
                     "x": placement.source_x,
                     "y": placement.source_y,
-                    "width": placement.image.width,
-                    "height": placement.image.height,
+                    "width": getattr(placement, "source_width", None) or placement.image.width,
+                    "height": getattr(placement, "source_height", None) or placement.image.height,
                 },
                 "matched_target_rect": {
                     "x": placement.dest_x,
@@ -274,6 +276,8 @@ def build_placement_history(
             }
         )
     return {
+        **({"empty_reason": empty_reason} if empty_reason is not None else {}),
+        **({"contribution_policy": contribution_policy} if contribution_policy is not None else {}),
         "schema": PLACEMENT_HISTORY_SCHEMA,
         "target_id": target_id,
         "canvas": {"width": canvas_size[0], "height": canvas_size[1]},

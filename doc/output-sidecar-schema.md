@@ -23,6 +23,11 @@ Every output contains:
 - `placement_history` or `placement_histories` using `desaparecidos.uy/placement-history/1.0`;
 - `temporal_causality` using `desaparecidos.uy/temporal-causality-evaluator/1.0`.
 
+All three works' videos contain `video_presentation` using `desaparecidos.uy/search-video-presentation/2.0`. It records the 16:9 canvas, grayscale palette, Spanish default labels, search layout, artist closing text, requested/actual duration, extension policy and exact frame allocation per phase and target. The common sequence is search/reconstruction, reconstructed image, person details and closing text, with fades. Existing version 1.0 sidecars describe earlier renders and remain historical records.
+
+Structural traversal outputs use `assembly_policy: "single-current-frame-structural-region"`. `region_search[target_id]` contains pixel coverage and one decision per encountered frame: `place`, `refine` or `skip`, reason, best tested similarity, and (when accepted) source/target rectangles, accepted score and placement index. `source_rect` records native source dimensions separately from resized target dimensions. Histories retain replacements in chronological order. `contribution_policy: "single-current-frame"` requires each source to contribute at its own encounter, at most once, in strictly increasing encounter order. An empty search requires `empty_reason: "no-accepted-structural-regions"`, zero declared placements and a valid source sequence; ordinary empty or malformed histories are still rejected.
+
+
 ## Target provenance
 
 Each target snapshot records:

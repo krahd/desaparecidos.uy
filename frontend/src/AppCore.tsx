@@ -1,3 +1,4 @@
+import { VideoControls, defaultVideoOptions, type VideoOptions } from './VideoControls';
 import {
   Ban,
   Check,
@@ -87,17 +88,21 @@ type GenerationSettings = {
   outputWidth: number;
   maxContribution: number;
   videoSourceLayout: VideoSourceLayout;
-  colourOutput: boolean;
+  video: VideoOptions;
+  duration: number;
+  fps: number;
 };
 
 const defaultGenerationSettings: GenerationSettings = {
   seed: 17,
   fragmentSize: 24,
   reuseLimit: 8,
-  outputWidth: 720,
+  outputWidth: 1920,
   maxContribution: 1,
   videoSourceLayout: 'grid',
-  colourOutput: false,
+  video: { ...defaultVideoOptions },
+  duration: 60,
+  fps: 24,
 };
 
 function pageFromHash(): PageId {
@@ -684,7 +689,10 @@ export function App() {
           search_scan_max_candidates: 120,
           video_source_layout: settings.videoSourceLayout,
           make_video: makeVideo,
-          colour_output: settings.colourOutput,
+          colour_output: false,
+          ...settings.video,
+          duration_seconds: settings.duration,
+          fps: settings.fps,
           target_id: selectedTargetId || undefined,
           artwork,
         });
@@ -1913,18 +1921,15 @@ export function App() {
                 event.target.value as VideoSourceLayout,
               )}
             >
-              <option value="grid">Grid</option>
-              <option value="match">Matched non-grid scatter</option>
+              <option value="grid">Approved source region</option>
+              <option value="match">Contributing fragments only</option>
             </select>
           </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={generationSettings[fragmentArtwork].colourOutput}
-              onChange={(event) => updateGenerationSetting(fragmentArtwork, 'colourOutput', event.target.checked)}
-            />
-            Colour output
-          </label>
+          <VideoControls value={generationSettings[fragmentArtwork].video} onChange={value => updateGenerationSetting(fragmentArtwork, 'video', value)} />
+          <div className="form-grid">
+            <label>Requested video duration (seconds)<input type="number" min={1} max={3600} value={generationSettings[fragmentArtwork].duration} onChange={e => updateGenerationSetting(fragmentArtwork, 'duration', Number(e.target.value))} /></label>
+            <label>Frames per second<input type="number" min={1} max={60} value={generationSettings[fragmentArtwork].fps} onChange={e => updateGenerationSetting(fragmentArtwork, 'fps', Number(e.target.value))} /></label>
+          </div>
           <div className="form-grid">
             <label>
               Seed

@@ -17,16 +17,35 @@
   "people_visual_grammar": "irregular",
   "people_max_sources": 0,
   "avoid_people_source_adjacency": true,
-  "people_segment_duration_seconds": 12,
+  "people_segment_duration_seconds": 60,
   "places_source_cap": 1,
   "places_reuse_limit": 8,
   "places_visual_grammar": "overlap",
   "places_max_sources": 0,
   "territorially_balance_places": true,
-  "places_segment_duration_seconds": 12,
-  "traversal_composition": "overlay",
+  "places_segment_duration_seconds": 60,
+  "traversal_composition": "split",
   "traversal_duration_seconds": 180,
-  "traversal_reuse_limit": 10000,
-  "traversal_source_cap": 0,
-  "traversal_visual_grammar": "overlap"
+  "traversal_reuse_limit": 1,
+  "traversal_source_cap": 1,
+  "traversal_visual_grammar": "grid",
+  "traversal_fragment_size": 96,
+  "video_options": {
+    "split_orientation": "side-by-side",
+    "contribution_seconds": 2.5,
+    "scan_seconds": 0.18,
+    "final_hold_seconds": 4,
+    "details_hold_seconds": 3,
+    "text_hold_seconds": 2,
+    "fade_seconds": 1,
+    "show_match_marks": true,
+    "closing_text": ""
+  },
+  "traversal_reconstruction": {
+    "reconstruction_mode": "refine",
+    "max_region_size": 384,
+    "structure_threshold": 0.72,
+    "min_structure": 0.035,
+    "refinement_margin": 0.04
+  }
 }

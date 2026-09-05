@@ -6,13 +6,13 @@
   --surface: #000000;
   --ink: #ffffff;
   --on-accent: #ffffff;
-  --muted: #a3a39d;
+  --muted: #a3a3a3;
   --line: #2c2c2c;
   --line-strong: #474747;
-  --accent: #b9534a;
-  --accent-dark: #8c352c;
-  --ok: #5cc08a;
-  --error: #e0685e;
+  --accent: #686868;
+  --accent-dark: #474747;
+  --ok: #a7a7a7;
+  --error: #818181;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -474,7 +474,7 @@ label {
 
 .person-row.selected {
   border-color: var(--accent);
-  background: rgba(185, 83, 74, 0.08);
+  background: rgba(104, 104, 104, 0.08);
 }
 
 .person-row strong,
@@ -582,7 +582,7 @@ label {
 
 .portrait-review-box.needs-review {
   border-color: var(--accent);
-  background: rgba(185, 83, 74, 0.08);
+  background: rgba(104, 104, 104, 0.08);
 }
 
 .portrait-review-box strong {
@@ -852,7 +852,7 @@ label {
 }
 
 .review-card.approved {
-  border-color: rgba(40, 98, 68, 0.55);
+  border-color: rgba(84, 84, 84, 0.55);
 }
 
 .review-card.rejected {
@@ -898,15 +898,15 @@ label {
 }
 
 .status-pill.approved {
-  border-color: rgba(40, 98, 68, 0.4);
+  border-color: rgba(84, 84, 84, 0.4);
   color: var(--ok);
-  background: rgba(40, 98, 68, 0.08);
+  background: rgba(84, 84, 84, 0.08);
 }
 
 .status-pill.rejected {
-  border-color: rgba(155, 47, 40, 0.4);
+  border-color: rgba(69, 69, 69, 0.4);
   color: var(--error);
-  background: rgba(155, 47, 40, 0.08);
+  background: rgba(69, 69, 69, 0.08);
 }
 
 .review-actions {
@@ -1118,9 +1118,9 @@ label {
 button.danger,
 .text-button.danger,
 .icon-button.danger {
-  border-color: rgba(155, 47, 40, 0.55);
+  border-color: rgba(69, 69, 69, 0.55);
   color: var(--error);
-  background: rgba(155, 47, 40, 0.06);
+  background: rgba(69, 69, 69, 0.06);
 }
 
 .status-box p {
@@ -1298,7 +1298,7 @@ button.danger,
 
 .target-picker button.selected {
   border-color: var(--accent);
-  background: rgba(185, 83, 74, 0.12);
+  background: rgba(104, 104, 104, 0.12);
 }
 
 .ordered-target {
@@ -1537,3 +1537,6 @@ button.danger,
     flex-direction: column;
   }
 }
+
+img, video, .traversal-map { filter: grayscale(1); }
+.video-controls { margin-block: 1rem; }

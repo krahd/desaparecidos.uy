@@ -154,8 +154,11 @@ def temporal_causality_metrics(history: dict[str, Any]) -> dict[str, Any]:
     if history.get("schema") != PLACEMENT_HISTORY_SCHEMA:
         raise ValueError("unsupported or missing placement history schema")
     placements = _placements(history)
-    if not placements:
+    structural = history.get("contribution_policy") == "single-current-frame"
+    if not placements and not (structural and history.get("empty_reason") == "no-accepted-structural-regions"):
         raise ValueError("placement history contains no placements")
+    if placements and history.get("empty_reason") is not None:
+        raise ValueError("non-empty placement history cannot declare an empty reason")
     declared_count = history.get("placement_count")
     if isinstance(declared_count, bool) or not isinstance(declared_count, int):
         raise ValueError("placement history has no valid placement_count")
@@ -205,6 +208,13 @@ def temporal_causality_metrics(history: dict[str, Any]) -> dict[str, Any]:
             reasons.append("source-not-in-sequence")
         elif encounter < known:
             reasons.append("source-used-before-encounter")
+        if structural:
+            if known != encounter:
+                reasons.append("source-is-not-current-frame")
+            if encounter in encounter_indexes[:-1]:
+                reasons.append("multiple-contributions-from-frame")
+            if len(encounter_indexes) > 1 and encounter <= encounter_indexes[-2]:
+                reasons.append("encounters-not-increasing")
         if reasons:
             violations[placement_id] = sorted(set(reasons))
     return {

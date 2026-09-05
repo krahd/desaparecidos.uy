@@ -76,6 +76,8 @@ def create_app():
             search_scan_max_candidates=request.search_scan_max_candidates,
             video_source_layout=request.video_source_layout,
             make_video=request.make_video,
+            duration_seconds=request.duration_seconds, fps=request.fps,
+            **_core.video_options(request),
             composition_mode=request.composition_mode,
             unique_tiles=unique_tiles,
             matching_mode=request.matching_mode,

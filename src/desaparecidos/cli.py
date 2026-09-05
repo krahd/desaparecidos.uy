@@ -10,6 +10,7 @@ from .api import DEFAULT_MAX_CONTRIBUTION_PER_SOURCE, create_app
 from .download import download_manifest
 from .manifests import validate_manifest
 from .outputs import list_outputs
+from .render_options import add_render_options, render_options
 from .pipeline import Stage1Settings, run_stage1
 from .traversals import TraversalRenderSettings, render_traversal
 
@@ -44,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--seed", type=int, default=17)
     run.add_argument("--fragment-size", type=int, default=24)
     run.add_argument("--reuse-limit", type=int, default=8)
-    run.add_argument("--output-width", type=int, default=720)
+    run.add_argument("--output-width", type=int, default=1920)
     run.add_argument(
         "--max-contribution-per-source",
         type=int,
@@ -69,7 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="estan-en-todas-partes",
     )
     run.add_argument("--video", action="store_true")
-    run.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
+    run.add_argument("--duration", type=int, default=60)
+    run.add_argument("--fps", type=int, default=24)
+    add_render_options(run)
+    run.add_argument("--colour", action="store_true", help="unsupported: all memorials are grayscale")
 
     traversal = subparsers.add_parser("run-traversal", help="Render an approved Seguimos buscando traversal.")
     traversal.add_argument("--traversal", required=True)
@@ -77,14 +81,15 @@ def build_parser() -> argparse.ArgumentParser:
     traversal.add_argument("--targets", default="data/manifests/targets.csv")
     traversal.add_argument("--target-id", action="append", required=True)
     traversal.add_argument("--target-mode", choices=["single", "sequence"], default="single")
-    traversal.add_argument("--composition", choices=["overlay", "alternate", "split"], default="overlay")
+    traversal.add_argument("--composition", choices=["overlay", "alternate", "split"], default="split")
     traversal.add_argument("--duration", type=int, default=60)
     traversal.add_argument("--fps", type=int, default=24)
     traversal.add_argument("--seed", type=int, default=17)
-    traversal.add_argument("--fragment-size", type=int, default=24)
+    traversal.add_argument("--fragment-size", type=int, default=96)
+    add_render_options(traversal, structural=True)
     traversal.add_argument("--output-width", type=int, default=1920)
     traversal.add_argument("--output", default="outputs/stage1")
-    traversal.add_argument("--colour", action="store_true", help="render colour output instead of grayscale")
+    traversal.add_argument("--colour", action="store_true", help="unsupported: all memorials are grayscale")
 
     outputs = subparsers.add_parser("outputs", help="List generated outputs.")
     outputs.add_argument("--output", default="outputs/stage1")
@@ -119,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-stage1":
         settings = Stage1Settings(
+            **render_options(args),
+            duration_seconds=args.duration, fps=args.fps,
             seed=args.seed,
             fragment_size=args.fragment_size,
             reuse_limit=args.reuse_limit,
@@ -152,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             args.output,
             args.target_id,
             TraversalRenderSettings(
+                **render_options(args, structural=True),
                 composition=args.composition,
                 target_mode=args.target_mode,
                 duration_seconds=max(1, args.duration),

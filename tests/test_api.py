@@ -654,3 +654,38 @@ def test_file_endpoint_serves_mp4_media_type(monkeypatch: pytest.MonkeyPatch, tm
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("video/mp4")
+
+
+def test_artist_video_options_reach_all_render_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = []
+    def render(*args, **kwargs):
+        captured.append(args[3])
+        return []
+    def traversal(*args, **kwargs):
+        captured.append(args[4])
+        return []
+    def autonomous(**kwargs):
+        captured.append(kwargs['settings'])
+        return {}, []
+    monkeypatch.setattr(api_module, 'run_stage1', render)
+    monkeypatch.setattr(api_module, 'render_traversal', traversal)
+    monkeypatch.setattr(api_module, 'run_autonomous_uruguay', autonomous)
+    client = TestClient(create_app())
+    common = {'contribution_seconds': 4, 'final_hold_seconds': 6, 'details_hold_seconds': 7,
+              'text_hold_seconds': 5, 'fade_seconds': 2, 'closing_text': 'Seguimos',
+              'show_match_marks': False, 'split_orientation': 'side-by-side', 'fps': 30, 'duration_seconds': 90}
+    for artwork in ('todos-somos-familiares', 'estan-en-todas-partes'):
+        response = client.post('/api/generate', json={**common, 'artwork':artwork})
+        assert response.status_code == 200
+    structure = {'target_ids':['person'], 'reconstruction_mode':'largest-first', 'max_region_size':768,
+                 'fragment_size':96, 'structure_threshold':0.9, 'min_structure':0.05, 'refinement_margin':0.1}
+    assert client.post('/api/generate/traversal',json={**common, **structure, 'traversal_id':'route'}).status_code == 200
+    assert client.post('/api/traversals/auto',json={**common, **structure}).status_code == 200
+    for settings in captured:
+        for name, expected in common.items():
+            assert getattr(settings,name) == expected
+        assert settings.output_width == 1920 and settings.colour_output is False
+    assert [s.reconstruction_mode for s in captured[2:]] == ['largest-first','largest-first']
+    assert [s.max_region_size for s in captured[2:]] == [768,768]
+    assert client.post('/api/generate/traversal',json={**structure, 'traversal_id':'route', 'structure_threshold':1.2}).status_code == 422
+    assert client.post('/api/generate',json={'contribution_seconds':0}).status_code == 422

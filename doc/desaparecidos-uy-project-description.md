@@ -47,7 +47,7 @@ The project therefore treats Uruguay itself as the image field of the work. The 
 
 The title is deliberately direct. It does not mean that all Uruguayans have the same relationship to disappearance, nor does it flatten the specific historical, familial, and political labour of relatives’ organizations. Rather, it states an ethical and political demand: the disappeared cannot remain the responsibility of their biological families alone. Disappearance reorganizes the entire social body. It creates a debt that is collective, even when the pain is not equally distributed.
 
-In this work, contemporary faces become visual material from which the disappeared are partially reassembled. The system does not identify the living persons whose images contribute fragments. It does not classify them, name them, infer attributes from them, or represent them as individuals. Their images enter the work only as dispersed visual matter: colour, tone, texture, shadow, contour, surface, and partial form.
+In this work, contemporary faces become visual material from which the disappeared are partially reassembled. The system does not identify the living persons whose images contribute fragments. It does not classify them, name them, infer attributes from them, or represent them as individuals. Their images enter the work only as dispersed visual matter: tone, texture, shadow, contour, surface, and partial form.
 
 The work should therefore be understood less as a portrait mosaic than as a political condensation of visual responsibility. The disappeared person’s face emerges from the living social field. The face is not rebuilt from a family album, nor only from state or human-rights archives, but from the public visual surface of the country that inherited the unresolved consequences of disappearance.
 
@@ -135,7 +135,7 @@ For **Seguimos buscando**, source acquisition should favour self-captured footag
 
 ### 5.3. Fragment extraction
 
-The source image field is decomposed into fragments. These fragments may be rectangular patches, irregular patches, texture samples, colour fields, edge fields, or other visual units.
+The source image field is decomposed into fragments. These fragments may be rectangular patches, irregular patches, texture samples, tonal fields, edge fields, or other visual units.
 
 The current Stage 1 implementation is intentionally simple: it extracts non-overlapping square fragments, 24 pixels by default, with a default ceiling of 240 fragments per source image. This coarse tile structure is not merely an early technical compromise. It helps keep the reconstruction visibly assembled and prevents the system from drifting toward a seamless simulation of restoration.
 
@@ -158,7 +158,7 @@ These constraints are not merely compliance measures. They support the work’s 
 
 The running Stage 1 matcher compares regions of the target portrait with fragments from the source field using a hand-designed six-dimensional descriptor: mean red, green, and blue values; luminance contrast; horizontal edge energy; and vertical edge energy. It then performs deterministic L2 nearest-neighbour selection over the available fragments, masking fragments that have reached their per-fragment reuse limit and sources that have reached the active per-source contribution cap. It does not currently use perceptual similarity models, learned embeddings, face embeddings, semantic segmentation, or diffusion-based image synthesis for matching.
 
-Learned embeddings or more sophisticated perceptual metrics may be explored later as explicitly labelled extensions, but they should not be described as part of the current system. The present implementation is deliberately impoverished. Its modest descriptor cannot infer semantic correspondences, smooth identity, or produce photorealistic restoration. It matches low-level colour, contrast, and edge structure only.
+Learned embeddings or more sophisticated perceptual metrics may be explored later as explicitly labelled extensions, but they should not be described as part of the current system. The present implementation is deliberately impoverished. Its modest descriptor cannot infer semantic correspondences, smooth identity, or produce photorealistic restoration. The first two works retain low-level contrast and edge descriptors (and a legacy colour descriptor for comparison); traversal matching now uses normalised grayscale organisation and signed directional edges. These metrics do not establish semantic correspondence.
 
 The running generation path now uses an active default source cap. Earlier configuration allowed `max_contribution_per_source = 0`, meaning unlimited source-level contribution; this conflicted with the ethical claim that no single source should dominate the image. The current GUI/API/CLI generation path normalises zero or unset legacy values to a default cap of 240 output tiles per source image, while `reuse_limit` continues to limit how often each extracted fragment can recur. Infeasible caps fail before generation.
 
@@ -180,7 +180,7 @@ A typical sequence might proceed as follows:
 6. the person’s name and minimal public data appear;
 7. the image destabilizes, dissolves, or returns to the visual field;
 
-The current process-video renderer exposes two source-fragment layouts. `grid` preserves the earlier regular staging field; `match` derives a deterministic non-grid scatter only from each fragment's matched target section before transfer. Place-source reveal is limited to manually approved images. For contemporary people, the renderer must reveal only the reviewed detected face region used for extraction, never the surrounding photograph, and the output remains internal until privacy and legal review.
+The video form shared by all three works is monochrome, 1920×1080 landscape: searching on the left, reconstruction on the right, followed by the reconstructed image, person details and text. The artist controls contribution duration, closing phases, reconstruction method and source display. In **Seguimos buscando**, each encountered frame contributes at most one structurally correlated region; unsuccessful encounters continue without contribution. Larger regions are preferred, later better matches may refine them, and several walks accumulate into one still-incomplete image. Matching never obliges the portrait to become complete. Place-source reveal remains limited to approved imagery. Contemporary people reveal remains restricted to reviewed face regions, or contributing fragments only, with output internal until its review is complete.
 8. the next reconstruction begins.
 
 This temporal structure prevents the face from becoming a resolved object. The work should not end in restoration, but in continued search.

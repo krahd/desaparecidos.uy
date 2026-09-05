@@ -106,7 +106,7 @@ def test_stage1_generation_is_deterministic(tmp_path: Path) -> None:
     assert sidecar["temporal_causality"]["valid"] is True
 
 
-def test_stage1_outputs_grayscale_by_default_and_colour_on_request(tmp_path: Path) -> None:
+def test_stage1_outputs_grayscale_and_rejects_colour(tmp_path: Path) -> None:
     targets, places = write_manifests(tmp_path)
     base = dict(
         seed=17,
@@ -119,15 +119,12 @@ def test_stage1_outputs_grayscale_by_default_and_colour_on_request(tmp_path: Pat
     grayscale = run_stage1(
         targets, places, tmp_path / "gray", Stage1Settings(**base)
     )[0]
-    colour = run_stage1(
-        targets, places, tmp_path / "colour", Stage1Settings(**base, colour_output=True)
-    )[0]
+    with pytest.raises(ValueError, match="grayscale"):
+        run_stage1(targets, places, tmp_path / "colour", Stage1Settings(**base, colour_output=True))
 
     gray_channels = Image.open(grayscale.still_path).convert("RGB").split()
-    colour_channels = Image.open(colour.still_path).convert("RGB").split()
     assert ImageChops.difference(gray_channels[0], gray_channels[1]).getbbox() is None
     assert ImageChops.difference(gray_channels[1], gray_channels[2]).getbbox() is None
-    assert ImageChops.difference(colour_channels[0], colour_channels[1]).getbbox() is not None
     sidecar = json.loads(Path(grayscale.sidecar_path).read_text(encoding="utf-8"))
     assert sidecar["settings"]["colour_output"] is False
 

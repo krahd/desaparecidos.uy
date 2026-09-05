@@ -197,3 +197,31 @@ def test_closing_fades_pass_through_black_and_finish_with_website() -> None:
     assert phases['website_fade_in'][0].getbbox() is None
     assert phases['website_hold'][0] == _title_card((320, 180), 'https://desaparecidos.uy')
     assert frames[-1].getbbox() is None
+
+
+def test_completion_playback_compresses_skips_and_spaces_all_rare_matches() -> None:
+    from types import SimpleNamespace
+    from desaparecidos.traversals import TraversalRenderSettings
+    from desaparecidos.search_video import video_schedule, placement_timing
+    walk = SimpleNamespace(placed_after_frame=[0, 1, 999], segment_frame_ids=[str(i) for i in range(1000)])
+    options = TraversalRenderSettings(search_budget_seconds=60)
+    timeline, holds = video_schedule(walk, 1, 24, options)
+    events = placement_timing(walk, holds, 24, options)
+    assert len(holds) == 1000 and min(holds) >= 1
+    assert len(events) == 3
+    assert events[1]['launch_frame'] - events[0]['launch_frame'] >= round(6 * 0.33 * 24)
+    assert timeline.search < 90 * 24
+    assert timeline.search > events[-1]['land_frame']
+
+
+def test_soft_budget_includes_spacing_for_many_contributions() -> None:
+    from types import SimpleNamespace
+    from desaparecidos.traversals import TraversalRenderSettings
+    from desaparecidos.search_video import video_schedule, placement_timing
+    walk = SimpleNamespace(placed_after_frame=list(range(0, 710, 5)), segment_frame_ids=[str(i) for i in range(909)])
+    options = TraversalRenderSettings(search_budget_seconds=300)
+    timeline, holds = video_schedule(walk, 1, 24, options)
+    events = placement_timing(walk, holds, 24, options)
+    assert timeline.search <= 300 * 24
+    assert min(holds) >= 1 and len(holds) == 909
+    assert all(b['launch_frame'] - a['launch_frame'] >= 48 for a,b in zip(events, events[1:]))

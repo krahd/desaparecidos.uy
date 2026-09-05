@@ -495,6 +495,9 @@ def render_search_artwork(
         assemble_walk(target, target_manifest, segment, legacy_settings)
         for target, segment in zip(selected, segments)
     ]
+    from .traversals import complete_traversal_search
+    segments, walks = complete_traversal_search(traversal, selected, segments, walks, settings, target_manifest, root)
+    frames = [frame for segment in segments for frame in segment]
     histories = {
         target.id: build_placement_history(
             walk.result.placements,
@@ -546,6 +549,7 @@ def render_search_artwork(
         "source_kind": "street-level-traversal",
         "traversal_id": traversal_id,
         "provider": traversal.get("provider"),
+        "continuation_routes": traversal.get("continuation_routes", []),
         "attribution": traversal.get("attribution"),
         "release_status": "internal_unreviewed",
         "route_geometry": traversal.get("geometry"),

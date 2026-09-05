@@ -18,6 +18,9 @@ export const defaultVideoOptions: VideoOptions = {
 };
 
 export type StructuralOptions = {
+  require_complete: boolean;
+  max_search_batches: number;
+  search_budget_seconds: number;
   contribution_interval: number;
   search_similarity: number;
   structure_scale: 'broad' | 'fine';
@@ -29,6 +32,7 @@ export type StructuralOptions = {
   refinement_margin: number;
 };
 export const defaultStructuralOptions: StructuralOptions = {
+  require_complete: true, max_search_batches: 8, search_budget_seconds: 300,
   contribution_interval: 6, search_similarity: 0.95,
   structure_scale: 'broad', tone_mode: 'source',
   reconstruction_mode: 'refine', max_region_size: 384,

@@ -370,9 +370,9 @@ export function SeguimosBuscando({
             <button className="text-button" onClick={() => {
               setFragmentSize(192);
               setVideoOptions({ ...videoOptions, scan_seconds: 0.33, final_hold_seconds: 8 });
-              setStructure({ reconstruction_mode: 'refine', max_region_size: 768, structure_scale: 'broad',
-                contribution_interval: 6, search_similarity: 0.95, structure_threshold: 0.82, min_structure: 0.008, refinement_margin: 0.02, tone_mode: 'match-region' });
-            }}>Use longer, stricter portrait search</button>
+              setStructure({ ...defaultStructuralOptions, reconstruction_mode: 'refine', max_region_size: 768, structure_scale: 'broad',
+                contribution_interval: 6, search_similarity: 0.95, structure_threshold: 0.72, min_structure: 0.008, refinement_margin: 0.02, tone_mode: 'match-region' });
+            }}>Use complete portrait settings</button>
             <label>Reconstruction method<select value={structure.reconstruction_mode} onChange={e => setStructure({ ...structure, reconstruction_mode: e.target.value as StructuralOptions['reconstruction_mode'] })}>
               <option value="refine">Largest regions first · refine with better matches</option>
               <option value="largest-first">Largest regions first · preserve accepted regions</option>
@@ -385,9 +385,11 @@ export function SeguimosBuscando({
               <option value="source">Keep source exposure</option><option value="match-region">Match portrait region brightness and contrast</option>
             </select></label>
             <label>Maximum region size (px)<input type="number" min={fragmentSize} max={2048} value={structure.max_region_size} onChange={e => setStructure({ ...structure, max_region_size: Number(e.target.value) })} /></label>
-            <label>Minimum encounters between contributions<input type="number" min={1} max={10000} value={structure.contribution_interval} onChange={e => setStructure({ ...structure, contribution_interval: Number(e.target.value) })} /></label>
-            <label>Reconstruction similarity goal (0 disables early stopping)<input type="number" min={0} max={1} step={0.01} value={structure.search_similarity} onChange={e => setStructure({ ...structure, search_similarity: Number(e.target.value) })} /></label>
-            <p>Search continues until full coverage and the similarity goal, or until approved frames run out. Contributions remain at least the selected number of encounters apart; region sizes stay fixed by your size settings.</p>
+            <label>Playback spacing between contributions (encounters)<input type="number" min={1} max={10000} value={structure.contribution_interval} onChange={e => setStructure({ ...structure, contribution_interval: Number(e.target.value) })} /></label>
+            <label>Refinement similarity goal (within playback budget)<input type="number" min={0} max={1} step={0.01} value={structure.search_similarity} onChange={e => setStructure({ ...structure, search_similarity: Number(e.target.value) })} /></label>
+            <label>Search playback target (seconds)<input type="number" min={1} max={3600} value={structure.search_budget_seconds} onChange={e => setStructure({ ...structure, search_budget_seconds: Number(e.target.value) })} /></label>
+            <label><input type="checkbox" checked={structure.require_complete} onChange={e => setStructure({ ...structure, require_complete: e.target.checked })} />Finish the entire reconstruction</label>
+            <p>Completion takes priority over duration. Single-target Uruguay searches add walks when needed; other routes pause for more approved material. Unmatched encounters play faster when needed. Region sizes and match acceptance stay unchanged. If acquisition cannot continue, progress is saved and no incomplete final video is produced.</p>
             <label>Minimum structural similarity (0–1)<input type="number" min={0.01} max={1} step={0.01} value={structure.structure_threshold} onChange={e => setStructure({ ...structure, structure_threshold: Number(e.target.value) })} /></label>
             <label>Minimum visible structure (0–1)<input type="number" min={0.001} max={1} step={0.005} value={structure.min_structure} onChange={e => setStructure({ ...structure, min_structure: Number(e.target.value) })} /></label>
             <label>Required improvement for replacement<input type="number" min={0} max={1} step={0.01} disabled={structure.reconstruction_mode !== 'refine'} value={structure.refinement_margin} onChange={e => setStructure({ ...structure, refinement_margin: Number(e.target.value) })} /></label>

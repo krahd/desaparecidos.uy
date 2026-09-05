@@ -780,6 +780,87 @@ def _traversal_video_frames(
     )
 
 
+def complete_traversal_search(
+    traversal: dict[str, Any], selected: list[ManifestRow], segments: list[list[dict[str, Any]]],
+    walks: list[WalkAssembly], settings: Any, target_manifest: str | Path,
+    root: str | Path, *, provider: TraversalProvider | None = None,
+) -> tuple[list[list[dict[str, Any]]], list[WalkAssembly]]:
+    """Extend a saved walk in bounded acquisition batches; never finalise holes.
+
+    A batch/network limit pauses the job with its material and progress on disk.
+    Running it again searches the saved material before acquiring another batch.
+    """
+    if not settings.require_complete:
+        return segments, walks
+
+    def checkpoint(reason: str) -> None:
+        traversal['completion_search'] = {
+            'status': reason,
+            'settings': asdict(settings),
+            'target_manifest': display_path(Path(target_manifest)),
+            'targets': {target.id: walk.search_summary for target, walk in zip(selected, walks)},
+            'updated_at': _now(),
+        }
+        save_traversal(traversal, root)
+
+    for batch in range(settings.max_search_batches + 1):
+        if all(walk.coverage == 1.0 for walk in walks):
+            checkpoint('complete')
+            return segments, walks
+        checkpoint('awaiting-more-material')
+        if batch == settings.max_search_batches:
+            break
+        if len(selected) != 1 or traversal.get('scope') != 'uruguay':
+            break
+        try:
+            acquired = discover_traversal(
+                name=f"{traversal['name']} · continuation", mode='autonomous', scope='uruguay',
+                duration_seconds=300, max_frames=MAX_ACQUIRE_FRAMES, regions=MAX_REGIONS,
+                rural_probability=0.25 if traversal.get('rural_probability') is None else traversal['rural_probability'],
+                seed=settings.seed + len(traversal.get('continuation_routes', [])) + 1,
+                root=root, provider=provider,
+            )
+            acquired = acquire_traversal(acquired['id'], root=root, provider=provider,
+                                         max_frames=MAX_ACQUIRE_FRAMES, auto_approve=True)
+        except (requests.RequestException, ValueError, OSError) as exc:
+            checkpoint('acquisition-paused')
+            raise ValueError('Reconstruction incomplete; acquisition paused. Progress is saved. '
+                             f"Resume traversal {traversal['id']} when acquisition is available; no final video was produced.") from exc
+        traversal.setdefault('continuation_routes', []).append(acquired['id'])
+        # Earlier manual decisions and duplicate identities win across batches.
+        known_ids = {f.get('provider_id') for f in traversal['frames'] if f.get('provider_id')}
+        known_hashes = {f.get('sha256') for f in traversal['frames'] if f.get('sha256')}
+        fresh = []
+        region_offset = max((int(f.get('region_index') or 0) for f in traversal['frames']), default=-1) + 1
+        for frame in acquired['frames']:
+            if frame.get('provider_id') in known_ids or frame.get('sha256') in known_hashes:
+                continue
+            if frame.get('provider_id'):
+                known_ids.add(frame['provider_id'])
+            if frame.get('sha256'):
+                known_hashes.add(frame['sha256'])
+            frame = dict(frame, id=f"{acquired['id']}:{frame['id']}", origin_traversal_id=acquired['id'])
+            frame['ordinal'] = len(traversal['frames'])
+            frame['region_index'] = region_offset + int(frame.get('region_index') or 0)
+            traversal['frames'].append(frame)
+            if frame.get('review_status') == 'approved' and frame.get('local_path'):
+                fresh.append(frame)
+        if fresh:
+            fresh[0]['sequence_jump'] = True
+        located = [f for f in traversal['frames'] if f.get('latitude') is not None and f.get('longitude') is not None]
+        if len(located) >= 2:
+            traversal['geometry'] = _walk_line_geometry(located)
+        traversal['walks'] = _walk_summary(traversal['frames'])
+        save_traversal(traversal, root)
+        segments[0].extend(fresh)
+        if fresh:
+            walks[0] = assemble_walk(selected[0], target_manifest, segments[0], settings)
+    checkpoint('search-paused')
+    coverage = min(walk.coverage for walk in walks)
+    raise ValueError(f'Reconstruction incomplete ({coverage:.1%} coverage). Progress and acquired walks are saved; '
+                     f"resume traversal {traversal['id']} with more approved material. No final video was produced.")
+
+
 def render_traversal(
     traversal_id: str,
     target_manifest: str | Path,
@@ -810,6 +891,8 @@ def render_traversal(
         assemble_walk(target, target_manifest, segment, settings)
         for target, segment in zip(selected, segments)
     ]
+    segments, walks = complete_traversal_search(traversal, selected, segments, walks, settings, target_manifest, root)
+    frames = [frame for segment in segments for frame in segment]
     histories = {
         target.id: build_placement_history(
             walk.result.placements,
@@ -853,6 +936,7 @@ def render_traversal(
         "source_kind": "street-level-traversal",
         "traversal_id": traversal_id,
         "provider": traversal.get("provider"),
+        "continuation_routes": traversal.get("continuation_routes", []),
         "attribution": traversal.get("attribution"),
         "release_status": "internal_unreviewed",
         "route_geometry": traversal.get("geometry"),

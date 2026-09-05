@@ -1,6 +1,8 @@
 """Causal, abstaining region search. No source identity or colour descriptors."""
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -23,8 +25,13 @@ class StructuralSettings:
     tone_mode: str = "source"
     contribution_interval: int = 6
     search_similarity: float = 0.95
+    require_complete: bool = True
+    max_search_batches: int = 8
+    search_budget_seconds: int = 300
 
     def __post_init__(self) -> None:
+        if not 0 <= self.max_search_batches <= 32 or self.search_budget_seconds < 1:
+            raise ValueError("search batches must be in [0, 32] and playback budget positive")
         if self.contribution_interval < 1:
             raise ValueError("contribution interval must be at least one encounter")
         if not 0 <= self.search_similarity <= 1:
@@ -77,6 +84,31 @@ def match_region_tone(patch: Image.Image, target: Image.Image) -> tuple[Image.Im
     return adjusted, {"gain": gain, "offset": offset, "clipped_fraction": float(((pixels < 0) | (pixels > 255)).mean())}
 
 
+def _dense_source_candidates(source: Image.Image, sw: int, sh: int, samples: int):
+    """Bounded dense descriptor bank, followed by native verification on use."""
+    aw, ah = round(source.width * samples / sw), round(source.height * samples / sh)
+    if min(aw, ah) < samples or max(aw, ah) > 128:
+        return None
+    levels = np.asarray(source.convert('L').resize((aw, ah), Image.Resampling.BILINEAR), dtype=np.float32) / 255
+    windows = np.lib.stride_tricks.sliding_window_view(levels, (samples, samples)).reshape(-1, samples, samples)
+    gx, gy = np.diff(windows, axis=2), np.diff(windows, axis=1)
+    strengths = np.minimum(windows.std(axis=(1, 2)), np.sqrt((gx * gx).mean(axis=(1, 2)) + (gy * gy).mean(axis=(1, 2))))
+    parts = [windows - windows.mean(axis=(1, 2), keepdims=True), gx, gy]
+    vectors = []
+    for i, part in enumerate(parts):
+        flat = part.reshape(len(windows), -1)
+        vectors.append(flat / np.maximum(np.linalg.norm(flat, axis=1, keepdims=True), 1e-8) * (0.5 if i == 0 else 1))
+    vectors = np.concatenate(vectors, axis=1)
+    vectors /= np.maximum(np.linalg.norm(vectors, axis=1, keepdims=True), 1e-8)
+    rects = []
+    for y in range(ah - samples + 1):
+        for x in range(aw - samples + 1):
+            sx, sy = round(x * source.width / aw), round(y * source.height / ah)
+            ex, ey = round((x + samples) * source.width / aw), round((y + samples) * source.height / ah)
+            rects.append((sx, sy, ex - sx, ey - sy))
+    return rects, vectors, strengths
+
+
 def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: Any):
     """Return a replayable event per accepted frame, including replacement events.
 
@@ -115,41 +147,60 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
     output = Image.new("RGB", target.size, 0)
     placements, encounters, decisions = [], [], []
     used_sources: set[str] = set()
-    next_contribution = settings.contribution_interval - 1
     target_descriptor, _ = describe(target)
+    coverage = 0.0
+    refinement_budget = max(1, round(settings.search_budget_seconds / settings.scan_seconds))
     for frame_index, frame in enumerate(frames):
+        if settings.require_complete and coverage == 1.0 and frame_index >= refinement_budget:
+            decisions[-1]['stop_reason'] = 'reconstruction-complete'
+            break
+        if frame_index % 100 == 0:
+            logging.getLogger(__name__).info("Search %s/%s encounters; %.1f%% covered", frame_index, len(frames), 100 * np.isfinite(quality).mean())
         source_id = str(frame["id"])
         decision: dict[str, Any] = {"frame_index": frame_index, "source_id": source_id, "action": "skip", "reason": "no-structural-match", "best_similarity": None}
         if source_id in used_sources:
             decision["reason"] = "source-already-contributed"
             decisions.append(decision)
             continue
-        if frame_index < next_contribution:
-            decision["reason"] = "contribution-spacing"
-            decisions.append(decision)
-            continue
         with Image.open(str(frame["local_path"])) as raw:
             source = raw.convert("L").convert("RGB")
+        # Descriptors have only 8/16 samples. A bounded analysis image avoids
+        # repeatedly resampling megapixel crops; accepted candidates are checked
+        # again at native resolution before placement.
+        analysis_scale = min(1.0, 512 / max(source.size))
+        analysis_source = source.resize((round(source.width * analysis_scale), round(source.height * analysis_scale)), Image.Resampling.BILINEAR) if analysis_scale < 1 else source
         best = None
         for (w, h), (positions, descriptors) in regions.items():
             eligible = []
             for i, (x, y) in enumerate(positions):
                 q = quality[y:y + h, x:x + w]
+                if settings.require_complete and coverage < 1.0 and np.isfinite(q).all():
+                    continue
                 if settings.reconstruction_mode == "refine" or not np.isfinite(q).any():
                     eligible.append(i)
             if not eligible:
                 continue
-            # Two source scales preserve a region's aspect ratio; no stretching.
+            # Include wider source fields for difficult shapes without changing
+            # the destination region size or its aspect ratio.
             candidates, vectors = [], []
             fit = min(1.0, source.width / w, source.height / h)
-            source_sizes = sorted({(round(w * fit * scale), round(h * fit * scale)) for scale in (1.0, 0.5)})
+            full_fit = min(source.width / w, source.height / h)
+            scales = {fit, fit * 0.5, *(full_fit * scale for scale in (0.125, 0.25, 0.5, 1.0))}
+            source_sizes = sorted({(round(w * scale), round(h * scale)) for scale in scales})
             for sw, sh in source_sizes:
                 if min(sw, sh) < 8 or sw > source.width or sh > source.height:
+                    continue
+                dense = _dense_source_candidates(source, sw, sh, 8 if settings.structure_scale == 'broad' else 16) if settings.require_complete else None
+                if dense is not None:
+                    rects, dense_vectors, strengths = dense
+                    for i in np.flatnonzero(strengths >= settings.min_structure):
+                        candidates.append(rects[i])
+                        vectors.append(dense_vectors[i])
                     continue
                 xs, ys = _starts(source.width, sw, max(sw // 2, source.width // 12)), _starts(source.height, sh, max(sh // 2, source.height // 12))
                 for sy in ys:
                     for sx in xs:
-                        crop = source.crop((sx, sy, sx + sw, sy + sh))
+                        crop = analysis_source.crop(tuple(round(v * analysis_scale) for v in (sx, sy, sx + sw, sy + sh)))
                         descriptor, strength = describe(crop)
                         if strength >= settings.min_structure:
                             candidates.append((sx, sy, sw, sh))
@@ -163,8 +214,31 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             for row_index, region_index in enumerate(eligible):
                 ci = int(scores[row_index].argmax())
                 score = float(scores[row_index, ci])
+                # Refine promising coarse locations before rejecting a rare
+                # missing-region match. Destination geometry never changes.
+                if settings.require_complete and 0.6 <= score < settings.structure_threshold:
+                    sx, sy, sw, sh = candidates[ci]
+                    for fraction in (4, 8):
+                        best_rect = (sx, sy, sw, sh)
+                        for dy in (-max(1, sh // fraction), 0, max(1, sh // fraction)):
+                            for dx in (-max(1, sw // fraction), 0, max(1, sw // fraction)):
+                                nx, ny = min(max(0, sx + dx), source.width - sw), min(max(0, sy + dy), source.height - sh)
+                                crop = analysis_source.crop(tuple(round(v * analysis_scale) for v in (nx, ny, nx + sw, ny + sh)))
+                                vector, strength = describe(crop)
+                                local_score = float(vector @ descriptors[region_index])
+                                if strength >= settings.min_structure and local_score > score:
+                                    score, best_rect = local_score, (nx, ny, sw, sh)
+                        sx, sy, sw, sh = best_rect
+                    candidates.append((sx, sy, sw, sh))
+                    ci = len(candidates) - 1
                 if score < settings.structure_threshold:
                     continue
+                if analysis_scale < 1 or settings.require_complete:
+                    sx, sy, sw, sh = candidates[ci]
+                    native_descriptor, native_strength = describe(source.crop((sx, sy, sx + sw, sy + sh)))
+                    score = float(native_descriptor @ descriptors[region_index])
+                    if score < settings.structure_threshold or native_strength < settings.min_structure:
+                        continue
                 x, y = positions[region_index]
                 q = quality[y:y + h, x:x + w]
                 occupied = np.isfinite(q)
@@ -194,7 +268,6 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             placements.append(placement)
             encounters.append(frame_index)
             used_sources.add(source_id)
-            next_contribution = frame_index + settings.contribution_interval
             decision.update(action="refine" if refining else "place", reason="accepted-structure", score=round(score, 6), target_rect=[x, y, w, h], source_rect=[sx, sy, sw, sh], placement_index=len(placements) - 1)
         decisions.append(decision)
         if best is not None:
@@ -204,10 +277,10 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             similarity = min(similarity, tonal_similarity)
             coverage = float(np.isfinite(quality).mean())
             decision.update(reconstruction_similarity=similarity, coverage=coverage)
-            if settings.search_similarity > 0 and coverage == 1.0 and similarity >= settings.search_similarity:
-                decision["stop_reason"] = "quality-target-reached"
+            if coverage == 1.0 and ((settings.require_complete and settings.search_similarity == 0) or (settings.search_similarity > 0 and similarity >= settings.search_similarity)):
+                decision["stop_reason"] = "reconstruction-complete" if settings.require_complete else "quality-target-reached"
                 break
     if decisions and "stop_reason" not in decisions[-1]:
-        decisions[-1]["stop_reason"] = "approved-frames-exhausted"
+        decisions[-1]["stop_reason"] = "reconstruction-complete" if settings.require_complete and coverage == 1.0 else "approved-frames-exhausted"
     result = AssemblyResult(output, target, {p.source_id: 1 for p in placements}, {p.fragment_id: 1 for p in placements}, placements)
     return result, encounters, decisions, float(np.isfinite(quality).mean())

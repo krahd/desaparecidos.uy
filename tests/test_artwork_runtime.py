@@ -212,7 +212,7 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
         return True
 
     monkeypatch.setattr(artwork_runtime_module, "_render_video_ffmpeg", fake_render)
-    settings = ArtworkTraversalSettings(
+    settings = ArtworkTraversalSettings(require_complete=False,
         duration_seconds=1,
         fps=2,
         fragment_size=24,
@@ -241,7 +241,7 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
             targets,
             tmp_path / "search-colour",
             ["person-1"],
-            ArtworkTraversalSettings(
+            ArtworkTraversalSettings(require_complete=False,
                 duration_seconds=1,
                 fps=2,
                 fragment_size=24,

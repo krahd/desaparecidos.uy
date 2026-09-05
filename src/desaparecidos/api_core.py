@@ -89,6 +89,9 @@ class VideoOptionsRequest(BaseModel):
 
 
 class StructuralOptionsRequest(VideoOptionsRequest):
+    require_complete: bool = True
+    max_search_batches: int = Field(default=8, ge=0, le=32)
+    search_budget_seconds: int = Field(default=300, ge=1, le=3600)
     scan_seconds: float = Field(default=0.33, gt=0, le=60)
     contribution_interval: int = Field(default=6, ge=1, le=10000)
     search_similarity: float = Field(default=0.95, ge=0, le=1)

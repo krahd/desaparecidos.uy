@@ -10,10 +10,11 @@ from PIL import Image, ImageChops
 import pytest
 
 import desaparecidos.traversals as traversal_module
-from desaparecidos.manifests import approved_rows
+from desaparecidos.manifests import ManifestRow, approved_rows
 from desaparecidos.traversals import (
     TraversalRenderSettings,
     acquire_traversal,
+    load_traversal,
     assemble_walk,
     discover_traversal,
     parse_route_import,
@@ -283,7 +284,7 @@ def test_run_autonomous_uruguay_renders_in_one_step(
         target_manifest=manifest,
         output_dir=tmp_path / "outputs",
         target_ids=["target-one"],
-        settings=TraversalRenderSettings(duration_seconds=1, fps=2, fragment_size=8, output_width=32),
+        settings=TraversalRenderSettings(require_complete=False, duration_seconds=1, fps=2, fragment_size=8, output_width=32),
         provider=provider,
     )
     assert traversal["scope"] == "uruguay"
@@ -477,7 +478,7 @@ def test_assemble_walk_uses_only_already_found_frames(tmp_path: Path) -> None:
         target,
         manifest,
         frames,
-        TraversalRenderSettings(fragment_size=8, output_width=32),
+        TraversalRenderSettings(require_complete=False, fragment_size=8, output_width=32),
     )
     assert len(walk.result.placements) <= len(frames)
     assert len(walk.placed_after_frame) == len(walk.result.placements)
@@ -535,7 +536,7 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
         write_target_manifest(tmp_path),
         tmp_path / "outputs",
         target_ids,
-        TraversalRenderSettings(
+        TraversalRenderSettings(require_complete=False,
             composition=composition,  # type: ignore[arg-type]
             target_mode=target_mode,  # type: ignore[arg-type]
             duration_seconds=1,
@@ -710,3 +711,52 @@ def test_mapillary_download_resolves_thumbnail_and_attribution_per_image() -> No
     assert len(thumb_calls) == 1
     # Contributor attribution is attached to the downloaded frame.
     assert frame["creator"] == {"username": "contributor-one"}
+
+
+def test_completion_refuses_to_render_holes_and_saves_progress(tmp_path, monkeypatch) -> None:
+    from desaparecidos.traversals import complete_traversal_search, WalkAssembly
+    from desaparecidos.pipeline_core import AssemblyResult
+    image = Image.new('RGB', (32, 32))
+    walk = WalkAssembly(AssemblyResult(image, image, {}, {}, []), [], ['a'], [], 0.5)
+    target = ManifestRow(kind='targets', line_number=2, values={'id':'person'})
+    route_data = {'id':'incomplete', 'name':'incomplete', 'scope':'uruguay', 'frames':[]}
+    settings = TraversalRenderSettings(max_search_batches=0)
+    with pytest.raises(ValueError, match='No final video'):
+        complete_traversal_search(route_data, [target], [[]], [walk], settings, tmp_path/'targets.csv', tmp_path)
+    saved = load_traversal('incomplete', tmp_path)
+    assert saved['completion_search']['status'] == 'search-paused'
+    assert saved['completion_search']['settings']['require_complete'] is True
+    assert saved['completion_search']['targets']['person']['coverage'] == 0.5
+
+
+def test_completion_acquires_more_material_and_keeps_old_decisions(tmp_path, monkeypatch) -> None:
+    from desaparecidos.traversals import complete_traversal_search, WalkAssembly
+    from desaparecidos.pipeline_core import AssemblyResult
+    image = Image.new('RGB', (32, 32))
+    result = AssemblyResult(image, image, {}, {}, [])
+    incomplete = WalkAssembly(result, [], ['old'], [], 0.5)
+    complete = WalkAssembly(result, [], ['old', 'batch:fresh'], [], 1.0)
+    target = ManifestRow(kind='targets', line_number=2, values={'id':'person'})
+    old = {'id':'old', 'provider_id':'old-provider', 'sha256':'old-hash', 'review_status':'approved'}
+    rejected = {'id':'rejected', 'provider_id':'rejected-provider', 'review_status':'rejected', 'review_policy':'manual'}
+    route_data = {'id':'base', 'name':'base', 'scope':'uruguay', 'rural_probability':0, 'frames':[old, rejected]}
+    fresh = {'id':'fresh', 'provider_id':'new-provider', 'sha256':'new-hash', 'review_status':'approved', 'local_path':'fresh.jpg'}
+    batch = {'id':'batch', 'frames':[dict(old), dict(rejected, review_status='approved'), fresh]}
+    def discover(**kwargs):
+        assert kwargs['rural_probability'] == 0
+        return batch
+    monkeypatch.setattr(traversal_module, 'discover_traversal', discover)
+    monkeypatch.setattr(traversal_module, 'acquire_traversal', lambda *args, **kwargs: batch)
+    seen = []
+    def assemble(target, manifest, frames, settings):
+        seen.extend(frames)
+        return complete
+    monkeypatch.setattr(traversal_module, 'assemble_walk', assemble)
+    segments, walks = complete_traversal_search(route_data, [target], [[old]], [incomplete],
+        TraversalRenderSettings(max_search_batches=1), tmp_path/'targets.csv', tmp_path)
+    assert [f['id'] for f in seen] == ['old','batch:fresh']
+    assert walks[0].coverage == 1
+    saved = load_traversal('base', tmp_path)
+    assert saved['completion_search']['status'] == 'complete'
+    assert saved['frames'][1]['review_status'] == 'rejected'
+    assert saved['continuation_routes'] == ['batch']

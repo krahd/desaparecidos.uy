@@ -30,7 +30,7 @@ def frames_at(root: Path, *images: Image.Image) -> list[dict]:
 
 
 def settings(**kwargs) -> TraversalRenderSettings:
-    return replace(TraversalRenderSettings(fragment_size=32, max_region_size=64,
+    return replace(TraversalRenderSettings(require_complete=False, fragment_size=32, max_region_size=64,
                    output_width=64, contribution_interval=1, search_similarity=0, min_structure=0.02, structure_threshold=0.8, structure_scale="fine"), **kwargs)
 
 
@@ -139,17 +139,16 @@ def test_exposure_adjustment_follows_structural_acceptance_and_records_transform
     assert result.image != target  # The adjusted source crop remains the material.
 
 
-def test_contributions_are_spaced_without_replaying_earlier_sources(tmp_path: Path) -> None:
-    target = Image.new('RGB', (256, 64))
-    for x in range(0, 256, 64):
-        target.paste(pattern(), (x, 0))
-    frames = frames_at(tmp_path, *[pattern() for _ in range(12)])
+def test_spacing_never_discards_a_rare_missing_region(tmp_path: Path) -> None:
+    target = Image.new('RGB', (128, 64))
+    target.paste(pattern(), (0, 0))
+    target.paste(pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT), (64, 0))
+    frames = frames_at(tmp_path, pattern(), pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT))
     result, encounters, decisions, coverage = search_regions(target, frames,
-        settings(fragment_size=64, max_region_size=64, contribution_interval=3))
-    assert encounters == [2, 5, 8, 11]
+        settings(fragment_size=64, max_region_size=64, contribution_interval=6))
+    assert encounters == [0, 1]
     assert coverage == 1
-    assert [p.source_id for p in result.placements] == [f'frame-{i}' for i in encounters]
-    assert all(d['reason'] == 'contribution-spacing' for d in decisions if d['action'] == 'skip')
+    assert all(d['action'] != 'skip' for d in decisions)
 
 
 def test_quality_target_stops_only_with_coverage_and_actual_image_similarity(tmp_path: Path) -> None:
@@ -186,3 +185,56 @@ def test_assembly_truncates_encounter_history_at_quality_stop(tmp_path: Path) ->
     assert walk.placed_after_frame == [0]
     assert walk.search_summary['stop_reason'] == 'quality-target-reached'
     assert walk.search_summary['encounter_count'] == 1
+
+
+def test_completion_stops_at_coverage_without_indefinite_polishing(tmp_path: Path) -> None:
+    target = pattern()
+    frames = frames_at(tmp_path, target.filter(ImageFilter.GaussianBlur(2)), target)
+    result, encounters, decisions, coverage = search_regions(target, frames,
+        settings(require_complete=True, search_similarity=1, search_budget_seconds=1, scan_seconds=1, fragment_size=64, max_region_size=64))
+    assert coverage == 1 and encounters == [0]
+    assert decisions[-1]['stop_reason'] == 'reconstruction-complete'
+    assert decisions[-1]['score'] >= 0.8
+    assert result.image != target
+
+
+def test_large_source_acceptance_is_verified_at_native_resolution(tmp_path: Path) -> None:
+    target = pattern()
+    source = target.resize((1024, 1024), Image.Resampling.NEAREST)
+    frames = frames_at(tmp_path, source)
+    result, _, decisions, coverage = search_regions(target, frames,
+        settings(require_complete=True, fragment_size=64, max_region_size=64))
+    assert coverage == 1
+    for p, decision in zip(result.placements, [d for d in decisions if d['action'] != 'skip']):
+        descriptor, _ = structure_descriptor(source.crop((p.source_x, p.source_y,
+            p.source_x+p.source_width, p.source_y+p.source_height)), samples=16)
+        expected, _ = structure_descriptor(target.crop((p.dest_x,p.dest_y,
+            p.dest_x+p.image.width,p.dest_y+p.image.height)), samples=16)
+        assert decision['score'] == round(float(descriptor @ expected),6)
+        assert decision['score'] >= 0.8
+
+
+def test_dense_search_finds_structure_between_coarse_grid_positions(tmp_path: Path) -> None:
+    target = pattern()
+    source = Image.new('RGB', (128, 128), (30, 30, 30))
+    source.paste(target, (11, 7))
+    frames = frames_at(tmp_path, source)
+    _, _, _, coarse_coverage = search_regions(target, frames,
+        settings(require_complete=False, fragment_size=64, max_region_size=64))
+    result, _, decisions, coverage = search_regions(target, frames,
+        settings(require_complete=True, fragment_size=64, max_region_size=64))
+    assert coarse_coverage == 0
+    assert coverage == 1 and decisions[0]['score'] >= 0.8
+    assert result.placements[0].image.size == (64, 64)
+
+
+def test_complete_portrait_can_improve_within_the_soft_budget(tmp_path: Path) -> None:
+    target = pattern()
+    frames = frames_at(tmp_path, target.filter(ImageFilter.GaussianBlur(2)), target, target)
+    result, encounters, decisions, coverage = search_regions(target, frames,
+        settings(require_complete=True, search_similarity=0.99, refinement_margin=0.005,
+                 fragment_size=64, max_region_size=64))
+    assert coverage == 1 and encounters == [0, 1]
+    assert [d['action'] for d in decisions] == ['place', 'refine']
+    assert decisions[-1]['stop_reason'] == 'reconstruction-complete'
+    assert result.image == target

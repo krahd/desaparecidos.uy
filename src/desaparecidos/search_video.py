@@ -284,6 +284,12 @@ def video_presentation_metadata(
         "requested_duration_seconds": duration_seconds,
         "actual_duration_seconds": sum(plan.total for plan in plans) / fps,
         "duration_policy": "encounter-paced" if options.playback_mode == "continuous" else "extend-to-show-every-encounter-and-minimum-holds",
+        "search_budget_seconds": getattr(options, 'search_budget_seconds', None),
+        "budget_policy": "soft; preserve every encounter and contribution spacing",
+        "encounter_holds_by_target": {
+            target_id: video_schedule(walk, length, fps, options)[1]
+            for target_id, walk, length in zip(ids, walks or [], segment_lengths)
+        },
         "playback_mode": options.playback_mode,
         "encounter_seconds": max(1, math.ceil(fps * options.scan_seconds)) / fps,
         "transfer_seconds": max(2, math.ceil(fps * options.contribution_seconds)) / fps if options.playback_mode == "continuous" else 0,
@@ -351,6 +357,32 @@ def video_schedule(walk: Any, requested_frames: int, fps: int, settings: VideoSe
     contributions = set(walk.placed_after_frame)
     holds = [max(2 if i in contributions and settings.playback_mode == "hold" else 1, math.ceil(fps * (settings.contribution_seconds if i in contributions and settings.playback_mode == "hold" else settings.scan_seconds)))
              for i in range(len(walk.segment_frame_ids))]
+    if settings.playback_mode == 'continuous' and hasattr(settings, 'search_budget_seconds'):
+        # First reserve every encounter and readable contribution spacing.
+        # Allocate the remaining budget to nominal scan holds afterwards.
+        nominal = holds
+        holds = [1] * len(nominal)
+        gap = max(1, round(settings.contribution_interval * settings.scan_seconds * fps))
+        previous = 0
+        for encounter in walk.placed_after_frame:
+            interval = list(range(previous, encounter))
+            missing = max(0, gap - sum(holds[i] for i in interval))
+            if interval:
+                per_frame, extra = divmod(missing, len(interval))
+                for order, i in enumerate(interval):
+                    holds[i] += per_frame + (order < extra)
+            previous = encounter
+        deficits = [max(0, wanted - minimum) for wanted, minimum in zip(nominal, holds)]
+        total_deficit = sum(deficits)
+        available = min(total_deficit, max(0, round(settings.search_budget_seconds * fps) - sum(holds)))
+        if total_deficit:
+            additions = [deficit * available // total_deficit for deficit in deficits]
+            remainder = available - sum(additions)
+            for i, deficit in enumerate(deficits):
+                if remainder and additions[i] < deficit:
+                    additions[i] += 1
+                    remainder -= 1
+            holds = [hold + extra for hold, extra in zip(holds, additions)]
     closing = search_video_timeline(100000 * fps, fps, settings)
     closing_frames = closing.total - closing.search
     if settings.playback_mode == "continuous":

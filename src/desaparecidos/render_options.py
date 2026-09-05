@@ -16,6 +16,9 @@ def add_render_options(parser: argparse.ArgumentParser, *, structural: bool = Fa
     parser.add_argument('--hide-match-marks', action='store_true')
     if structural:
         parser.set_defaults(scan_seconds=0.33)
+        parser.add_argument('--allow-incomplete', dest='require_complete', action='store_false', default=True)
+        parser.add_argument('--max-search-batches', type=int, default=8)
+        parser.add_argument('--search-budget-seconds', type=int, default=300)
         parser.add_argument('--contribution-interval', type=int, default=6)
         parser.add_argument('--search-similarity', type=float, default=0.95)
         parser.add_argument('--structure-scale', choices=['broad', 'fine'], default='broad')

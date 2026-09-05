@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-04 21:04 GMT-6
+Last updated: 2026-09-04 21:58 GMT-6
 
 ## Project purpose
 
@@ -21,11 +21,11 @@ The repository contains two maintained runtime surfaces:
 - the localhost GUI, FastAPI backend and `desaparecidos` compatibility CLI for corpus administration, review, crawling, traversal acquisition and generation;
 - the canonical `desaparecidos-artwork` runtime for artwork-oriented fragment placement, evaluation, exhibition rendering and publication evidence.
 
-The first two works support grid, irregular and overlap grammars, target salience, contribution/adjacency controls and territorial balancing. **Seguimos buscando** now searches variable rectangular regions using normalised grayscale organisation and signed directional gradients. Each approved traversal frame can contribute at most one region at its own encounter. Weak or structureless candidates are skipped; larger qualifying regions are preferred, and better later candidates may replace whole regions or smaller parts. Multiple coherent walks in a saved traversal accumulate into one portrait in single-target mode. Partial and entirely empty searches are supported without forced completion.
+The first two works support grid, irregular and overlap grammars, target salience, contribution/adjacency controls and territorial balancing. **Seguimos buscando** now searches variable rectangular regions using normalised grayscale organisation and signed directional gradients. Each approved traversal frame can contribute at most one region at its own encounter. Weak or structureless candidates are skipped; larger qualifying regions are preferred, and better later candidates may replace whole regions or smaller parts. Multiple coherent walks in a saved traversal accumulate into one portrait in single-target mode. Partial and entirely empty study outputs require an explicit override. Normal traversal output requires full coverage; failures retain saved progress without generating an incomplete final video.
 
-All three works use the same monochrome video form: search at left and reconstruction at right fades to black, the assembled fragment image fades in/out, followed by person details, closing text and https://desaparecidos.uy, each fading through black. Catalogue names are displayed given names first without a comma. Defaults are 1920×1080 landscape at 24 fps. The GUI/API/CLI expose playback mode, transfer and scan durations, image/details/text holds, fades, match marks and closing text. Continuous playback now follows encounter timing: at the traversal defaults the city advances at three source frames per second and crops travel for 0.75 seconds while it advances. Arrival remains causal and the final crop lands before the closing phases. The optional hold mode retains minimum-duration pauses. The artist interface, map, image/video previews and static memorial styles are monochrome; colour output requests are rejected. `search-video-presentation/3.0` records exact phase counts and actual duration.
+All three works use the same monochrome video form: search at left and reconstruction at right fades to black, the assembled fragment image fades in/out, followed by person details, closing text and https://desaparecidos.uy, each fading through black. Catalogue names are displayed given names first without a comma. Defaults are 1920×1080 landscape at 24 fps. The GUI/API/CLI expose playback mode, transfer and scan durations, image/details/text holds, fades, match marks and closing text. Continuous playback now follows recorded encounter holds with a soft 300-second traversal playback target; unmatched frames can accelerate and contribution spacing is applied to playback: at the traversal defaults the city advances at three source frames per second and crops travel for 0.75 seconds while it advances. Arrival remains causal and the final crop lands before the closing phases. The optional hold mode retains minimum-duration pauses. The artist interface, map, image/video previews and static memorial styles are monochrome; colour output requests are rejected. `search-video-presentation/3.0` records exact phase counts and actual duration.
 
-Traversal reconstruction modes are `fixed`, `largest-first` and `refine` (default). Default minimum/maximum region extents are 96/384 px, structural threshold 0.82, minimum structure 0.035 and improvement margin 0.04. Broad structural comparison uses 8×8 samples by default; fine comparison retains 16×16. Uncovered areas take precedence over refinements. Optional `tone_mode=match-region` applies one recorded brightness/contrast transform after structural acceptance; `source` preserves exposure and remains the default. The artist screen includes a broad-portrait preset (192–768 px, threshold 0.82, minimum structure 0.008, refinement margin 0.02, exposure adjustment, six-encounter contribution spacing and a 0.95 reconstruction goal). These are heuristic artistic controls, not semantic recognition or probability estimates. `region_search` records every acceptance, refinement or skip and realised coverage. Native source rectangles remain distinct from resized target rectangles. Structural histories retain exact placement geometry and require `contribution_policy: "single-current-frame"`; an explicitly marked empty search is valid, while unmarked or malformed empty histories remain invalid.
+Traversal reconstruction modes are `fixed`, `largest-first` and `refine` (default). Default minimum/maximum region extents are 96/384 px, structural threshold 0.82, minimum structure 0.035 and improvement margin 0.04. Broad structural comparison uses 8×8 samples by default; fine comparison retains 16×16. Uncovered areas take precedence over refinements. Optional `tone_mode=match-region` applies one recorded brightness/contrast transform after structural acceptance; `source` preserves exposure and remains the default. The artist screen includes a broad-portrait preset (192–768 px, threshold 0.72, minimum structure 0.008, refinement margin 0.02, exposure adjustment, six-encounter playback spacing and required complete coverage). These are heuristic artistic controls, not semantic recognition or probability estimates. `region_search` records every acceptance, refinement or skip and realised coverage. Native source rectangles remain distinct from resized target rectangles. Structural histories retain exact placement geometry and require `contribution_policy: "single-current-frame"`; an explicitly marked empty search is valid, while unmarked or malformed empty histories remain invalid.
 
 New outputs use `desaparecidos.uy/output-sidecar/3.0`. Canonical and compatibility outputs now contain:
 
@@ -43,9 +43,9 @@ Public reuse is now explicitly scoped. Software source and associated technical 
 
 ## Active focus
 
-Current revision: stricter matching and six-encounter spacing limit early contribution bursts; traversal cadence is now 0.33 seconds. Search continues until full coverage and a 0.95 similarity goal, or exhausts approved material. Similarity is the minimum of global structural correlation and `1 - grayscale MAE / 255`; it is not a calibrated fidelity measure. Region-size settings do not change during search. The 192–768 px preset is preserved with a stricter 0.82 acceptance threshold. A fresh 322.33-second full-HD study against the existing 895-frame traversal passed encoding/decoding and closing-card inspection, but exhausted its sources at 55.4% coverage and 0.516 overall similarity. It does not fulfil the desired complete, more accurate portrait. A 0.72 acceptance calibration reached 83.8% coverage and 0.792 similarity, also incomplete. More approved material or further matching work is required before a replacement edition is ready.
+Current revision: full reconstruction is mandatory for normal traversal output. Missing regions take precedence over refinements; wider source crops and a dense analysis grid are searched at unchanged destination sizes and acceptance thresholds, with native-resolution acceptance checks. Useful encounters are no longer discarded for spacing. Single-target Uruguay searches acquire additional CV-approved batches, with source identities, dedupe and manual review preserved. Resource/network limits save progress and pause the job instead of emitting an incomplete ending. A soft 300-second playback target accelerates unmatched encounters while preserving all frames and spacing contributions. Complete coverage is mandatory; subsequent refinement is bounded by the nominal playback budget and optional similarity goal. Missing regions can extend that budget; polishing cannot prolong a complete portrait indefinitely. An additional acquired batch supplied 469 CV-approved frames; exact dedupe gives a saved 1,361-frame continuation traversal. Dense matching at 0.72 reached full coverage after 220 encounters and produced a 150.46-second first complete study. The 0.82 comparison remained incomplete and was stopped. The final bounded-refinement edition is complete: 324.166667 seconds, full coverage, 142 contributions from 909 reached encounters and whole-image similarity 0.932. Final media verification passed.
 
-The active focus is the artist-directed structural search and common video form. The complete video has been explicitly selected by the artist for inclusion in the repository. The artist-directed low-fps traversal and a complete internal face reconstruction are implemented and rendered. The new 167.17-second video has 100% canvas coverage, using 192 contributions from 895 unique approved frames across 24 city walks. Artistic review of the full edition and browser interaction remain the next checks; this internal render does not establish public-release readiness.
+The active focus is review of the complete 5:24 edition and its completion/playback controls. The earlier 167-second edition explicitly selected for repository inclusion remains preserved. The new edition completes the portrait, retains region sizes and improves its measured whole-image similarity; it remains an internal review artifact rather than publication evidence.
 
 Publication/article evidence still requires explicit target historical-identification and portrait-rights decisions, a clean committed runtime, full output review and figures derived from the exact hash-bound outputs. The implementation and internal preview do not resolve those separate requirements.
 
@@ -160,6 +160,40 @@ Structural traversal decisions record accepted, refined and skipped regions. Tem
   </g>
 </svg>
 
+The completion flow keeps missing regions in search. A complete portrait may be refined within the playback budget; unavailable material pauses the job without an incomplete ending. Automatic acquisition applies to single-target Uruguay traversals.
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 340" role="img" aria-labelledby="completion-title completion-desc">
+<title id="completion-title">Completion-first traversal</title>
+<desc id="completion-desc">Search approved material until every region is covered. Add material when needed, or save progress and pause. Refine a complete portrait within the playback budget, then render the closing sequence.</desc>
+<rect width="1000" height="340" fill="white"/>
+<defs><marker id="completion-arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#333"/></marker></defs>
+<g fill="#f5f5f5" stroke="#333" stroke-width="2">
+<rect x="20" y="45" width="160" height="85" rx="8"/>
+<rect x="220" y="45" width="180" height="85" rx="8"/>
+<rect x="440" y="45" width="150" height="85" rx="8"/>
+<rect x="630" y="45" width="160" height="85" rx="8"/>
+<rect x="830" y="45" width="150" height="85" rx="8"/>
+<rect x="425" y="230" width="180" height="75" rx="8"/>
+<rect x="770" y="230" width="210" height="75" rx="8"/>
+</g>
+<g fill="none" stroke="#333" stroke-width="2" marker-end="url(#completion-arrow)">
+<path d="M180,88 H220"/><path d="M400,88 H440"/><path d="M590,88 H630"/><path d="M790,88 H830"/>
+<path d="M515,130 V230"/><path d="M425,267 H100 V130"/><path d="M605,267 H770"/>
+</g>
+<g font-family="sans-serif" text-anchor="middle" fill="#111">
+<text x="100" y="80" font-size="15">Approved material</text><text x="100" y="104" font-size="12">saved on disk</text>
+<text x="310" y="80" font-size="15">Search missing regions</text><text x="310" y="104" font-size="12">native crop verification</text>
+<text x="515" y="93" font-size="15">Full coverage?</text>
+<text x="610" y="77" font-size="11">yes</text><text x="540" y="185" font-size="12">no</text>
+<text x="710" y="80" font-size="15">Bounded refinement</text><text x="710" y="104" font-size="12">within playback budget</text>
+<text x="905" y="80" font-size="15">Render</text><text x="905" y="104" font-size="12">face + closing sequence</text>
+<text x="515" y="257" font-size="14">Add approved material</text><text x="515" y="280" font-size="12">acquisition / review</text>
+<text x="260" y="250" font-size="12">new source frames</text>
+<text x="688" y="249" font-size="10">unavailable / batch limit</text>
+<text x="875" y="258" font-size="15">Save progress and pause</text><text x="875" y="282" font-size="12">resume from saved material</text>
+</g>
+</svg>
+
 ## Setup and run instructions
 
 Local GUI:
@@ -242,6 +276,16 @@ python scripts/publish_static_memorial.py --help
 These are project-curation counts, not an authoritative historical total. The target corpus was not modified by the 1 September audit work.
 
 ## Recent changes
+
+Final review edition: [`seguimos-buscando-route-20260905033506-2702c8a4-17-20260905034203-paced.mp4`](outputs/stage1/seguimos-buscando-route-20260905033506-2702c8a4-17-20260905034203-paced.mp4), with matching PNG and JSON. It retains 192–768 px regions, uses the 0.72 completion preset and reaches full coverage at encounter 220 before bounded refinement. Whole-image similarity rises from 0.900 at first completion to 0.932 (the earlier 167-second edition measured 0.926); mean accepted-region score is 0.835. The final 5:24 timing includes contribution spacing in the soft search budget and preserves the refined image pixel for pixel. The sidecar records the parent reconstruction hash under `retimed_from`; input hashes and causal history remain valid. Verification evidence is in ignored `outputs/stage1/structural-review/completed-verification.json`; video SHA-256 is `8372bbe407efedd519d4a762a96cfb77ef8d81ec8ccbf9345b30481f54895533`. This is an internal review artifact, not a publication-cleared output.
+
+### 4 September 2026 — required completion and continuing acquisition
+
+- Normal traversal rendering now requires full coverage. Source exhaustion triggers bounded additional Uruguay acquisition for single-target runs; failure saves `completion_search` and pauses without producing a final incomplete video.
+- Added wider source scales and uncovered-region priority. Retained 192–768 px preset extents and real source pixels. Compared 0.82 against 0.72; the artist completion preset now uses 0.72, above the original study's 0.60, while the general default remains 0.82. Removed matching skips for contribution spacing.
+- Moved spacing to playback and added a soft 300-second search budget; all encounters remain causal, with unmatched encounters accelerated as needed.
+- Added CLI/API/GUI completion controls and explicit `--allow-incomplete` study mode. Full coverage takes precedence over duration. Refinement after coverage is bounded by the nominal playback budget, avoiding indefinite polishing.
+
 
 ### 4 September 2026 — stricter and spaced traversal search
 
@@ -326,6 +370,8 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Tests and verification status
 
+Completion revision: `.venv/bin/python -m pytest -q` — 224 passed; `.venv/bin/python -m compileall -q src tests scripts` — passed; frontend tests (eight) and build passed. Focused completion tests cover pausing without final video, bounded acquisition and duplicate/manual-review preservation, accelerated encounter playback, full-coverage stopping and native-resolution score verification. Final verification passed: 1920×1080 H.264 at 24 fps, 7,780 encoded frames, 324.166667 seconds, full ffmpeg decode, recomputed causality and sidecar provenance, 14 monochrome phase samples and a black final frame. The final still and encoded closing contact sheet were visually inspected. The updated inline completion-flow SVG was rendered with rsvg-convert and visually inspected. Browser interaction and full-duration artistic review remain separate checks.
+
 Current stricter-search revision: `.venv/bin/python -m pytest -q` — 216 passed; focused structural/API checks — 37 passed; `.venv/bin/python -m compileall -q src tests scripts` — passed; `npm --prefix frontend test` — eight passed; `npm --prefix frontend run build` — passed. Existing Starlette/httpx and frontend chunk-size advisories remain. Full-HD 24 fps H.264 study: ffprobe confirms 7,736 frames and 322.333333 seconds; full ffmpeg decode passed; the final still and all closing phases were visually inspected. Browser interaction remains unverified. This study is an incomplete calibration, not an improved final portrait.
 
 Verification of continuous traversal and the complete internal render on 4 September 2026:
@@ -377,8 +423,11 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 
 ## Known issues, risks and limitations
 
+- The current portrait is complete and its media checks passed. Other portraits may still pause at acquisition limits or network failure; missing source structure is never manufactured. Resume the saved traversal after a pause.
+- Automatic continuation currently covers single-target Uruguay routes; drawn geometry and target sequences pause for explicitly extended approved material. Each continuation invocation is capped at eight acquisition batches by default.
+
 - The user explicitly approved the prepared `tom-work-admin` summary after the initial automatic-review rejection. The summary has now been applied and checked against the approved text; administration synchronisation is complete.
-- Spacing deliberately skips matching on intervening encounters; stricter thresholds may leave fewer matches in a finite source pool. Full coverage alone does not satisfy the new quality goal. Additional approved material may be needed.
+- The earlier calibration deliberately skipped matching encounters for spacing. This has been removed: playback now handles spacing, and complete coverage ends the normal search once accepted source material fills every region.
 
 - No target currently records the newly explicit historical-identification and rights-review states required for canonical article evidence. Existing `review_status=approved` values are generation gates, not rights clearance.
 - The current approved canonical target row uses a permission note that still requires verification; it is not sufficient to claim an explicitly licensed paper artifact.
@@ -392,13 +441,13 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - FastAPI's current test-client shim emits one Starlette/httpx compatibility deprecation warning; it does not affect the passing runtime tests but requires a future dependency-compatible migration.
 - The frontend production build retains a non-blocking large-chunk advisory.
 - Arbitrary fragment masks, live input, real-time rendering, sound and multi-channel synchronisation remain future artistic development. Variable rectangular traversal regions are implemented.
-- Structural search uses a finite multiscale lattice and two source scales, not exhaustive semantic matching. The 895-frame internal edition reaches 100% coverage with its recorded broad-portrait settings. This is one artistic result, not a guarantee of completion or fidelity for another portrait or traversal.
+- Structural search uses bounded multiscale and dense crop candidates with native-resolution verification, not exhaustive semantic matching. The 895-frame internal edition reaches 100% coverage with its recorded broad-portrait settings. This is one artistic result, not a guarantee of completion or fidelity for another portrait or traversal.
 - Continuous-video duration follows encounter count and cadence. The optional pause mode can make videos substantially longer than requested; metadata records the actual length in either mode.
 - Browser interaction remains unverified in this session because no browser was connected.
 
 ## Pending tasks and next steps
 
-Review the new stricter render with the artist and test controls in a connected browser; if the quality target is unmet, extend the approved traversal material. Additional walks or alternative structural settings remain artistic choices, rather than a missing prerequisite for the current full-coverage study.
+Review the complete 5:24 edition with the artist and test completion controls in a connected browser. Additional walks or alternative structural settings remain artistic choices, rather than a missing prerequisite for the current full-coverage study.
 
 1. Review and explicitly record historical-identification and portrait-rights decisions for a carefully selected target; record reviewer and date.
 2. Use a clean committed runtime revision for any canonical evidence render.
@@ -436,6 +485,6 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - `doc/seguimos-buscando-public-performance.md`, `LICENSE`, `LICENSE-PROTOCOL.md` and `LICENSING.md` reflect the current prototype and public-reuse boundaries.
 - `doc/STATUS.md` remains a pointer to this canonical report.
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
-- The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now also records the stricter-search revision, verification and incomplete calibration outcomes. The user explicitly approved this separate-repository update; the applied paragraph matches the prepared summary exactly. Existing changes were preserved; registry lifecycle state and deadline did not change.
+- The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the complete 5:24 edition, completion-first workflow and 224-test verification, preserving the earlier calibration record. The separate-repository update follows the user's existing approval. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-04 21:04 GMT-6
+Last updated: 2026-09-04 21:58 GMT-6

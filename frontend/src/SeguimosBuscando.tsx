@@ -280,7 +280,7 @@ export function SeguimosBuscando({
           </div>
           <div className="traversal-fields">
             <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label>Duration (seconds)<input type="number" min={1} max={3600} value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label>
+            <label>Discovery length / pause-mode duration (seconds)<input type="number" min={1} max={3600} value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label>
             <label>Maximum frames<input type="number" min={1} max={600} value={maxFrames} onChange={(event) => setMaxFrames(Number(event.target.value))} /></label>
             {mode === 'autonomous' && (
               <label>Regions<input type="number" min={1} max={12} value={regions} onChange={(event) => setRegions(Number(event.target.value))} /></label>
@@ -367,10 +367,21 @@ export function SeguimosBuscando({
           </div>
           <div>
             <p className="section-note">Each frame contributes at most one structural region. Unmatched frames continue the walk; empty areas remain empty. Multiple walks in the saved traversal build the same portrait.</p>
+            <button className="text-button" onClick={() => {
+              setFragmentSize(192);
+              setStructure({ reconstruction_mode: 'refine', max_region_size: 768, structure_scale: 'broad',
+                structure_threshold: 0.6, min_structure: 0.008, refinement_margin: 0.02, tone_mode: 'match-region' });
+            }}>Use broad portrait settings</button>
             <label>Reconstruction method<select value={structure.reconstruction_mode} onChange={e => setStructure({ ...structure, reconstruction_mode: e.target.value as StructuralOptions['reconstruction_mode'] })}>
               <option value="refine">Largest regions first · refine with better matches</option>
               <option value="largest-first">Largest regions first · preserve accepted regions</option>
               <option value="fixed">Fixed region size · preserve accepted regions</option>
+            </select></label>
+            <label>Graphic structure<select value={structure.structure_scale} onChange={e => setStructure({ ...structure, structure_scale: e.target.value as StructuralOptions['structure_scale'] })}>
+              <option value="broad">Broad shapes and contours</option><option value="fine">Fine edge detail</option>
+            </select></label>
+            <label>Region exposure<select value={structure.tone_mode} onChange={e => setStructure({ ...structure, tone_mode: e.target.value as StructuralOptions['tone_mode'] })}>
+              <option value="source">Keep source exposure</option><option value="match-region">Match portrait region brightness and contrast</option>
             </select></label>
             <label>Maximum region size (px)<input type="number" min={fragmentSize} max={2048} value={structure.max_region_size} onChange={e => setStructure({ ...structure, max_region_size: Number(e.target.value) })} /></label>
             <label>Minimum structural similarity (0–1)<input type="number" min={0.01} max={1} step={0.01} value={structure.structure_threshold} onChange={e => setStructure({ ...structure, structure_threshold: Number(e.target.value) })} /></label>

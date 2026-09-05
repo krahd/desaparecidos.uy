@@ -32,8 +32,9 @@
   "traversal_fragment_size": 96,
   "video_options": {
     "split_orientation": "side-by-side",
-    "contribution_seconds": 2.5,
-    "scan_seconds": 0.18,
+    "playback_mode": "continuous",
+    "contribution_seconds": 0.75,
+    "scan_seconds": 0.16,
     "final_hold_seconds": 4,
     "details_hold_seconds": 3,
     "text_hold_seconds": 2,
@@ -43,6 +44,8 @@
   },
   "traversal_reconstruction": {
     "reconstruction_mode": "refine",
+    "structure_scale": "broad",
+    "tone_mode": "source",
     "max_region_size": 384,
     "structure_threshold": 0.72,
     "min_structure": 0.035,

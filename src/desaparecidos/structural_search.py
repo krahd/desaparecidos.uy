@@ -19,6 +19,8 @@ class StructuralSettings:
     structure_threshold: float = 0.72
     min_structure: float = 0.035
     refinement_margin: float = 0.04
+    structure_scale: str = "broad"
+    tone_mode: str = "source"
 
     def __post_init__(self) -> None:
         if self.reconstruction_mode not in {"fixed", "largest-first", "refine"}:
@@ -29,15 +31,19 @@ class StructuralSettings:
             raise ValueError("structure thresholds must be in (0, 1]")
         if not 0 <= self.refinement_margin <= 1:
             raise ValueError("refinement margin must be in [0, 1]")
+        if self.structure_scale not in {"broad", "fine"}:
+            raise ValueError("unsupported structure scale")
+        if self.tone_mode not in {"source", "match-region"}:
+            raise ValueError("unsupported region tone mode")
 
 
-def structure_descriptor(image: Image.Image) -> tuple[np.ndarray, float]:
+def structure_descriptor(image: Image.Image, *, samples: int = 16) -> tuple[np.ndarray, float]:
     """Compare normalised light/dark organisation and signed directional edges.
 
     Constant brightness and contrast offsets cannot create a match. Flat regions
     have no usable structure; their descriptor is explicitly zero.
     """
-    a = np.asarray(image.convert("L").resize((16, 16), Image.Resampling.BILINEAR), dtype=np.float32) / 255
+    a = np.asarray(image.convert("L").resize((samples, samples), Image.Resampling.BILINEAR), dtype=np.float32) / 255
     contrast = float(a.std())
     gx, gy = np.diff(a, axis=1), np.diff(a, axis=0)
     strength = min(contrast, float(np.sqrt(np.mean(gx * gx) + np.mean(gy * gy))))
@@ -54,16 +60,29 @@ def _starts(length: int, size: int, step: int) -> list[int]:
     return sorted({*range(0, length - size + 1, max(1, step)), length - size})
 
 
+def match_region_tone(patch: Image.Image, target: Image.Image) -> tuple[Image.Image, dict[str, float]]:
+    """Adjust one accepted source crop's exposure, without adding target pixels."""
+    source_levels = np.asarray(patch.convert("L").resize((32, 32), Image.Resampling.BILINEAR), dtype=np.float32)
+    target_levels = np.asarray(target.convert("L").resize((32, 32), Image.Resampling.BILINEAR), dtype=np.float32)
+    gain = float(np.clip(target_levels.std() / max(float(source_levels.std()), 1.0), 0.25, 4.0))
+    offset = float(target_levels.mean() - gain * source_levels.mean())
+    pixels = np.asarray(patch.convert("L"), dtype=np.float32) * gain + offset
+    adjusted = Image.fromarray(np.clip(pixels, 0, 255).round().astype(np.uint8)).convert("RGB")
+    return adjusted, {"gain": gain, "offset": offset, "clipped_fraction": float(((pixels < 0) | (pixels > 255)).mean())}
+
+
 def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: Any):
     """Return a replayable event per accepted frame, including replacement events.
 
     Candidate rectangles form a bounded multiscale lattice. Larger accepted
-    rectangles take precedence. Refinements must improve every covered region;
+    uncovered rectangles take precedence. Refinements must improve every covered region;
     untouched areas stay black, even when the walk runs out of frames.
     """
     if settings.fragment_size < 8 or settings.max_region_size < settings.fragment_size:
         raise ValueError("region sizes require 8 <= minimum <= maximum")
     target = target.convert("L").convert("RGB")
+    def describe(image: Image.Image):
+        return structure_descriptor(image, samples=8 if settings.structure_scale == "broad" else 16)
     minimum = min(settings.fragment_size, target.width, target.height)
     sizes = [minimum]
     if settings.reconstruction_mode != "fixed":
@@ -79,7 +98,7 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
         positions, descriptors = [], []
         for y in _starts(target.height, h, minimum):
             for x in _starts(target.width, w, minimum):
-                descriptor, strength = structure_descriptor(target.crop((x, y, x + w, y + h)))
+                descriptor, strength = describe(target.crop((x, y, x + w, y + h)))
                 if strength >= settings.min_structure:
                     positions.append((x, y))
                     descriptors.append(descriptor)
@@ -119,7 +138,7 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
                 for sy in ys:
                     for sx in xs:
                         crop = source.crop((sx, sy, sx + sw, sy + sh))
-                        descriptor, strength = structure_descriptor(crop)
+                        descriptor, strength = describe(crop)
                         if strength >= settings.min_structure:
                             candidates.append((sx, sy, sw, sh))
                             vectors.append(descriptor)
@@ -140,18 +159,23 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
                 if occupied.any():
                     # Compare at the same spatial scale, including earlier
                     # subregion replacements, so a coarse score cannot hide damage.
-                    previous, strength = structure_descriptor(output.crop((x, y, x + w, y + h)))
+                    previous, strength = describe(output.crop((x, y, x + w, y + h)))
                     old_score = float(previous @ descriptors[region_index]) if strength else 0.0
                     if score < max(old_score, float(q[occupied].max())) + settings.refinement_margin:
                         continue
-                rank = (w * h, score)
+                # Spend a useful encounter on missing structure before polishing
+                # an already occupied area. Area still controls the coarse-to-fine search.
+                rank = (int((~occupied).sum()), w * h, score)
                 if best is None or rank > best[0]:
                     best = (rank, x, y, w, h, candidates[ci], bool(occupied.any()))
             if best is not None and w * h < best[0][0]:
                 break
         if best is not None:
-            (_, score), x, y, w, h, (sx, sy, sw, sh), refining = best
+            (_, _, score), x, y, w, h, (sx, sy, sw, sh), refining = best
             patch = source.crop((sx, sy, sx + sw, sy + sh)).resize((w, h), Image.Resampling.LANCZOS)
+            if settings.tone_mode == "match-region":
+                patch, transform = match_region_tone(patch, target.crop((x, y, x + w, y + h)))
+                decision["tone_transform"] = transform
             placement = TilePlacement(source_id, f"{source_id}:{sx}:{sy}:{sw}:{sh}", patch, x, y, sx, sy, sw, sh)
             output.paste(patch, (x, y))
             quality[y:y + h, x:x + w] = score

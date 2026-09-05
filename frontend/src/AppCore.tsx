@@ -1927,7 +1927,7 @@ export function App() {
           </label>
           <VideoControls value={generationSettings[fragmentArtwork].video} onChange={value => updateGenerationSetting(fragmentArtwork, 'video', value)} />
           <div className="form-grid">
-            <label>Requested video duration (seconds)<input type="number" min={1} max={3600} value={generationSettings[fragmentArtwork].duration} onChange={e => updateGenerationSetting(fragmentArtwork, 'duration', Number(e.target.value))} /></label>
+            <label>Minimum duration in pause mode (seconds)<input type="number" min={1} max={3600} value={generationSettings[fragmentArtwork].duration} onChange={e => updateGenerationSetting(fragmentArtwork, 'duration', Number(e.target.value))} /></label>
             <label>Frames per second<input type="number" min={1} max={60} value={generationSettings[fragmentArtwork].fps} onChange={e => updateGenerationSetting(fragmentArtwork, 'fps', Number(e.target.value))} /></label>
           </div>
           <div className="form-grid">

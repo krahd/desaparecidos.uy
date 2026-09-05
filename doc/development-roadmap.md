@@ -56,6 +56,8 @@ This is a completion goal, not a list of optional ideas. Items may be revised wh
 - [x] Make the relation between route, search, found material, and portrait assembly perceptible.
 - [x] Support partial and incomplete searches without forcing a completed portrait.
 - [x] Limit each traversal frame to one structural contribution, with optional later refinement.
+- [x] Advance the traversal at a steady low frame rate while accepted regions travel to the portrait.
+- [x] Expose broad/fine structural matching, optional region exposure adjustment and pause-mode playback to the artist.
 - [ ] Support multiple traversal sources, including open street-level imagery, self-captured footage, commissioned footage, and future live input.
 - [x] Make route changes produce traceably different source histories and outputs.
 - [x] Support the face becoming recognisable and then dissolving or returning to search.

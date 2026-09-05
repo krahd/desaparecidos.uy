@@ -9,11 +9,14 @@ from .structural_search import StructuralSettings
 
 def add_render_options(parser: argparse.ArgumentParser, *, structural: bool = False) -> None:
     parser.add_argument('--split-orientation', choices=['side-by-side', 'stacked'], default='side-by-side')
+    parser.add_argument('--playback-mode', choices=['continuous', 'hold'], default='continuous')
     for name in ('contribution_seconds', 'scan_seconds', 'final_hold_seconds', 'details_hold_seconds', 'text_hold_seconds', 'fade_seconds'):
         parser.add_argument('--' + name.replace('_', '-'), type=float, default=getattr(VideoSettings(), name))
     parser.add_argument('--closing-text', default='')
     parser.add_argument('--hide-match-marks', action='store_true')
     if structural:
+        parser.add_argument('--structure-scale', choices=['broad', 'fine'], default='broad')
+        parser.add_argument('--tone-mode', choices=['source', 'match-region'], default='source')
         parser.add_argument('--reconstruction-mode', choices=['fixed', 'largest-first', 'refine'], default='refine')
         parser.add_argument('--max-region-size', type=int, default=384)
         parser.add_argument('--structure-threshold', type=float, default=0.72)

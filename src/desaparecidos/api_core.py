@@ -77,8 +77,9 @@ class DownloadRequest(BaseModel):
 
 class VideoOptionsRequest(BaseModel):
     split_orientation: Literal["side-by-side", "stacked"] = "side-by-side"
-    contribution_seconds: float = Field(default=2.5, gt=0, le=60)
-    scan_seconds: float = Field(default=0.18, gt=0, le=60)
+    playback_mode: Literal["continuous", "hold"] = "continuous"
+    contribution_seconds: float = Field(default=0.75, gt=0, le=60)
+    scan_seconds: float = Field(default=0.16, gt=0, le=60)
     final_hold_seconds: float = Field(default=4, gt=0, le=60)
     details_hold_seconds: float = Field(default=3, gt=0, le=60)
     text_hold_seconds: float = Field(default=2, gt=0, le=60)
@@ -93,6 +94,8 @@ class StructuralOptionsRequest(VideoOptionsRequest):
     structure_threshold: float = Field(default=0.72, gt=0, le=1)
     min_structure: float = Field(default=0.035, gt=0, le=1)
     refinement_margin: float = Field(default=0.04, ge=0, le=1)
+    structure_scale: Literal["broad", "fine"] = "broad"
+    tone_mode: Literal["source", "match-region"] = "source"
 
 
 def video_options(request: VideoOptionsRequest) -> dict[str, Any]:

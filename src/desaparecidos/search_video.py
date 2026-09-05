@@ -28,8 +28,9 @@ ARTWORK_TITLES = {
 @dataclass(frozen=True)
 class VideoSettings:
     split_orientation: str = "side-by-side"
-    contribution_seconds: float = 2.5
-    scan_seconds: float = 0.18
+    playback_mode: str = "continuous"
+    contribution_seconds: float = 0.75
+    scan_seconds: float = 0.16
     final_hold_seconds: float = 4.0
     details_hold_seconds: float = 3.0
     text_hold_seconds: float = 2.0
@@ -41,6 +42,8 @@ class VideoSettings:
 def validate_video_settings(settings: VideoSettings) -> None:
     if settings.split_orientation not in {"side-by-side", "stacked"}:
         raise ValueError("unsupported split orientation")
+    if settings.playback_mode not in {"continuous", "hold"}:
+        raise ValueError("unsupported playback mode")
     for name in ("contribution_seconds", "scan_seconds", "final_hold_seconds", "details_hold_seconds", "text_hold_seconds", "fade_seconds"):
         value = getattr(settings, name)
         if not math.isfinite(value) or not 0 < value <= 60:
@@ -228,13 +231,14 @@ def video_presentation_metadata(
     *, settings: VideoSettings | None = None, walks: Sequence[Any] | None = None,
     artwork: str = "seguimos-buscando",
 ) -> dict[str, Any]:
+    options = settings or VideoSettings()
     width, height = video_canvas_size(output_width)
     ids = list(target_ids or ["target"])
     total = max(fps, duration_seconds * fps)
     segment_lengths = [total // len(ids)] * len(ids)
     for index in range(total % len(ids)):
         segment_lengths[index] += 1
-    plans = [video_schedule(walk, length, fps, settings or VideoSettings())[0] if walks is not None else search_video_timeline(length, fps, settings)
+    plans = [video_schedule(walk, length, fps, options)[0] if walks is not None else search_video_timeline(length, fps, options)
              for walk, length in zip(walks or [None] * len(ids), segment_lengths)]
     return {
         "schema": "desaparecidos.uy/search-video-presentation/2.0",
@@ -258,7 +262,14 @@ def video_presentation_metadata(
         "fps": fps,
         "requested_duration_seconds": duration_seconds,
         "actual_duration_seconds": sum(plan.total for plan in plans) / fps,
-        "duration_policy": "extend-to-show-every-encounter-and-minimum-holds",
+        "duration_policy": "encounter-paced" if options.playback_mode == "continuous" else "extend-to-show-every-encounter-and-minimum-holds",
+        "playback_mode": options.playback_mode,
+        "encounter_seconds": max(1, math.ceil(fps * options.scan_seconds)) / fps,
+        "transfer_seconds": max(2, math.ceil(fps * options.contribution_seconds)) / fps if options.playback_mode == "continuous" else 0,
+        "placement_timing_by_target": {
+            target_id: placement_timing(walk, video_schedule(walk, length, fps, options)[1], fps, options)
+            for target_id, walk, length in zip(ids, walks or [], segment_lengths)
+        },
         "closing_text": (settings.closing_text if settings else "") or ARTWORK_TITLES[artwork],
     }
 
@@ -317,16 +328,66 @@ def _title_card(size: tuple[int, int], text: str = "Seguimos Buscando") -> Image
 def video_schedule(walk: Any, requested_frames: int, fps: int, settings: VideoSettings) -> tuple[SearchVideoTimeline, list[int]]:
     validate_video_settings(settings)
     contributions = set(walk.placed_after_frame)
-    holds = [max(2 if i in contributions else 1, math.ceil(fps * (settings.contribution_seconds if i in contributions else settings.scan_seconds)))
+    holds = [max(2 if i in contributions and settings.playback_mode == "hold" else 1, math.ceil(fps * (settings.contribution_seconds if i in contributions and settings.playback_mode == "hold" else settings.scan_seconds)))
              for i in range(len(walk.segment_frame_ids))]
     closing = search_video_timeline(100000 * fps, fps, settings)
     closing_frames = closing.total - closing.search
+    if settings.playback_mode == "continuous":
+        events = placement_timing(walk, holds, fps, settings)
+        search = max(fps, sum(holds), max((event["land_frame"] + 1 for event in events), default=0))
+        return search_video_timeline(search + closing_frames, fps, settings), holds
     total = max(requested_frames, max(fps, sum(holds)) + closing_frames)
     extra = total - sum(holds) - closing_frames
     if holds:
         for i in range(len(holds)):
             holds[i] += extra // len(holds) + (i < extra % len(holds))
     return search_video_timeline(total, fps, settings), holds
+
+
+def placement_timing(walk: Any, holds: Sequence[int], fps: int, settings: VideoSettings) -> list[dict[str, int]]:
+    starts = [0]
+    for hold in holds:
+        starts.append(starts[-1] + hold)
+    return [{"placement_index": i, "encounter_index": encounter,
+             "launch_frame": starts[encounter],
+             "land_frame": starts[encounter] + (max(2, math.ceil(fps * settings.contribution_seconds))
+                 if settings.playback_mode == "continuous" else max(1, holds[encounter] // 3))}
+            for i, encounter in enumerate(walk.placed_after_frame)]
+
+
+def _panel_boxes(canvas_size: tuple[int, int], settings: VideoSettings):
+    width, height = canvas_size
+    margin = max(8, round(width * 0.025))
+    gutter = max(8, round(width * 0.018))
+    label_height = max(20, round(height * 0.065))
+    panel_width = (width - margin * 2 - gutter) // 2
+    if settings.split_orientation == "stacked":
+        return ((margin, label_height, width - margin, height // 2 - gutter // 2),
+                (margin, height // 2 + label_height, width - margin, height - margin))
+    return ((margin, label_height, margin + panel_width, height - margin),
+            (margin + panel_width + gutter, label_height, width - margin, height - margin))
+
+
+def _fitted_rectangle(size: tuple[int, int], box: tuple[int, int, int, int], rect: tuple[int, int, int, int]):
+    scale = min((box[2] - box[0]) / size[0], (box[3] - box[1]) / size[1])
+    x = box[0] + ((box[2] - box[0]) - round(size[0] * scale)) // 2
+    y = box[1] + ((box[3] - box[1]) - round(size[1] * scale)) // 2
+    return (x + rect[0] * scale, y + rect[1] * scale, rect[2] * scale, rect[3] * scale)
+
+
+def _transfer(canvas: Image.Image, patch: Image.Image, origin, destination, progress: float, marks: bool) -> None:
+    # Ease the crop into its exact recorded destination; the source keeps moving.
+    eased = progress * progress * (3 - 2 * progress)
+    x, y, w, h = [round(a + (b - a) * eased) for a, b in zip(origin, destination)]
+    w, h = max(1, w), max(1, h)
+    if marks:
+        draw = ImageDraw.Draw(canvas)
+        dx, dy, dw, dh = destination
+        draw.rectangle((round(dx), round(dy), round(dx + dw), round(dy + dh)), outline=MID_GREY, width=1)
+        draw.line((x + w // 2, y + h // 2, round(dx + dw / 2), round(dy + dh / 2)), fill=MID_GREY)
+    canvas.paste(patch.resize((w, h), Image.Resampling.BILINEAR), (x, y))
+    if marks:
+        ImageDraw.Draw(canvas).rectangle((x, y, x + w - 1, y + h - 1), outline=WHITE, width=max(1, canvas.width // 960))
 
 
 def _search_frame(
@@ -343,7 +404,6 @@ def _search_frame(
 ) -> Image.Image:
     width, height = canvas_size
     margin = max(8, round(width * 0.025))
-    gutter = max(8, round(width * 0.018))
     label_height = max(20, round(height * 0.065))
     canvas = Image.new("RGB", canvas_size, BLACK)
     label_font = _font(max(10, round(width * 0.009)), bold=True)
@@ -371,12 +431,7 @@ def _search_frame(
         )
         return canvas.convert("L").convert("RGB")
 
-    panel_width = (width - margin * 2 - gutter) // 2
-    left_box = (margin, label_height, margin + panel_width, height - margin)
-    right_box = (margin + panel_width + gutter, label_height, width - margin, height - margin)
-    if settings.split_orientation == "stacked":
-        left_box = (margin, label_height, width - margin, height // 2 - gutter // 2)
-        right_box = (margin, height // 2 + label_height, width - margin, height - margin)
+    left_box, right_box = _panel_boxes(canvas_size, settings)
     draw.text((left_box[0], max(2, label_height // 3)), "BÚSQUEDA", fill=MID_GREY, font=label_font)
     draw.text((right_box[0], right_box[1] - label_height + max(2, label_height // 3)), "RECONSTRUCCIÓN", fill=MID_GREY, font=label_font)
     if settings.split_orientation == "stacked":
@@ -446,6 +501,15 @@ def complete_search_video_frames(
         final = final_images[target_index].convert("L").convert("RGB")
         loaded_source_id = ""
         loaded_source: Image.Image | None = None
+        events = placement_timing(walk, holds, fps, settings)
+        landings = [event["land_frame"] for event in events]
+        source_bounds: dict[int, tuple] = {}
+        elapsed = 0
+        left_box, right_box = _panel_boxes(canvas_size, settings)
+        base_settings = VideoSettings(**{name: False if name == "show_match_marks" else getattr(settings, name)
+            for name in VideoSettings.__dataclass_fields__}) if settings.playback_mode == "continuous" else settings
+        # Leave time for the final crop to land without restarting the walk.
+        holds[-1] += timeline.search - sum(holds)
 
         for reached, hold in enumerate(holds):
             source_frame = frames[reached]
@@ -461,18 +525,35 @@ def complete_search_video_frames(
             assert loaded_source is not None
             before = bisect.bisect_left(walk.placed_after_frame, reached)
             after = bisect.bisect_right(walk.placed_after_frame, reached)
+            for pi in range(before, after):
+                p = walk.result.placements[pi]
+                rect = source_frame.get("display_rect", (p.source_x, p.source_y, p.source_width or p.image.width, p.source_height or p.image.height))
+                source_bounds[pi] = _fitted_rectangle(loaded_source.size, left_box, rect)
             rendered_count = -1
             rendered_frame: Image.Image | None = None
             for local in range(hold):
-                visible_count = before if local < max(1, hold // 3) else after
+                tick = elapsed + local
+                visible_count = bisect.bisect_right(landings, tick) if settings.playback_mode == "continuous" else (before if local < max(1, hold // 3) else after)
                 if rendered_count != visible_count:
                     rendered_frame = _search_frame(
                         source_frame, loaded_source, target, walk, final, visible_count,
-                        render_progress, canvas_size, composition, settings,
+                        render_progress, canvas_size, composition, base_settings,
                     )
                     rendered_count = visible_count
                 assert rendered_frame is not None
-                yield rendered_frame
+                if settings.playback_mode == "continuous" and composition == "split":
+                    moving = rendered_frame.copy()
+                    for pi in range(visible_count, after):
+                        event = events[pi]
+                        if event["launch_frame"] <= tick < event["land_frame"]:
+                            p = walk.result.placements[pi]
+                            destination = _fitted_rectangle(final.size, right_box, (p.dest_x, p.dest_y, p.image.width, p.image.height))
+                            progress = (tick - event["launch_frame"]) / (event["land_frame"] - event["launch_frame"])
+                            _transfer(moving, p.image.convert("L").convert("RGB"), source_bounds[pi], destination, progress, settings.show_match_marks)
+                    yield moving
+                else:
+                    yield rendered_frame
+            elapsed += hold
 
         final_canvas = Image.new("RGB", canvas_size, BLACK)
         _paste_contained(final_canvas, final, (0, 0, *canvas_size))
@@ -518,15 +599,20 @@ def fragment_video_frames(assembly: Any, target: ManifestRow, settings: Any, art
     frames = []
     for index, placement in enumerate(assembly.placements):
         row = rows[placement.source_id]
-        def load_source(p=placement, row=row):
+        frame = {"id": placement.source_id if reveal_sources else str(index), "fragment_field": not reveal_sources}
+        def load_source(p=placement, row=row, frame=frame):
             if reveal_sources:
                 return source_region_from_row(load_rgb(row_file_path(row, source_manifest)), row, row.kind)
             # Canonical people work retains its fragment-only source display.
             if getattr(settings, "video_source_layout", "grid") == "match":
-                return _matched_fragment_field([p], assembly.image.size)[0]
-            return _contributing_fragment_field([p], assembly.image.size, seed=settings.seed)[0]
-        frames.append({"id": placement.source_id if reveal_sources else str(index), "load_image": load_source,
-                       "fragment_field": not reveal_sources})
+                field, starts = _matched_fragment_field([p], assembly.image.size)
+            else:
+                field, starts = _contributing_fragment_field([p], assembly.image.size, seed=settings.seed)
+            x, y, _ = starts[0]
+            frame["display_rect"] = (x, y, p.image.width, p.image.height)
+            return field
+        frame["load_image"] = load_source
+        frames.append(frame)
     if not frames:
         # Empty reconstruction still receives a complete commemorative sequence.
         frames = [{"id": "empty", "image": Image.new("RGB", (16, 16), BLACK), "fragment_field": True}]

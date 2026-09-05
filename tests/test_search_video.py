@@ -51,7 +51,7 @@ def test_schedule_preserves_skips_contributions_and_all_closing_phases() -> None
     from types import SimpleNamespace
     from desaparecidos.search_video import VideoSettings, video_schedule
     walk = SimpleNamespace(placed_after_frame=[1, 3], segment_frame_ids=['a', 'b', 'c', 'd'])
-    timeline, holds = video_schedule(walk, 2, 4, VideoSettings(contribution_seconds=3, scan_seconds=0.25))
+    timeline, holds = video_schedule(walk, 2, 4, VideoSettings(playback_mode='hold', contribution_seconds=3, scan_seconds=0.25))
     assert holds == [1, 12, 1, 12]
     assert timeline.search == sum(holds)
     assert timeline.total == sum(holds) + 14 * 4
@@ -110,7 +110,55 @@ def test_fragment_video_never_loads_unreviewed_people_context(tmp_path) -> None:
     face = source_region_from_row(source, row, 'people')
     placement = TilePlacement('source','p',face,0,0,0,0)
     assembly = AssemblyResult(face, face, {'source':1}, {'p':1}, [placement])
-    settings = SimpleNamespace(**VideoSettings().__dict__, fps=2, duration_seconds=1, output_width=320, seed=17)
+    settings = SimpleNamespace(**VideoSettings(show_match_marks=False).__dict__, fps=2, duration_seconds=1, output_width=320, seed=17)
     frames = list(fragment_video_frames(assembly,target,settings,'todos-somos-familiares',[row],tmp_path/'people.csv'))
     # The only reviewed region is black; the white surrounding photograph must never appear.
     assert frames[0].crop((10,25,155,170)).getbbox() is None
+
+
+def test_continuous_walk_advances_during_transfer_and_lands_once() -> None:
+    from types import SimpleNamespace
+    import numpy as np
+    from PIL import Image
+    from desaparecidos.pipeline_core import AssemblyResult, TilePlacement
+    from desaparecidos.search_video import VideoSettings, complete_search_video_frames, video_schedule, placement_timing
+    target = ManifestRow(kind='targets', line_number=2, values={'id':'target'})
+    patch = Image.new('RGB', (16, 16), 'white')
+    p = TilePlacement('0', 'crop', patch, 16, 16, 0, 0, 16, 16)
+    final = Image.new('RGB', (64, 64), 0)
+    final.paste(patch, (16, 16))
+    walk = SimpleNamespace(result=AssemblyResult(final, final, {'0':1}, {'crop':1}, [p]),
+        placed_after_frame=[0], segment_frame_ids=[str(i) for i in range(6)])
+    sources = [[{'id':str(i), 'image':Image.new('RGB',(64,64),(20+i*20,)*3)} for i in range(6)]]
+    options = VideoSettings(scan_seconds=0.25, contribution_seconds=1, show_match_marks=False)
+    timeline, holds = video_schedule(walk, 600*8, 8, options)
+    assert holds == [2]*6  # A long requested duration must not stretch the walk.
+    assert timeline.search == 12
+    assert placement_timing(walk, holds, 8, options)[0]['land_frame'] == 8
+    counts = []
+    def progress(walk, target, count):
+        counts.append(count)
+        return Image.new('RGB', (64,64), 0)
+    frames = list(complete_search_video_frames(sources,[target],[walk],[final],duration_seconds=600,
+        fps=8,output_width=320,composition='split',render_progress=progress,settings=options))
+    assert len(frames) == timeline.total
+    assert frames[0].getpixel((140,140)) == (20,20,20)
+    assert frames[2].getpixel((140,140)) == (40,40,40)
+    # The crop moves across the gutter before it is part of the accumulated portrait.
+    assert not np.array_equal(np.asarray(frames[2]),np.asarray(frames[3]))
+    destination = (217,68)
+    assert frames[0].getpixel(destination) == (0,0,0)
+    assert frames[8].getpixel(destination) == (255,255,255)
+    assert frames[11].getpixel(destination) == (255,255,255)
+    assert set(counts) == {0}
+
+
+def test_last_transfer_finishes_before_final_image_hold() -> None:
+    from types import SimpleNamespace
+    from desaparecidos.search_video import VideoSettings, video_schedule, placement_timing
+    walk = SimpleNamespace(placed_after_frame=[2],segment_frame_ids=['a','b','c'])
+    settings = VideoSettings()
+    timeline, holds = video_schedule(walk, 1, 24, settings)
+    event = placement_timing(walk, holds, 24, settings)[0]
+    assert event['launch_frame'] == 8 and event['land_frame'] == 26
+    assert timeline.search == 27

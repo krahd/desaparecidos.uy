@@ -31,7 +31,7 @@ def frames_at(root: Path, *images: Image.Image) -> list[dict]:
 
 def settings(**kwargs) -> TraversalRenderSettings:
     return replace(TraversalRenderSettings(fragment_size=32, max_region_size=64,
-                   output_width=64, min_structure=0.02, structure_threshold=0.8), **kwargs)
+                   output_width=64, min_structure=0.02, structure_threshold=0.8, structure_scale="fine"), **kwargs)
 
 
 def test_descriptor_rejects_same_tone_different_structure_and_ignores_brightness() -> None:
@@ -108,3 +108,32 @@ def test_source_cannot_contribute_again_and_source_rect_stays_in_bounds(tmp_path
 def test_invalid_size_range_fails(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match='minimum'):
         search_regions(pattern(), frames_at(tmp_path, pattern()), settings(fragment_size=96))
+
+
+def test_missing_region_precedes_refining_an_already_good_region(tmp_path: Path) -> None:
+    target = Image.new('RGB', (128, 64))
+    target.paste(pattern(), (0, 0))
+    target.paste(pattern(), (64, 0))
+    frames = frames_at(tmp_path, pattern().filter(ImageFilter.GaussianBlur(2)), pattern(), pattern())
+    result, encounters, decisions, coverage = search_regions(target, frames,
+        settings(fragment_size=64, max_region_size=64, refinement_margin=0.005))
+    assert encounters == [0, 1, 2]
+    assert [p.dest_x for p in result.placements] == [0, 64, 0]
+    assert [d['action'] for d in decisions] == ['place', 'place', 'refine']
+    assert coverage == 1
+
+
+@pytest.mark.parametrize('scale', ['broad', 'fine'])
+def test_exposure_adjustment_follows_structural_acceptance_and_records_transform(tmp_path: Path, scale: str) -> None:
+    target = pattern()
+    dark = target.point(lambda v: v * 0.5 + 10)
+    frames = frames_at(tmp_path, Image.new('RGB', target.size, (130,)*3), dark)
+    result, encounters, decisions, coverage = search_regions(target, frames,
+        settings(structure_scale=scale, tone_mode='match-region'))
+    assert encounters == [1] and coverage == 1
+    assert decisions[0]['action'] == 'skip' and 'tone_transform' not in decisions[0]
+    transform = decisions[1]['tone_transform']
+    pixels = np.asarray(dark.convert('L'),dtype=np.float32)*transform['gain']+transform['offset']
+    assert np.array_equal(np.asarray(result.image)[:,:,0], np.clip(pixels,0,255).round().astype(np.uint8))
+    assert abs(np.asarray(result.image).mean() - np.asarray(target).mean()) < 2
+    assert result.image != target  # The adjusted source crop remains the material.

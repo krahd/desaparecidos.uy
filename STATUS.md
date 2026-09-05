@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-04 18:58 GMT-6
+Last updated: 2026-09-04 19:37 GMT-6
 
 ## Project purpose
 
@@ -43,7 +43,7 @@ Public reuse is now explicitly scoped. Software source and associated technical 
 
 ## Active focus
 
-The active focus is the artist-directed structural search and common video form. The artist-directed low-fps traversal and a complete internal face reconstruction are implemented and rendered. The new 167.17-second video has 100% canvas coverage, using 192 contributions from 895 unique approved frames across 24 city walks. Artistic review of the full edition and browser interaction remain the next checks; this internal render does not establish public-release readiness.
+The active focus is the artist-directed structural search and common video form. The complete video has been explicitly selected by the artist for inclusion in the repository. The artist-directed low-fps traversal and a complete internal face reconstruction are implemented and rendered. The new 167.17-second video has 100% canvas coverage, using 192 contributions from 895 unique approved frames across 24 city walks. Artistic review of the full edition and browser interaction remain the next checks; this internal render does not establish public-release readiness.
 
 Publication/article evidence still requires explicit target historical-identification and portrait-rights decisions, a clean committed runtime, full output review and figures derived from the exact hash-bound outputs. The implementation and internal preview do not resolve those separate requirements.
 
@@ -209,7 +209,7 @@ python scripts/publish_static_memorial.py --help
 - `data/persons/disappeared.json` — canonical person corpus.
 - `assets/targets/disappeared/selected/` — reviewed selected target derivatives.
 - `data/manifests/` — tracked templates/exports and ignored local review manifests.
-- `data/raw/` and `outputs/` — ignored local source, traversal, cache and generated artifacts.
+- `data/raw/` and `outputs/` — ignored local source, traversal, cache and generated artifacts, except the explicitly selected MP4 listed under Recent changes.
 - `doc/artistic-computational-principles.md` — governing artistic hierarchy.
 - `doc/development-roadmap.md` — checked implementation state and remaining artistic work.
 - `doc/artwork-runtime.md` and `doc/output-sidecar-schema.md` — runtime and evidence contracts.
@@ -240,6 +240,12 @@ python scripts/publish_static_memorial.py --help
 These are project-curation counts, not an authoritative historical total. The target corpus was not modified by the 1 September audit work.
 
 ## Recent changes
+
+### 4 September 2026 — selected video tracked in Git
+
+- The artist explicitly requested repository inclusion of the complete video, overriding the general generated-output exclusion for this MP4 only: [`seguimos-buscando-route-20260905005030-cf1bfd70-17-20260905005312.mp4`](outputs/stage1/seguimos-buscando-route-20260905005030-cf1bfd70-17-20260905005312.mp4).
+- The selected file is the exact previously verified render: 37,878,902 bytes, SHA-256 `088e14bed54b1d2703d94e8f68af8d6245e3d9a28bd10b3e57847f6d381fe266`; `ffprobe` rechecked 4,012 H.264 frames at 1920×1080 and 167.166667 seconds. No rendering or source-code change was required.
+- Generation settings, traversal/target provenance and the original `internal_unreviewed` review marker remain as recorded below and in the local JSON sidecar. Repository inclusion is artist-authorised; it does not alter the item-level licensing recorded in `LICENSING.md`. Source imagery, other outputs and the full local review sidecar remain ignored.
 
 ### 4 September 2026 — continuous traversal and complete portrait render
 
@@ -315,7 +321,7 @@ Verification of continuous traversal and the complete internal render on 4 Septe
 - `npm --prefix frontend test` — eight passed; `npm --prefix frontend run build` — passed. Existing Starlette/httpx and large-chunk advisories remain.
 - Both CLI help surfaces expose playback, structure-scale and tone-mode options.
 - Real H.264 render: `ffprobe` confirms 1920×1080, 24 fps, 4,012 frames and 167.166667 seconds. Full `ffmpeg -v error -i <video> -f null -` decode passed. Eight sampled encoded frames have identical RGB channels; transfer, accumulation, final face and closing-card contact sheets were visually inspected.
-- Temporal-causality validation recomputed successfully from the final sidecar: no future source frames used. Canvas coverage is 1.0; all 192 contributions bind to distinct current encounters. Generated files remain ignored.
+- Temporal-causality validation recomputed successfully from the final sidecar: no future source frames used. Canvas coverage is 1.0; all 192 contributions bind to distinct current encounters. Generated files remain ignored except the artist-selected MP4 now tracked in Git.
 - Administration repository: validation and tracking audit passed (existing registry warnings); 102 unit tests passed in an isolated temporary PyYAML/jsonschema environment. The system Python lacked these development dependencies, so neither project's production dependencies were changed.
 - Browser interaction remains unverified: no browser was available in the connected runtime.
 
@@ -351,7 +357,7 @@ Focused local verification on 1 September 2026:
 - isolated `pip-audit` of the installed project environment — no known third-party vulnerabilities after upgrading Pillow; the local unpublished `desaparecidos-uy` package is not a PyPI audit target.
 - `.venv/bin/python -m pip check`, `bash -n start.sh`, `git diff --check`, refusal-policy public rendering and JSON parsing — passed.
 
-No final exhibition media, article figures or publication-cleared supplementary video have been produced; local previews remain internal and incomplete.
+No final exhibition media, article figures or publication-cleared supplementary video have been produced. The complete portrait study is now selected for repository inclusion; its generation-time review marker remains unchanged.
 
 Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 2026: Python 3.11/3.12, frontend tests/build and launcher syntax passed. That run predates the current changes.
 
@@ -404,7 +410,7 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - Rights clearance is permission for a stated use, never an implication that an archive, memorial organisation, relatives' organisation, rights holder or depicted person endorses the artwork.
 - Temporal causality is an executable integrity property of **Seguimos buscando**, not a descriptive Boolean.
 - Canonical figures and supplementary media must remain traceable to exact media, sidecars, evaluations, runtime commit, policy hash and input hashes.
-- Sensitive source imagery, traversal caches and generated evidence stay outside version control.
+- Sensitive source imagery, traversal caches and generated evidence stay outside version control, except the one MP4 explicitly selected by the artist for repository inclusion.
 - Open licensing applies by layer: software under MIT and the public-performance protocol under CC BY 4.0; source portraits, canonical person records, third-party/participant material and generated outputs retain their own rights conditions.
 
 ## Documentation alignment notes
@@ -415,4 +421,4 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the structural-video milestone, verification, complete internal edition and next artistic review. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-04 18:58 GMT-6
+Last updated: 2026-09-04 19:37 GMT-6

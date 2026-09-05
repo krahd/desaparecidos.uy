@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-04 19:37 GMT-6
+Last updated: 2026-09-04 21:04 GMT-6
 
 ## Project purpose
 
@@ -23,9 +23,9 @@ The repository contains two maintained runtime surfaces:
 
 The first two works support grid, irregular and overlap grammars, target salience, contribution/adjacency controls and territorial balancing. **Seguimos buscando** now searches variable rectangular regions using normalised grayscale organisation and signed directional gradients. Each approved traversal frame can contribute at most one region at its own encounter. Weak or structureless candidates are skipped; larger qualifying regions are preferred, and better later candidates may replace whole regions or smaller parts. Multiple coherent walks in a saved traversal accumulate into one portrait in single-target mode. Partial and entirely empty searches are supported without forced completion.
 
-All three works use the same monochrome video form: search at left and reconstruction at right, then the assembled fragment image, person details and closing text. Defaults are 1920×1080 landscape at 24 fps. The GUI/API/CLI expose playback mode, transfer and scan durations, image/details/text holds, fades, match marks and closing text. Continuous playback now follows encounter timing: at the defaults the city advances at six source frames per second and crops travel for 0.75 seconds while it advances. Arrival remains causal and the final crop lands before the closing phases. The optional hold mode retains minimum-duration pauses. The artist interface, map, image/video previews and static memorial styles are monochrome; colour output requests are rejected. `search-video-presentation/2.0` records exact phase counts and actual duration.
+All three works use the same monochrome video form: search at left and reconstruction at right fades to black, the assembled fragment image fades in/out, followed by person details, closing text and https://desaparecidos.uy, each fading through black. Catalogue names are displayed given names first without a comma. Defaults are 1920×1080 landscape at 24 fps. The GUI/API/CLI expose playback mode, transfer and scan durations, image/details/text holds, fades, match marks and closing text. Continuous playback now follows encounter timing: at the traversal defaults the city advances at three source frames per second and crops travel for 0.75 seconds while it advances. Arrival remains causal and the final crop lands before the closing phases. The optional hold mode retains minimum-duration pauses. The artist interface, map, image/video previews and static memorial styles are monochrome; colour output requests are rejected. `search-video-presentation/3.0` records exact phase counts and actual duration.
 
-Traversal reconstruction modes are `fixed`, `largest-first` and `refine` (default). Default minimum/maximum region extents are 96/384 px, structural threshold 0.72, minimum structure 0.035 and improvement margin 0.04. Broad structural comparison uses 8×8 samples by default; fine comparison retains 16×16. Uncovered areas take precedence over refinements. Optional `tone_mode=match-region` applies one recorded brightness/contrast transform after structural acceptance; `source` preserves exposure and remains the default. The artist screen includes a broad-portrait preset (192–768 px, threshold 0.60, minimum structure 0.008, refinement margin 0.02, exposure adjustment). These are heuristic artistic controls, not semantic recognition or probability estimates. `region_search` records every acceptance, refinement or skip and realised coverage. Native source rectangles remain distinct from resized target rectangles. Structural histories retain exact placement geometry and require `contribution_policy: "single-current-frame"`; an explicitly marked empty search is valid, while unmarked or malformed empty histories remain invalid.
+Traversal reconstruction modes are `fixed`, `largest-first` and `refine` (default). Default minimum/maximum region extents are 96/384 px, structural threshold 0.82, minimum structure 0.035 and improvement margin 0.04. Broad structural comparison uses 8×8 samples by default; fine comparison retains 16×16. Uncovered areas take precedence over refinements. Optional `tone_mode=match-region` applies one recorded brightness/contrast transform after structural acceptance; `source` preserves exposure and remains the default. The artist screen includes a broad-portrait preset (192–768 px, threshold 0.82, minimum structure 0.008, refinement margin 0.02, exposure adjustment, six-encounter contribution spacing and a 0.95 reconstruction goal). These are heuristic artistic controls, not semantic recognition or probability estimates. `region_search` records every acceptance, refinement or skip and realised coverage. Native source rectangles remain distinct from resized target rectangles. Structural histories retain exact placement geometry and require `contribution_policy: "single-current-frame"`; an explicitly marked empty search is valid, while unmarked or malformed empty histories remain invalid.
 
 New outputs use `desaparecidos.uy/output-sidecar/3.0`. Canonical and compatibility outputs now contain:
 
@@ -42,6 +42,8 @@ The core conversational-memory state model added on 8 August remains intentional
 Public reuse is now explicitly scoped. Software source and associated technical documentation authored by Tomas Laurenzo are MIT-licensed; the `Seguimos buscando` public-performance protocol is CC BY 4.0. Historical portraits, canonical person records, third-party/source imagery, participant material and generated memorial outputs are excluded from those blanket grants unless item-level rights state otherwise. This licensing change does not change the implementation boundary: direct ingestion of self-captured participant sequences and a reviewed human-performed pilot remain unfinished.
 
 ## Active focus
+
+Current revision: stricter matching and six-encounter spacing limit early contribution bursts; traversal cadence is now 0.33 seconds. Search continues until full coverage and a 0.95 similarity goal, or exhausts approved material. Similarity is the minimum of global structural correlation and `1 - grayscale MAE / 255`; it is not a calibrated fidelity measure. Region-size settings do not change during search. The 192–768 px preset is preserved with a stricter 0.82 acceptance threshold. A fresh 322.33-second full-HD study against the existing 895-frame traversal passed encoding/decoding and closing-card inspection, but exhausted its sources at 55.4% coverage and 0.516 overall similarity. It does not fulfil the desired complete, more accurate portrait. A 0.72 acceptance calibration reached 83.8% coverage and 0.792 similarity, also incomplete. More approved material or further matching work is required before a replacement edition is ready.
 
 The active focus is the artist-directed structural search and common video form. The complete video has been explicitly selected by the artist for inclusion in the repository. The artist-directed low-fps traversal and a complete internal face reconstruction are implemented and rendered. The new 167.17-second video has 100% canvas coverage, using 192 contributions from 895 unique approved frames across 24 city walks. Artistic review of the full edition and browser interaction remain the next checks; this internal render does not establish public-release readiness.
 
@@ -241,6 +243,16 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Recent changes
 
+### 4 September 2026 — stricter and spaced traversal search
+
+- Added `contribution_interval` and `search_similarity` across both runtimes, CLI/API and artist controls, with spacing/quality/exhaustion evidence in sidecars and causal early stopping.
+- Raised default acceptance to 0.82, retained region extents, and slowed traversal cadence to three encounters per second. The stricter portrait preset retains 192–768 px regions and an eight-second final-image hold.
+- Added search-to-black and reconstruction fade-in, given-name-first card formatting, and website fade-in/hold/fade-out through the shared compositor; presentation schema is now 3.0.
+- The 0.82 study records 52 contributions (19/19/9/5 by temporal quarter), versus the previous 192 (125/42/10/15); mean accepted score rises from 0.762 to 0.885, but coverage drops. The 0.72 study records 105 contributions (36/34/17/18), mean score 0.822. Region extents remain 192–768 px in both. The previous complete image scores 0.926 under the new whole-image metric; the current default goal is therefore 0.95. Calibration studies used a 0.90 goal and never reached it.
+- The ignored 5:22 video and sidecar are `outputs/stage1/seguimos-buscando-route-20260905005030-cf1bfd70-17-20260905025502.*`; sampled closing frames are under `outputs/stage1/structural-review/stricter-closing-contact.png`. The earlier artist-selected video remains unchanged.
+- Minimum spacing prevents early bursts but cannot guarantee uniform contributions when matching opportunities vary. Finite traversal exhaustion remains possible; the renderer does not acquire extra material automatically.
+
+
 ### 4 September 2026 — selected video tracked in Git
 
 - The artist explicitly requested repository inclusion of the complete video, overriding the general generated-output exclusion for this MP4 only: [`seguimos-buscando-route-20260905005030-cf1bfd70-17-20260905005312.mp4`](outputs/stage1/seguimos-buscando-route-20260905005030-cf1bfd70-17-20260905005312.mp4).
@@ -314,6 +326,8 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Tests and verification status
 
+Current stricter-search revision: `.venv/bin/python -m pytest -q` — 216 passed; focused structural/API checks — 37 passed; `.venv/bin/python -m compileall -q src tests scripts` — passed; `npm --prefix frontend test` — eight passed; `npm --prefix frontend run build` — passed. Existing Starlette/httpx and frontend chunk-size advisories remain. Full-HD 24 fps H.264 study: ffprobe confirms 7,736 frames and 322.333333 seconds; full ffmpeg decode passed; the final still and all closing phases were visually inspected. Browser interaction remains unverified. This study is an incomplete calibration, not an improved final portrait.
+
 Verification of continuous traversal and the complete internal render on 4 September 2026:
 
 - `.venv/bin/python -m pytest -q` — 210 passed; coverage includes continuous source movement during transfer, delayed deposition, final landing, uncovered-area priority, broad/fine exposure adjustment and API option forwarding.
@@ -363,6 +377,9 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 
 ## Known issues, risks and limitations
 
+- The user explicitly approved the prepared `tom-work-admin` summary after the initial automatic-review rejection. The summary has now been applied and checked against the approved text; administration synchronisation is complete.
+- Spacing deliberately skips matching on intervening encounters; stricter thresholds may leave fewer matches in a finite source pool. Full coverage alone does not satisfy the new quality goal. Additional approved material may be needed.
+
 - No target currently records the newly explicit historical-identification and rights-review states required for canonical article evidence. Existing `review_status=approved` values are generation gates, not rights clearance.
 - The current approved canonical target row uses a permission note that still requires verification; it is not sufficient to claim an explicitly licensed paper artifact.
 - A complete internal Abeledo video and its approved combined traversal exist, but the target lacks the independent historical-identification and rights decisions required for public or paper evidence. The render was produced before the final commit and remains `internal_unreviewed`.
@@ -381,7 +398,7 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 
 ## Pending tasks and next steps
 
-Review the complete internal video and broad-portrait preset with the artist; test the controls in a connected browser. Additional walks or alternative structural settings remain artistic choices, rather than a missing prerequisite for the current full-coverage study.
+Review the new stricter render with the artist and test controls in a connected browser; if the quality target is unmet, extend the approved traversal material. Additional walks or alternative structural settings remain artistic choices, rather than a missing prerequisite for the current full-coverage study.
 
 1. Review and explicitly record historical-identification and portrait-rights decisions for a carefully selected target; record reviewer and date.
 2. Use a clean committed runtime revision for any canonical evidence render.
@@ -419,6 +436,6 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - `doc/seguimos-buscando-public-performance.md`, `LICENSE`, `LICENSE-PROTOCOL.md` and `LICENSING.md` reflect the current prototype and public-reuse boundaries.
 - `doc/STATUS.md` remains a pointer to this canonical report.
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
-- The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the structural-video milestone, verification, complete internal edition and next artistic review. Existing changes were preserved; registry lifecycle state and deadline did not change.
+- The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now also records the stricter-search revision, verification and incomplete calibration outcomes. The user explicitly approved this separate-repository update; the applied paragraph matches the prepared summary exactly. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-04 19:37 GMT-6
+Last updated: 2026-09-04 21:04 GMT-6

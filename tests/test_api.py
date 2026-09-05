@@ -678,7 +678,7 @@ def test_artist_video_options_reach_all_render_routes(monkeypatch: pytest.Monkey
         response = client.post('/api/generate', json={**common, 'artwork':artwork})
         assert response.status_code == 200
     structure = {'target_ids':['person'], 'reconstruction_mode':'largest-first', 'max_region_size':768,
-                 'structure_scale':'fine', 'tone_mode':'match-region', 'fragment_size':96, 'structure_threshold':0.9, 'min_structure':0.05, 'refinement_margin':0.1}
+                 'structure_scale':'fine', 'tone_mode':'match-region', 'fragment_size':96, 'contribution_interval':9, 'search_similarity':0.95, 'structure_threshold':0.9, 'min_structure':0.05, 'refinement_margin':0.1}
     assert client.post('/api/generate/traversal',json={**common, **structure, 'traversal_id':'route'}).status_code == 200
     assert client.post('/api/traversals/auto',json={**common, **structure}).status_code == 200
     for settings in captured:
@@ -687,6 +687,7 @@ def test_artist_video_options_reach_all_render_routes(monkeypatch: pytest.Monkey
         assert settings.output_width == 1920 and settings.colour_output is False
     assert [s.reconstruction_mode for s in captured[2:]] == ['largest-first','largest-first']
     assert [s.max_region_size for s in captured[2:]] == [768,768]
+    assert all(s.contribution_interval == 9 and s.search_similarity == 0.95 for s in captured[2:])
     assert all(s.structure_scale == 'fine' and s.tone_mode == 'match-region' for s in captured[2:])
     assert client.post('/api/generate/traversal',json={**structure, 'traversal_id':'route', 'structure_threshold':1.2}).status_code == 422
     assert client.post('/api/generate',json={'contribution_seconds':0}).status_code == 422

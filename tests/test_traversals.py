@@ -564,11 +564,11 @@ def test_render_records_approved_frames_and_never_uses_future_frames(
     assert sidecar["target_mode"] == target_mode
     assert sidecar["settings"]["colour_output"] is False
     presentation = sidecar['video_presentation']
-    assert presentation['schema'] == 'desaparecidos.uy/search-video-presentation/2.0'
+    assert presentation['schema'] == 'desaparecidos.uy/search-video-presentation/3.0'
     assert presentation['canvas'] == {'width': 32, 'height': 18, 'aspect_ratio': '16:9'}
     assert presentation['palette'] == 'grayscale'
     assert presentation['text_language'] == 'es'
-    assert presentation['closing_sequence'] == ['reconstruccion-final', 'nombre-fechas-y-detalles', 'seguimos-buscando']
+    assert presentation['closing_sequence'] == ['fundido-a-negro', 'reconstruccion-final', 'nombre-fechas-y-detalles', 'seguimos-buscando', 'https://desaparecidos.uy']
     assert presentation['actual_duration_seconds'] == len(rendered_frames) / 2
     assert set(presentation['timeline_frames_by_target']) == set(target_ids)
     assert sum(sum(plan.values()) for plan in presentation['timeline_frames_by_target'].values()) == len(rendered_frames)

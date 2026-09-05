@@ -689,6 +689,7 @@ def review_traversal_frames(
 
 @dataclass(frozen=True)
 class TraversalRenderSettings(VideoSettings, StructuralSettings):
+    scan_seconds: float = 0.33
     composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
     duration_seconds: int = 60
@@ -710,6 +711,14 @@ class WalkAssembly:
     decisions: list[dict[str, Any]] = field(default_factory=list)
     coverage: float = 0.0
 
+    @property
+    def search_summary(self) -> dict[str, Any]:
+        latest = next((d for d in reversed(self.decisions) if "reconstruction_similarity" in d), {})
+        return {"coverage": self.coverage,
+                "reconstruction_similarity": latest.get("reconstruction_similarity", 0.0),
+                "stop_reason": self.decisions[-1].get("stop_reason") if self.decisions else "approved-frames-exhausted",
+                "encounter_count": len(self.segment_frame_ids), "decisions": self.decisions}
+
 
 def assemble_walk(
     target_row: ManifestRow,
@@ -721,7 +730,7 @@ def assemble_walk(
     target = crop_from_row(load_rgb(row_file_path(target_row, target_manifest)), target_row)
     target = _target_canvas(target, settings.output_width, settings.fragment_size)
     result, encounters, decisions, coverage = search_regions(target, frames, settings)
-    return WalkAssembly(result, encounters, [str(frame["id"]) for frame in frames], decisions, coverage)
+    return WalkAssembly(result, encounters, [str(frame["id"]) for frame in frames[:len(decisions)]], decisions, coverage)
 
 
 def _split_segments(frames: list[dict[str, Any]], count: int) -> list[list[dict[str, Any]]]:
@@ -861,7 +870,7 @@ def render_traversal(
         "source_usage": {target.id: walk.result.source_usage for target, walk in zip(selected, walks)},
         "source_image_display": "approved-traversal-with-contributing-fragments",
         "assembly_policy": "single-current-frame-structural-region",
-        "region_search": {target.id: {"decisions": walk.decisions, "coverage": walk.coverage} for target, walk in zip(selected, walks)},
+        "region_search": {target.id: walk.search_summary for target, walk in zip(selected, walks)},
         "video_presentation": video_presentation_metadata(
             settings.output_width,
             settings.duration_seconds,

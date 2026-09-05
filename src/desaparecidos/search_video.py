@@ -55,6 +55,8 @@ def validate_video_settings(settings: VideoSettings) -> None:
 @dataclass(frozen=True)
 class SearchVideoTimeline:
     search: int
+    search_fade_out: int
+    final_fade_in: int
     final_hold: int
     final_fade_out: int
     person_fade_in: int
@@ -63,6 +65,9 @@ class SearchVideoTimeline:
     title_fade_in: int
     title_hold: int
     title_fade_out: int
+    website_fade_in: int
+    website_hold: int
+    website_fade_out: int
 
     @property
     def total(self) -> int:
@@ -71,6 +76,8 @@ class SearchVideoTimeline:
     def as_dict(self) -> dict[str, int]:
         return {
             "search": self.search,
+            "search_fade_out": self.search_fade_out,
+            "final_fade_in": self.final_fade_in,
             "final_hold": self.final_hold,
             "final_fade_out": self.final_fade_out,
             "person_fade_in": self.person_fade_in,
@@ -79,6 +86,9 @@ class SearchVideoTimeline:
             "title_fade_in": self.title_fade_in,
             "title_hold": self.title_hold,
             "title_fade_out": self.title_fade_out,
+            "website_fade_in": self.website_fade_in,
+            "website_hold": self.website_hold,
+            "website_fade_out": self.website_fade_out,
         }
 
 
@@ -101,6 +111,8 @@ def search_video_timeline(total_frames: int, fps: int, settings: VideoSettings |
     validate_video_settings(options)
     fade = max(1, round(options.fade_seconds * fps))
     requested = {
+        "search_fade_out": fade,
+        "final_fade_in": fade,
         "final_hold": max(1, round(options.final_hold_seconds * fps)),
         "final_fade_out": fade,
         "person_fade_in": fade,
@@ -109,6 +121,9 @@ def search_video_timeline(total_frames: int, fps: int, settings: VideoSettings |
         "title_fade_in": fade,
         "title_hold": max(1, round(options.text_hold_seconds * fps)),
         "title_fade_out": fade,
+        "website_fade_in": fade,
+        "website_hold": max(1, round(options.text_hold_seconds * fps)),
+        "website_fade_out": fade,
     }
     closing_requested = sum(requested.values())
     closing_available = max(0, min(closing_requested, total_frames - fps))
@@ -209,7 +224,11 @@ def format_spanish_date(value: str) -> str:
 
 def person_card_lines(target: ManifestRow) -> list[str]:
     values = target.values
-    lines = [values.get("name") or target.id]
+    name = values.get("name") or target.id
+    if "," in name:
+        surnames, given_names = name.split(",", 1)
+        name = f"{given_names.strip()} {surnames.strip()}"
+    lines = [" ".join(name.split())]
     birth = format_spanish_date(values.get("birth_date", ""))
     disappeared = format_spanish_date(values.get("disappearance_date", ""))
     place = values.get("disappearance_place", "").strip()
@@ -241,7 +260,7 @@ def video_presentation_metadata(
     plans = [video_schedule(walk, length, fps, options)[0] if walks is not None else search_video_timeline(length, fps, options)
              for walk, length in zip(walks or [None] * len(ids), segment_lengths)]
     return {
-        "schema": "desaparecidos.uy/search-video-presentation/2.0",
+        "schema": "desaparecidos.uy/search-video-presentation/3.0",
         "canvas": {"width": width, "height": height, "aspect_ratio": VIDEO_ASPECT_RATIO},
         "palette": "grayscale",
         "text_language": VIDEO_TEXT_LANGUAGE,
@@ -251,9 +270,11 @@ def video_presentation_metadata(
             "alternate": "recorrido-y-reconstruccion-alternados",
         }.get(composition, composition),
         "closing_sequence": [
+            "fundido-a-negro",
             "reconstruccion-final",
             "nombre-fechas-y-detalles",
             artwork,
+            "https://desaparecidos.uy",
         ],
         "timeline_frames_by_target": {
             target_id: plan.as_dict()
@@ -557,6 +578,11 @@ def complete_search_video_frames(
 
         final_canvas = Image.new("RGB", canvas_size, BLACK)
         _paste_contained(final_canvas, final, (0, 0, *canvas_size))
+        assert rendered_frame is not None
+        for index in range(timeline.search_fade_out):
+            yield _fade(rendered_frame, _opacity(index, timeline.search_fade_out, rising=False))
+        for index in range(timeline.final_fade_in):
+            yield _fade(final_canvas, _opacity(index, timeline.final_fade_in, rising=True))
         for _ in range(timeline.final_hold):
             yield final_canvas
         for index in range(timeline.final_fade_out):
@@ -577,6 +603,14 @@ def complete_search_video_frames(
             yield title
         for index in range(timeline.title_fade_out):
             yield _fade(title, _opacity(index, timeline.title_fade_out, rising=False))
+
+        website = _title_card(canvas_size, "https://desaparecidos.uy")
+        for index in range(timeline.website_fade_in):
+            yield _fade(website, _opacity(index, timeline.website_fade_in, rising=True))
+        for _ in range(timeline.website_hold):
+            yield website
+        for index in range(timeline.website_fade_out):
+            yield _fade(website, _opacity(index, timeline.website_fade_out, rising=False))
 
 
 def fragment_walk(assembly: Any) -> Any:

@@ -31,7 +31,7 @@ def frames_at(root: Path, *images: Image.Image) -> list[dict]:
 
 def settings(**kwargs) -> TraversalRenderSettings:
     return replace(TraversalRenderSettings(fragment_size=32, max_region_size=64,
-                   output_width=64, min_structure=0.02, structure_threshold=0.8, structure_scale="fine"), **kwargs)
+                   output_width=64, contribution_interval=1, search_similarity=0, min_structure=0.02, structure_threshold=0.8, structure_scale="fine"), **kwargs)
 
 
 def test_descriptor_rejects_same_tone_different_structure_and_ignores_brightness() -> None:
@@ -137,3 +137,52 @@ def test_exposure_adjustment_follows_structural_acceptance_and_records_transform
     assert np.array_equal(np.asarray(result.image)[:,:,0], np.clip(pixels,0,255).round().astype(np.uint8))
     assert abs(np.asarray(result.image).mean() - np.asarray(target).mean()) < 2
     assert result.image != target  # The adjusted source crop remains the material.
+
+
+def test_contributions_are_spaced_without_replaying_earlier_sources(tmp_path: Path) -> None:
+    target = Image.new('RGB', (256, 64))
+    for x in range(0, 256, 64):
+        target.paste(pattern(), (x, 0))
+    frames = frames_at(tmp_path, *[pattern() for _ in range(12)])
+    result, encounters, decisions, coverage = search_regions(target, frames,
+        settings(fragment_size=64, max_region_size=64, contribution_interval=3))
+    assert encounters == [2, 5, 8, 11]
+    assert coverage == 1
+    assert [p.source_id for p in result.placements] == [f'frame-{i}' for i in encounters]
+    assert all(d['reason'] == 'contribution-spacing' for d in decisions if d['action'] == 'skip')
+
+
+def test_quality_target_stops_only_with_coverage_and_actual_image_similarity(tmp_path: Path) -> None:
+    target = pattern()
+    dark = target.point(lambda v: v * 0.4)
+    frames = frames_at(tmp_path, dark, target, target)
+    _, encounters, decisions, coverage = search_regions(target, frames,
+        settings(search_similarity=0.99, refinement_margin=0))
+    assert coverage == 1
+    # Normalised structural correlation alone cannot declare the dark image complete.
+    assert decisions[0]['reconstruction_similarity'] < 0.99
+    assert decisions[-1]['stop_reason'] == 'quality-target-reached'
+    assert len(decisions) == 2 and encounters == [0, 1]
+
+
+def test_unattainable_quality_reports_exhaustion_without_smaller_regions(tmp_path: Path) -> None:
+    result, _, decisions, coverage = search_regions(pattern(),
+        frames_at(tmp_path, pattern().filter(ImageFilter.GaussianBlur(2))),
+        settings(search_similarity=1, fragment_size=64, max_region_size=64))
+    assert coverage == 1
+    assert decisions[-1]['stop_reason'] == 'approved-frames-exhausted'
+    assert all(p.image.size == (64, 64) for p in result.placements)
+
+
+def test_assembly_truncates_encounter_history_at_quality_stop(tmp_path: Path) -> None:
+    from desaparecidos.manifests import ManifestRow
+    from desaparecidos.traversals import assemble_walk
+    frames = frames_at(tmp_path, pattern(), pattern(), pattern())
+    target = ManifestRow(kind='targets', line_number=2,
+        values={'id':'target', 'local_path': frames[0]['local_path']})
+    walk = assemble_walk(target, tmp_path/'targets.csv', frames,
+        settings(fragment_size=64, max_region_size=64, search_similarity=0.99))
+    assert walk.segment_frame_ids == ['frame-0']
+    assert walk.placed_after_frame == [0]
+    assert walk.search_summary['stop_reason'] == 'quality-target-reached'
+    assert walk.search_summary['encounter_count'] == 1

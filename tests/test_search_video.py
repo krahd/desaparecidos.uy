@@ -14,7 +14,7 @@ def test_full_hd_timeline_contains_complete_closing_sequence() -> None:
 
     assert video_canvas_size(1920) == (1920, 1080)
     assert timeline.total == 60 * 24
-    assert timeline.search == 46 * 24
+    assert timeline.search == 40 * 24
     assert timeline.final_hold == 4 * 24
     assert timeline.final_fade_out == 24
     assert timeline.person_fade_in == 24
@@ -54,7 +54,7 @@ def test_schedule_preserves_skips_contributions_and_all_closing_phases() -> None
     timeline, holds = video_schedule(walk, 2, 4, VideoSettings(playback_mode='hold', contribution_seconds=3, scan_seconds=0.25))
     assert holds == [1, 12, 1, 12]
     assert timeline.search == sum(holds)
-    assert timeline.total == sum(holds) + 14 * 4
+    assert timeline.total == sum(holds) + 20 * 4
     assert all(count > 0 for count in timeline.as_dict().values())
 
 
@@ -82,7 +82,7 @@ def test_shared_sequence_for_all_three_memorials_is_monochrome_and_causal(tmp_pa
             fps=2, output_width=320, composition='split', render_progress=progress, settings=options, artwork=artwork))
         metadata = video_presentation_metadata(320, 1, 2, target_ids=['person'], settings=options, walks=[walk], artwork=artwork)
         assert len(frames) == metadata['actual_duration_seconds'] * 2
-        assert metadata['closing_sequence'][-1] == artwork
+        assert metadata['closing_sequence'][-2:] == [artwork, 'https://desaparecidos.uy']
         assert seen[0] == 0 and frames[-1].getbbox() is None
         # Left search panel is visible while the right reconstruction is still empty.
         assert frames[0].crop((10, 25, 155, 170)).getbbox() is not None
@@ -162,3 +162,38 @@ def test_last_transfer_finishes_before_final_image_hold() -> None:
     event = placement_timing(walk, holds, 24, settings)[0]
     assert event['launch_frame'] == 8 and event['land_frame'] == 26
     assert timeline.search == 27
+
+
+def test_catalogue_name_is_presented_given_names_first() -> None:
+    target = ManifestRow(kind='targets', line_number=2,
+        values={'id': 'person', 'name': 'Abeledo Sotuyo, Horacio Adolfo'})
+    assert person_card_lines(target)[0] == 'Horacio Adolfo Abeledo Sotuyo'
+    assert target.values['name'] == 'Abeledo Sotuyo, Horacio Adolfo'
+
+
+def test_closing_fades_pass_through_black_and_finish_with_website() -> None:
+    from types import SimpleNamespace
+    from PIL import Image
+    from desaparecidos.pipeline_core import AssemblyResult
+    from desaparecidos.search_video import VideoSettings, complete_search_video_frames, video_schedule, _title_card
+    final = Image.new('RGB', (64, 64), 'white')
+    walk = SimpleNamespace(result=AssemblyResult(final, final, {}, {}, []),
+        placed_after_frame=[], segment_frame_ids=['a'])
+    target = ManifestRow(kind='targets', line_number=2, values={'id': 'person'})
+    options = VideoSettings()
+    timeline, _ = video_schedule(walk, 1, 4, options)
+    frames = list(complete_search_video_frames([[{'id':'a', 'image':final}]], [target], [walk], [final],
+        duration_seconds=1, fps=4, output_width=320, composition='split',
+        render_progress=lambda *args: final, settings=options))
+    phases = {}
+    offset = 0
+    for name, count in timeline.as_dict().items():
+        phases[name] = frames[offset:offset + count]
+        offset += count
+    assert phases['search_fade_out'][-1].getbbox() is None
+    assert phases['final_fade_in'][0].getbbox() is None
+    assert phases['final_fade_in'][-1] == phases['final_hold'][0]
+    assert phases['title_fade_out'][-1].getbbox() is None
+    assert phases['website_fade_in'][0].getbbox() is None
+    assert phases['website_hold'][0] == _title_card((320, 180), 'https://desaparecidos.uy')
+    assert frames[-1].getbbox() is None

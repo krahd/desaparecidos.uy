@@ -54,7 +54,7 @@ export function SeguimosBuscando({
   const [fps, setFps] = useState(24);
   const [outputWidth, setOutputWidth] = useState(1920);
   const [fragmentSize, setFragmentSize] = useState(96);
-  const [videoOptions, setVideoOptions] = useState({ ...defaultVideoOptions });
+  const [videoOptions, setVideoOptions] = useState({ ...defaultVideoOptions, scan_seconds: 0.33 });
   const [structure, setStructure] = useState({ ...defaultStructuralOptions });
   const [composition, setComposition] = useState<'split' | 'overlay' | 'alternate'>('split');
   const [renderSeed, setRenderSeed] = useState(17);
@@ -369,9 +369,10 @@ export function SeguimosBuscando({
             <p className="section-note">Each frame contributes at most one structural region. Unmatched frames continue the walk; empty areas remain empty. Multiple walks in the saved traversal build the same portrait.</p>
             <button className="text-button" onClick={() => {
               setFragmentSize(192);
+              setVideoOptions({ ...videoOptions, scan_seconds: 0.33, final_hold_seconds: 8 });
               setStructure({ reconstruction_mode: 'refine', max_region_size: 768, structure_scale: 'broad',
-                structure_threshold: 0.6, min_structure: 0.008, refinement_margin: 0.02, tone_mode: 'match-region' });
-            }}>Use broad portrait settings</button>
+                contribution_interval: 6, search_similarity: 0.95, structure_threshold: 0.82, min_structure: 0.008, refinement_margin: 0.02, tone_mode: 'match-region' });
+            }}>Use longer, stricter portrait search</button>
             <label>Reconstruction method<select value={structure.reconstruction_mode} onChange={e => setStructure({ ...structure, reconstruction_mode: e.target.value as StructuralOptions['reconstruction_mode'] })}>
               <option value="refine">Largest regions first · refine with better matches</option>
               <option value="largest-first">Largest regions first · preserve accepted regions</option>
@@ -384,6 +385,9 @@ export function SeguimosBuscando({
               <option value="source">Keep source exposure</option><option value="match-region">Match portrait region brightness and contrast</option>
             </select></label>
             <label>Maximum region size (px)<input type="number" min={fragmentSize} max={2048} value={structure.max_region_size} onChange={e => setStructure({ ...structure, max_region_size: Number(e.target.value) })} /></label>
+            <label>Minimum encounters between contributions<input type="number" min={1} max={10000} value={structure.contribution_interval} onChange={e => setStructure({ ...structure, contribution_interval: Number(e.target.value) })} /></label>
+            <label>Reconstruction similarity goal (0 disables early stopping)<input type="number" min={0} max={1} step={0.01} value={structure.search_similarity} onChange={e => setStructure({ ...structure, search_similarity: Number(e.target.value) })} /></label>
+            <p>Search continues until full coverage and the similarity goal, or until approved frames run out. Contributions remain at least the selected number of encounters apart; region sizes stay fixed by your size settings.</p>
             <label>Minimum structural similarity (0–1)<input type="number" min={0.01} max={1} step={0.01} value={structure.structure_threshold} onChange={e => setStructure({ ...structure, structure_threshold: Number(e.target.value) })} /></label>
             <label>Minimum visible structure (0–1)<input type="number" min={0.001} max={1} step={0.005} value={structure.min_structure} onChange={e => setStructure({ ...structure, min_structure: Number(e.target.value) })} /></label>
             <label>Required improvement for replacement<input type="number" min={0} max={1} step={0.01} disabled={structure.reconstruction_mode !== 'refine'} value={structure.refinement_margin} onChange={e => setStructure({ ...structure, refinement_margin: Number(e.target.value) })} /></label>

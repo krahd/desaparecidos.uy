@@ -18,6 +18,8 @@ export const defaultVideoOptions: VideoOptions = {
 };
 
 export type StructuralOptions = {
+  contribution_interval: number;
+  search_similarity: number;
   structure_scale: 'broad' | 'fine';
   tone_mode: 'source' | 'match-region';
   reconstruction_mode: 'fixed' | 'largest-first' | 'refine';
@@ -27,9 +29,10 @@ export type StructuralOptions = {
   refinement_margin: number;
 };
 export const defaultStructuralOptions: StructuralOptions = {
+  contribution_interval: 6, search_similarity: 0.95,
   structure_scale: 'broad', tone_mode: 'source',
   reconstruction_mode: 'refine', max_region_size: 384,
-  structure_threshold: 0.72, min_structure: 0.035, refinement_margin: 0.04,
+  structure_threshold: 0.82, min_structure: 0.035, refinement_margin: 0.04,
 };
 
 export function VideoControls({ value, onChange, traversal = false }: {

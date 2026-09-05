@@ -89,9 +89,12 @@ class VideoOptionsRequest(BaseModel):
 
 
 class StructuralOptionsRequest(VideoOptionsRequest):
+    scan_seconds: float = Field(default=0.33, gt=0, le=60)
+    contribution_interval: int = Field(default=6, ge=1, le=10000)
+    search_similarity: float = Field(default=0.95, ge=0, le=1)
     reconstruction_mode: Literal["fixed", "largest-first", "refine"] = "refine"
     max_region_size: int = Field(default=384, ge=8, le=2048)
-    structure_threshold: float = Field(default=0.72, gt=0, le=1)
+    structure_threshold: float = Field(default=0.82, gt=0, le=1)
     min_structure: float = Field(default=0.035, gt=0, le=1)
     refinement_margin: float = Field(default=0.04, ge=0, le=1)
     structure_scale: Literal["broad", "fine"] = "broad"

@@ -218,6 +218,8 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
         fragment_size=24,
         output_width=96,
         max_contribution_per_source=6,
+        contribution_interval=1,
+        search_similarity=0,
     )
     generated = render_search_artwork(
         traversal_id,

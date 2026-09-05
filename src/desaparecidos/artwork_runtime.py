@@ -79,6 +79,7 @@ class ArtworkRenderSettings(VideoSettings):
 
 @dataclass(frozen=True)
 class ArtworkTraversalSettings(VideoSettings, StructuralSettings):
+    scan_seconds: float = 0.33
     composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
     duration_seconds: int = 60
@@ -564,7 +565,7 @@ def render_search_artwork(
             target.id: walk.result.source_usage for target, walk in zip(selected, walks)
         },
         "assembly_policy": "single-current-frame-structural-region",
-        "region_search": {target.id: {"decisions": walk.decisions, "coverage": walk.coverage} for target, walk in zip(selected, walks)},
+        "region_search": {target.id: walk.search_summary for target, walk in zip(selected, walks)},
         "video_presentation": video_presentation_metadata(
             settings.output_width,
             settings.duration_seconds,

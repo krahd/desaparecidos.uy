@@ -15,11 +15,14 @@ def add_render_options(parser: argparse.ArgumentParser, *, structural: bool = Fa
     parser.add_argument('--closing-text', default='')
     parser.add_argument('--hide-match-marks', action='store_true')
     if structural:
+        parser.set_defaults(scan_seconds=0.33)
+        parser.add_argument('--contribution-interval', type=int, default=6)
+        parser.add_argument('--search-similarity', type=float, default=0.95)
         parser.add_argument('--structure-scale', choices=['broad', 'fine'], default='broad')
         parser.add_argument('--tone-mode', choices=['source', 'match-region'], default='source')
         parser.add_argument('--reconstruction-mode', choices=['fixed', 'largest-first', 'refine'], default='refine')
         parser.add_argument('--max-region-size', type=int, default=384)
-        parser.add_argument('--structure-threshold', type=float, default=0.72)
+        parser.add_argument('--structure-threshold', type=float, default=0.82)
         parser.add_argument('--min-structure', type=float, default=0.035)
         parser.add_argument('--refinement-margin', type=float, default=0.04)
 

@@ -16,13 +16,19 @@ ReconstructionMode = Literal["fixed", "largest-first", "refine"]
 class StructuralSettings:
     reconstruction_mode: ReconstructionMode = "refine"
     max_region_size: int = 384
-    structure_threshold: float = 0.72
+    structure_threshold: float = 0.82
     min_structure: float = 0.035
     refinement_margin: float = 0.04
     structure_scale: str = "broad"
     tone_mode: str = "source"
+    contribution_interval: int = 6
+    search_similarity: float = 0.95
 
     def __post_init__(self) -> None:
+        if self.contribution_interval < 1:
+            raise ValueError("contribution interval must be at least one encounter")
+        if not 0 <= self.search_similarity <= 1:
+            raise ValueError("search similarity must be in [0, 1]")
         if self.reconstruction_mode not in {"fixed", "largest-first", "refine"}:
             raise ValueError("unsupported reconstruction mode")
         if self.max_region_size < 8:
@@ -109,11 +115,17 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
     output = Image.new("RGB", target.size, 0)
     placements, encounters, decisions = [], [], []
     used_sources: set[str] = set()
+    next_contribution = settings.contribution_interval - 1
+    target_descriptor, _ = describe(target)
     for frame_index, frame in enumerate(frames):
         source_id = str(frame["id"])
         decision: dict[str, Any] = {"frame_index": frame_index, "source_id": source_id, "action": "skip", "reason": "no-structural-match", "best_similarity": None}
         if source_id in used_sources:
             decision["reason"] = "source-already-contributed"
+            decisions.append(decision)
+            continue
+        if frame_index < next_contribution:
+            decision["reason"] = "contribution-spacing"
             decisions.append(decision)
             continue
         with Image.open(str(frame["local_path"])) as raw:
@@ -182,7 +194,20 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             placements.append(placement)
             encounters.append(frame_index)
             used_sources.add(source_id)
+            next_contribution = frame_index + settings.contribution_interval
             decision.update(action="refine" if refining else "place", reason="accepted-structure", score=round(score, 6), target_rect=[x, y, w, h], source_rect=[sx, sy, sw, sh], placement_index=len(placements) - 1)
         decisions.append(decision)
+        if best is not None:
+            descriptor, _ = describe(output)
+            similarity = float(np.clip(descriptor @ target_descriptor, 0, 1))
+            tonal_similarity = 1 - float(np.abs(np.asarray(output, dtype=np.float32) - np.asarray(target, dtype=np.float32)).mean()) / 255
+            similarity = min(similarity, tonal_similarity)
+            coverage = float(np.isfinite(quality).mean())
+            decision.update(reconstruction_similarity=similarity, coverage=coverage)
+            if settings.search_similarity > 0 and coverage == 1.0 and similarity >= settings.search_similarity:
+                decision["stop_reason"] = "quality-target-reached"
+                break
+    if decisions and "stop_reason" not in decisions[-1]:
+        decisions[-1]["stop_reason"] = "approved-frames-exhausted"
     result = AssemblyResult(output, target, {p.source_id: 1 for p in placements}, {p.fragment_id: 1 for p in placements}, placements)
     return result, encounters, decisions, float(np.isfinite(quality).mean())

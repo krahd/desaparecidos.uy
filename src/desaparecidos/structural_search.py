@@ -25,6 +25,7 @@ class StructuralSettings:
     tone_mode: str = "source"
     finding_interval: int = 1
     contribution_interval: int = 6
+    search_source_contribution_cap: int = 1
     search_similarity: float = 0.95
     require_complete: bool = True
     max_search_batches: int = 8
@@ -35,6 +36,8 @@ class StructuralSettings:
             raise ValueError("search batches must be in [0, 32] and playback budget positive")
         if self.finding_interval < 1 or self.contribution_interval < 1:
             raise ValueError("finding and contribution intervals must be at least one encounter")
+        if self.search_source_contribution_cap < 1:
+            raise ValueError("search source contribution cap must be at least one")
         if not 0 <= self.search_similarity <= 1:
             raise ValueError("search similarity must be in [0, 1]")
         if self.reconstruction_mode not in {"fixed", "largest-first", "refine"}:
@@ -147,7 +150,8 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
     quality = np.full((target.height, target.width), -np.inf, dtype=np.float32)
     output = Image.new("RGB", target.size, 0)
     placements, encounters, decisions = [], [], []
-    used_sources: set[str] = set()
+    used_sources: dict[str, int] = {}
+    source_cap = max(1, int(getattr(settings, "search_source_contribution_cap", 1)))
     target_descriptor, _ = describe(target)
     coverage = 0.0
     last_contribution_index = -settings.finding_interval
@@ -159,17 +163,30 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
         if frame_index % 100 == 0:
             logging.getLogger(__name__).info("Search %s/%s encounters; %.1f%% covered", frame_index, len(frames), 100 * np.isfinite(quality).mean())
         source_id = str(frame["id"])
-        decision: dict[str, Any] = {"frame_index": frame_index, "source_id": source_id, "action": "skip", "reason": "no-structural-match", "best_similarity": None}
+        manifest_source_id = str(frame.get("manifest_source_id", frame.get("source_id", source_id)))
+        decision: dict[str, Any] = {
+            "frame_index": frame_index,
+            "source_id": source_id,
+            "manifest_source_id": manifest_source_id,
+            "action": "skip",
+            "reason": "no-structural-match",
+            "best_similarity": None,
+        }
         if frame_index - last_contribution_index < settings.finding_interval:
             decision["reason"] = "finding-interval"
             decisions.append(decision)
             continue
-        if source_id in used_sources:
+        if used_sources.get(manifest_source_id, 0) >= source_cap:
             decision["reason"] = "source-already-contributed"
             decisions.append(decision)
             continue
-        with Image.open(str(frame["local_path"])) as raw:
-            source = raw.convert("L").convert("RGB")
+        if callable(frame.get("load_image")):
+            source = frame["load_image"]().convert("L").convert("RGB")
+        elif isinstance(frame.get("image"), Image.Image):
+            source = frame["image"].convert("L").convert("RGB")
+        else:
+            with Image.open(str(frame["local_path"])) as raw:
+                source = raw.convert("L").convert("RGB")
         # Descriptors have only 8/16 samples. A bounded analysis image avoids
         # repeatedly resampling megapixel crops; accepted candidates are checked
         # again at native resolution before placement.
@@ -268,12 +285,23 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             if settings.tone_mode == "match-region":
                 patch, transform = match_region_tone(patch, target.crop((x, y, x + w, y + h)))
                 decision["tone_transform"] = transform
-            placement = TilePlacement(source_id, f"{source_id}:{sx}:{sy}:{sw}:{sh}", patch, x, y, sx, sy, sw, sh)
+            placement = TilePlacement(
+                source_id,
+                f"{source_id}:{sx}:{sy}:{sw}:{sh}",
+                patch,
+                x,
+                y,
+                sx,
+                sy,
+                sw,
+                sh,
+                manifest_source_id,
+            )
             output.paste(patch, (x, y))
             quality[y:y + h, x:x + w] = score
             placements.append(placement)
             encounters.append(frame_index)
-            used_sources.add(source_id)
+            used_sources[manifest_source_id] = used_sources.get(manifest_source_id, 0) + 1
             last_contribution_index = frame_index
             decision.update(action="refine" if refining else "place", reason="accepted-structure", score=round(score, 6), target_rect=[x, y, w, h], source_rect=[sx, sy, sw, sh], placement_index=len(placements) - 1)
         decisions.append(decision)

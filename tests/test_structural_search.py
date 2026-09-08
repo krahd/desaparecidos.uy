@@ -105,6 +105,31 @@ def test_source_cannot_contribute_again_and_source_rect_stays_in_bounds(tmp_path
         assert decisions[-1]['reason'] == 'source-already-contributed'
 
 
+def test_repeated_search_events_use_loader_and_respect_manifest_source_cap() -> None:
+    target = Image.new('RGB', (128, 64))
+    target.paste(pattern(), (0, 0))
+    target.paste(pattern(), (64, 0))
+    frames = [
+        {
+            'id': f'event-{index}',
+            'source_id': f'event-{index}',
+            'manifest_source_id': 'reviewed-face',
+            'load_image': pattern,
+        }
+        for index in range(3)
+    ]
+    result, encounters, decisions, coverage = search_regions(
+        target,
+        frames,
+        settings(search_source_contribution_cap=2, fragment_size=64, max_region_size=64),
+    )
+    assert encounters == [0, 1]
+    assert len(result.placements) == 2
+    assert {placement.manifest_source_id for placement in result.placements} == {'reviewed-face'}
+    assert coverage == 1
+    assert decisions[-1]['reason'] == 'source-already-contributed'
+
+
 def test_invalid_size_range_fails(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match='minimum'):
         search_regions(pattern(), frames_at(tmp_path, pattern()), settings(fragment_size=96))

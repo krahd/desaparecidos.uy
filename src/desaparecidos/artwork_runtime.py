@@ -37,7 +37,9 @@ from .refusal_paradata import output_sidecar_provenance
 from .render_options import add_render_options, render_options
 from .structural_search import StructuralSettings
 from .search_video import (
-    VideoSettings, fragment_video_frames, fragment_walk,
+    VideoSettings, fragment_search_metadata, fragment_video_frames,
+    prepare_fragment_search, prepare_structural_fragment_search,
+    structural_fragment_video_frames,
     complete_search_video_frames,
     video_canvas_size,
     video_presentation_metadata,
@@ -59,9 +61,9 @@ ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
 
 
 @dataclass(frozen=True)
-class ArtworkRenderSettings(VideoSettings):
+class ArtworkRenderSettings(VideoSettings, StructuralSettings):
     seed: int = 17
-    fragment_size: int = 24
+    fragment_size: int = 96
     reuse_limit: int = 8
     output_width: int = 1920
     max_fragments_per_source: int = 240
@@ -71,10 +73,25 @@ class ArtworkRenderSettings(VideoSettings):
     avoid_source_adjacency: bool = False
     territorially_balance_sources: bool = False
     max_sources: int = 0
+    search_scan_max_candidates: int = 120
     make_video: bool = False
     fps: int = 24
-    duration_seconds: int = 60
+    duration_seconds: int = 624
     colour_output: bool = False
+    scan_seconds: float = 0.33
+    reconstruction_mode: str = "refine"
+    max_region_size: int = 768
+    structure_threshold: float = 0.60
+    min_structure: float = 0.001
+    refinement_margin: float = 0.02
+    structure_scale: str = "broad"
+    tone_mode: str = "match-region"
+    finding_interval: int = 30
+    contribution_interval: int = 30
+    search_source_contribution_cap: int = 3
+    search_similarity: float = 0.95
+    require_complete: bool = True
+    search_budget_seconds: int = 600
 
 
 @dataclass(frozen=True)
@@ -82,7 +99,7 @@ class ArtworkTraversalSettings(VideoSettings, StructuralSettings):
     scan_seconds: float = 0.33
     composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
-    duration_seconds: int = 60
+    duration_seconds: int = 624
     fps: int = 24
     seed: int = 17
     fragment_size: int = 96
@@ -91,6 +108,9 @@ class ArtworkTraversalSettings(VideoSettings, StructuralSettings):
     max_contribution_per_source: int = 0
     visual_grammar: PlacementGrammar = "grid"
     colour_output: bool = False
+    finding_interval: int = 30
+    contribution_interval: int = 30
+    search_budget_seconds: int = 600
 
 
 def _output_image(image: Image.Image, colour_output: bool) -> Image.Image:
@@ -218,14 +238,6 @@ def _assemble(
     return AssemblyResult(image, target, source_usage, fragment_usage, placements)
 
 
-def _source_sequence(placements: Sequence[TilePlacement]) -> list[str]:
-    result: list[str] = []
-    for placement in placements:
-        if placement.source_id not in result:
-            result.append(placement.source_id)
-    return result
-
-
 def _emergence_frames(
     assembly: AssemblyResult,
     target: ManifestRow,
@@ -298,7 +310,7 @@ def run_artwork(
         raise ValueError("no approved target matches the request")
     if not sources:
         raise ValueError("no approved source rows match the request")
-    fragments = extract_fragments(
+    fragments = [] if settings.make_video else extract_fragments(
         sources,
         source_manifest,
         fragment_size=settings.fragment_size,
@@ -309,16 +321,32 @@ def run_artwork(
     root.mkdir(parents=True, exist_ok=True)
     outputs: list[Stage1Output] = []
     for target in targets:
-        assembly = _assemble(target, target_manifest, fragments, settings)
         release_status = "internal_unreviewed" if source_kind == "people" else "review_required"
-        source_sequence = _source_sequence(assembly.placements)
+        if settings.make_video:
+            assembly, search_walk, search_frames, search_metadata = prepare_structural_fragment_search(
+                target, target_manifest, sources, source_manifest, source_kind, settings
+            )
+        else:
+            assembly = _assemble(target, target_manifest, fragments, settings)
+            assembly, search_walk = prepare_fragment_search(
+                assembly,
+                sources,
+                grammar=settings.visual_grammar,
+                seed=settings.seed,
+                target_id=target.id,
+                max_candidates=settings.search_scan_max_candidates,
+            )
+            search_frames = []
+            search_metadata = None
+        source_sequence = list(search_walk.segment_frame_ids)
         history = build_placement_history(
             assembly.placements,
             assembly.image.size,
-            grammar=settings.visual_grammar,
+            grammar="grid" if settings.make_video else settings.visual_grammar,
             seed=settings.seed,
             target_id=target.id,
             source_sequence=source_sequence,
+            placed_after_frame=search_walk.placed_after_frame,
         )
         causality = require_temporal_causality({target.id: history})
         provenance = output_sidecar_provenance(
@@ -335,8 +363,9 @@ def run_artwork(
         sidecar_path = root / f"{stem}.json"
         _output_image(assembly.image, settings.colour_output).save(still_path)
         if video_path is not None and not _render_video_ffmpeg(
-            fragment_video_frames(assembly, target, settings, artwork, sources, source_manifest,
-                                  grammar=settings.visual_grammar, reveal_sources=False),
+            structural_fragment_video_frames(
+                assembly, target, settings, artwork, search_frames, search_walk
+            ),
             video_canvas_size(settings.output_width),
             video_path,
             fps=settings.fps,
@@ -356,12 +385,20 @@ def run_artwork(
             "video_path": display_path(video_path) if video_path else None,
             "video_format": "h264" if video_path else None,
             "video_process_style": "search-reconstruction-details-text" if video_path else None,
+            "source_image_display": (
+                "approved-reviewed-face-region-search" if video_path and source_kind == "people"
+                else "approved-place-source-search" if video_path
+                else None
+            ),
             "video_presentation": video_presentation_metadata(settings.output_width, settings.duration_seconds,
-                settings.fps, target_ids=[target.id], settings=settings, walks=[fragment_walk(assembly)], artwork=artwork) if video_path else None,
+                settings.fps, target_ids=[target.id], settings=settings, walks=[search_walk], artwork=artwork) if video_path else None,
+            "fragment_search": search_metadata if video_path else None,
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,
             "source_sequence": source_sequence,
             "tile_count": len(assembly.placements),
+            "region_count": len(assembly.placements),
+            "assembly_policy": "variable-target-aligned-structural-regions-with-overlap-and-refinement" if video_path else "fixed-fragments",
             "placement_history": history,
             "temporal_causality": causality,
             "target_provenance": target_provenance_snapshots(
@@ -372,7 +409,8 @@ def run_artwork(
             "source_person_risk_controls": {
                 "identity_matching": False,
                 "raw_source_reveal": False,
-                "source_contribution_cap": settings.max_contribution_per_source,
+                "detected_face_gate": source_kind == "people",
+                "source_contribution_cap": settings.search_source_contribution_cap if video_path else settings.max_contribution_per_source,
                 "adjacent_same_source_prevented": settings.avoid_source_adjacency,
                 "anonymity_guaranteed": False,
                 "manual_output_review_required": source_kind == "people",
@@ -612,7 +650,7 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--output", default="outputs/artwork")
     render.add_argument("--target-id")
     render.add_argument("--seed", type=int, default=17)
-    render.add_argument("--fragment-size", type=int, default=24)
+    render.add_argument("--fragment-size", type=int, default=96)
     render.add_argument("--reuse-limit", type=int, default=8)
     render.add_argument("--output-width", type=int, default=1920)
     render.add_argument("--source-cap", type=int, default=1)
@@ -621,10 +659,12 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--avoid-source-adjacency", action="store_true")
     render.add_argument("--territorial-balance", action="store_true")
     render.add_argument("--max-sources", type=int, default=0)
+    render.add_argument("--search-scan-max-candidates", type=int, default=120)
     render.add_argument("--video", action="store_true")
     render.add_argument("--fps", type=int, default=24)
-    render.add_argument("--duration", type=int, default=60)
+    render.add_argument("--duration", type=int, default=624)
     add_render_options(render)
+    render.set_defaults(scan_seconds=0.33)
     render.add_argument("--colour", action="store_true", help="unsupported: all memorials are grayscale")
 
     search = subparsers.add_parser("search", help="Render Seguimos buscando from an approved traversal.")
@@ -635,7 +675,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--target-mode", choices=["single", "sequence"], default="single")
     search.add_argument("--composition", choices=["overlay", "alternate", "split"], default="split")
     search.add_argument("--output", default="outputs/artwork")
-    search.add_argument("--duration", type=int, default=60)
+    search.add_argument("--duration", type=int, default=624)
     search.add_argument("--fps", type=int, default=24)
     search.add_argument("--seed", type=int, default=17)
     search.add_argument("--fragment-size", type=int, default=96)
@@ -660,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
             avoid_source_adjacency=args.avoid_source_adjacency,
             territorially_balance_sources=args.territorial_balance,
             max_sources=max(0, args.max_sources),
+            search_scan_max_candidates=max(0, args.search_scan_max_candidates),
             make_video=args.video,
             fps=args.fps,
             duration_seconds=args.duration,

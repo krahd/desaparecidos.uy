@@ -12,7 +12,7 @@ export type VideoOptions = {
 };
 
 export const defaultVideoOptions: VideoOptions = {
-  split_orientation: 'side-by-side', playback_mode: 'continuous', contribution_seconds: 0.75, scan_seconds: 0.16,
+  split_orientation: 'side-by-side', playback_mode: 'continuous', contribution_seconds: 0.75, scan_seconds: 0.33,
   final_hold_seconds: 4, details_hold_seconds: 3, text_hold_seconds: 2,
   fade_seconds: 1, closing_text: '', show_match_marks: true,
 };
@@ -33,8 +33,8 @@ export type StructuralOptions = {
   refinement_margin: number;
 };
 export const defaultStructuralOptions: StructuralOptions = {
-  require_complete: true, max_search_batches: 8, search_budget_seconds: 300,
-  finding_interval: 1, contribution_interval: 6, search_similarity: 0.95,
+  require_complete: true, max_search_batches: 8, search_budget_seconds: 600,
+  finding_interval: 30, contribution_interval: 30, search_similarity: 0.95,
   structure_scale: 'broad', tone_mode: 'source',
   reconstruction_mode: 'refine', max_region_size: 384,
   structure_threshold: 0.82, min_structure: 0.035, refinement_margin: 0.04,
@@ -52,7 +52,7 @@ export function VideoControls({ value, onChange, traversal = false }: {
     ['fade_seconds', 'Fade duration (seconds)'],
   ];
   return <div className="video-controls">
-    <p className="section-note">Search → reconstructed image → person details → text. All output is monochrome. Continuous playback follows the search-frame timing (about six frames per second by default); every region has time to reach its destination.</p>
+    <p className="section-note">Search → reconstructed image → person details → text. All output is monochrome. Continuous playback follows the search-frame timing (about three frames per second by default); every region has time to reach its destination.</p>
     <label>Playback<select value={value.playback_mode} onChange={e => onChange({ ...value, playback_mode: e.target.value as VideoOptions['playback_mode'] })}>
       <option value="continuous">Continuous traversal with travelling regions</option>
       <option value="hold">Pause on each contribution</option>

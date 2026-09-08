@@ -5,7 +5,7 @@ import math
 import random
 import shutil
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal
@@ -27,7 +27,16 @@ from .manifests import ManifestRow, approved_rows, row_file_path
 from .paths import display_path
 from .placement_history import build_placement_history
 from .refusal_paradata import output_sidecar_provenance
-from .search_video import VideoSettings, fragment_video_frames, fragment_walk, video_canvas_size, video_presentation_metadata
+from .search_video import (
+    VideoSettings,
+    fragment_search_metadata,
+    fragment_video_frames,
+    prepare_fragment_search,
+    prepare_structural_fragment_search,
+    structural_fragment_video_frames,
+    video_canvas_size,
+    video_presentation_metadata,
+)
 from .target_provenance import target_provenance_snapshots
 
 BACKGROUND = (0, 0, 0)
@@ -58,7 +67,23 @@ class Stage1Settings(VideoSettings):
     make_video: bool = False
     colour_output: bool = False
     fps: int = 24
-    duration_seconds: int = 60
+    duration_seconds: int = 624
+    scan_seconds: float = 0.33
+    video_region_size: int = 96
+    reconstruction_mode: str = "refine"
+    max_region_size: int = 768
+    structure_threshold: float = 0.60
+    min_structure: float = 0.001
+    refinement_margin: float = 0.02
+    structure_scale: str = "broad"
+    tone_mode: str = "match-region"
+    finding_interval: int = 30
+    contribution_interval: int = 30
+    search_source_contribution_cap: int = 3
+    search_similarity: float = 0.95
+    require_complete: bool = True
+    max_search_batches: int = 8
+    search_budget_seconds: int = 600
 
 
 @dataclass(frozen=True)
@@ -80,6 +105,7 @@ class TilePlacement:
     source_y: int
     source_width: int | None = None
     source_height: int | None = None
+    manifest_source_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -661,7 +687,7 @@ def run_stage1(
         targets = [row for row in targets if row.id == target_id]
         if not targets:
             raise ValueError(f"target_id {target_id!r} is not an approved target")
-    fragments = extract_fragments(
+    fragments = [] if settings.make_video else extract_fragments(
         sources,
         source_manifest,
         fragment_size=settings.fragment_size,
@@ -672,16 +698,35 @@ def run_stage1(
     root.mkdir(parents=True, exist_ok=True)
     outputs: list[Stage1Output] = []
     for target in targets:
-        assembly = assemble_target_with_trace(target, target_manifest, fragments, settings)
         release_status = "internal_unreviewed" if source_kind == "people" else "review_required"
-        source_sequence = list(assembly.source_usage.keys())
+        grammar = "overlap" if getattr(settings, "composition_mode", "grid") == "free" else "grid"
+        if settings.make_video:
+            video_settings = replace(settings, fragment_size=settings.video_region_size)
+            assembly, search_walk, search_frames, search_metadata = prepare_structural_fragment_search(
+                target, target_manifest, sources, source_manifest, source_kind, video_settings
+            )
+        else:
+            video_settings = settings
+            assembly = assemble_target_with_trace(target, target_manifest, fragments, settings)
+            assembly, search_walk = prepare_fragment_search(
+                assembly,
+                sources,
+                grammar=grammar,
+                seed=settings.seed,
+                target_id=target.id,
+                max_candidates=settings.search_scan_max_candidates,
+            )
+            search_frames = []
+            search_metadata = None
+        source_sequence = list(search_walk.segment_frame_ids)
         history = build_placement_history(
             assembly.placements,
             assembly.image.size,
-            grammar="overlap" if getattr(settings, "composition_mode", "grid") == "free" else "grid",
+            grammar="grid" if settings.make_video else grammar,
             seed=settings.seed,
             target_id=target.id,
             source_sequence=source_sequence,
+            placed_after_frame=search_walk.placed_after_frame,
         )
         causality = require_temporal_causality({target.id: history})
         provenance = output_sidecar_provenance(
@@ -707,9 +752,9 @@ def run_stage1(
         video_format: str | None = None
         if settings.make_video:
             video_path = root / f"{stem}.mp4"
-            frames = fragment_video_frames(assembly, target, settings, artwork, sources, source_manifest,
-                grammar="overlap" if getattr(settings, "composition_mode", "grid") == "free" else "grid",
-                reveal_sources=settings.video_source_layout == "grid")
+            frames = structural_fragment_video_frames(
+                assembly, target, video_settings, artwork, search_frames, search_walk
+            )
             if not _render_video_ffmpeg(frames, video_canvas_size(settings.output_width), video_path, fps=settings.fps):
                 raise RuntimeError("Browser-playable MP4 rendering requires ffmpeg with libx264")
             video_format = "h264"
@@ -728,19 +773,21 @@ def run_stage1(
             "video_format": video_format,
             "video_process_style": PROCESS_VIDEO_STYLE if video_path else None,
             "source_image_display": (
-                "contributing-fragments-only" if video_path and settings.video_source_layout == "match"
-                else "reviewed-face-region-reveal" if video_path and source_kind == "people"
-                else "approved-place-source-reveal" if video_path
+                "approved-reviewed-face-region-search" if video_path and source_kind == "people"
+                else "approved-place-source-search" if video_path
                 else None
             ),
             "video_source_layout": settings.video_source_layout if video_path else None,
             "video_presentation": video_presentation_metadata(settings.output_width, settings.duration_seconds,
-                settings.fps, target_ids=[target.id], settings=settings, walks=[fragment_walk(assembly)], artwork=artwork) if video_path else None,
+                settings.fps, target_ids=[target.id], settings=settings, walks=[search_walk], artwork=artwork) if video_path else None,
+            "fragment_search": search_metadata if video_path else None,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_usage": assembly.source_usage,
             "fragment_usage": assembly.fragment_usage,
             "source_sequence": source_sequence,
             "tile_count": len(assembly.placements),
+            "region_count": len(assembly.placements),
+            "assembly_policy": "variable-target-aligned-structural-regions-with-overlap-and-refinement" if video_path else "fixed-fragments",
             "placement_history": history,
             "temporal_causality": causality,
             "target_provenance": target_provenance_snapshots(
@@ -750,6 +797,14 @@ def run_stage1(
             ),
             "max_fragment_reuse_observed": max(assembly.fragment_usage.values()) if assembly.fragment_usage else 0,
             "per_source_animated_fragment_cap": MAX_ANIMATED_FRAGMENTS_PER_SOURCE,
+            "source_person_risk_controls": {
+                "identity_matching": False,
+                "raw_source_reveal": False,
+                "detected_face_gate": source_kind == "people",
+                "source_contribution_cap": settings.search_source_contribution_cap if video_path else settings.max_contribution_per_source,
+                "anonymity_guaranteed": False,
+                "manual_output_review_required": source_kind == "people",
+            },
             "search_trail": search_trail,
             "search_candidates": _search_candidates_sidecar(
                 available_candidates, search_candidates, search_candidate_display, settings

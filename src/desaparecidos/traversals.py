@@ -501,7 +501,7 @@ def discover_traversal(
     name: str,
     mode: TraversalMode,
     geometry: dict[str, Any] | None = None,
-    duration_seconds: int = 60,
+    duration_seconds: int = 624,
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,
     provider: TraversalProvider | None = None,
     max_frames: int = MAX_DISCOVERY_FRAMES,
@@ -692,7 +692,7 @@ class TraversalRenderSettings(VideoSettings, StructuralSettings):
     scan_seconds: float = 0.33
     composition: CompositionMode = "split"
     target_mode: TargetMode = "single"
-    duration_seconds: int = 60
+    duration_seconds: int = 624
     fps: int = 24
     seed: int = 17
     fragment_size: int = 96
@@ -984,8 +984,8 @@ def run_autonomous_uruguay(
     *,
     name: str = "Seguimos buscando · Uruguay",
     regions: int = 4,
-    duration_seconds: int = 60,
-    max_frames: int = 240,
+    duration_seconds: int = 624,
+    max_frames: int = 600,
     rural_probability: float = 0.25,
     seed: int | None = None,
     root: str | Path = DEFAULT_TRAVERSAL_ROOT,

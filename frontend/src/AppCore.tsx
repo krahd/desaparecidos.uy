@@ -101,7 +101,7 @@ const defaultGenerationSettings: GenerationSettings = {
   maxContribution: 1,
   videoSourceLayout: 'grid',
   video: { ...defaultVideoOptions },
-  duration: 60,
+  duration: 624,
   fps: 24,
 };
 

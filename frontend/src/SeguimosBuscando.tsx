@@ -41,8 +41,8 @@ export function SeguimosBuscando({
   const [scope, setScope] = useState<'drawn' | 'uruguay'>('uruguay');
   const [geometry, setGeometry] = useState<RouteGeometry>(initialLine);
   const [name, setName] = useState('Uruguay traversal');
-  const [duration, setDuration] = useState(60);
-  const [maxFrames, setMaxFrames] = useState(120);
+  const [duration, setDuration] = useState(624);
+  const [maxFrames, setMaxFrames] = useState(600);
   const [regions, setRegions] = useState(4);
   const [ruralShare, setRuralShare] = useState(25);
   const [autoApprove, setAutoApprove] = useState(true);

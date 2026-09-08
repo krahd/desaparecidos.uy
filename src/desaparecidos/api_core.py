@@ -79,7 +79,7 @@ class VideoOptionsRequest(BaseModel):
     split_orientation: Literal["side-by-side", "stacked"] = "side-by-side"
     playback_mode: Literal["continuous", "hold"] = "continuous"
     contribution_seconds: float = Field(default=0.75, gt=0, le=60)
-    scan_seconds: float = Field(default=0.16, gt=0, le=60)
+    scan_seconds: float = Field(default=0.33, gt=0, le=60)
     final_hold_seconds: float = Field(default=4, gt=0, le=60)
     details_hold_seconds: float = Field(default=3, gt=0, le=60)
     text_hold_seconds: float = Field(default=2, gt=0, le=60)
@@ -91,10 +91,10 @@ class VideoOptionsRequest(BaseModel):
 class StructuralOptionsRequest(VideoOptionsRequest):
     require_complete: bool = True
     max_search_batches: int = Field(default=8, ge=0, le=32)
-    search_budget_seconds: int = Field(default=300, ge=1, le=3600)
+    search_budget_seconds: int = Field(default=600, ge=1, le=3600)
     scan_seconds: float = Field(default=0.33, gt=0, le=60)
-    finding_interval: int = Field(default=1, ge=1, le=10000)
-    contribution_interval: int = Field(default=6, ge=1, le=10000)
+    finding_interval: int = Field(default=30, ge=1, le=10000)
+    contribution_interval: int = Field(default=30, ge=1, le=10000)
     search_similarity: float = Field(default=0.95, ge=0, le=1)
     reconstruction_mode: Literal["fixed", "largest-first", "refine"] = "refine"
     max_region_size: int = Field(default=384, ge=8, le=2048)
@@ -126,7 +126,7 @@ class GenerateRequest(VideoOptionsRequest):
     search_scan_max_candidates: int = Field(default=120, ge=0, le=10000)
     video_source_layout: VideoSourceLayout = "grid"
     make_video: bool = False
-    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    duration_seconds: int = Field(default=624, ge=1, le=3600)
     fps: int = Field(default=24, ge=1, le=60)
     colour_output: bool = False
     target_id: str | None = None
@@ -253,7 +253,7 @@ class TraversalDiscoverRequest(BaseModel):
     geometry: dict[str, Any] | None = None
     import_content: str = ""
     import_format: Literal["geojson", "gpx"] | None = None
-    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    duration_seconds: int = Field(default=624, ge=1, le=3600)
     max_frames: int = Field(default=600, ge=1, le=1200)
     regions: int = Field(default=1, ge=1, le=12)
     rural_probability: float = Field(default=0.25, ge=0.0, le=1.0)
@@ -271,8 +271,8 @@ class TraversalAcquireRequest(BaseModel):
 class TraversalAutoRequest(StructuralOptionsRequest):
     name: str = "Seguimos buscando · Uruguay"
     regions: int = Field(default=4, ge=1, le=12)
-    duration_seconds: int = Field(default=60, ge=1, le=3600)
-    max_frames: int = Field(default=240, ge=1, le=600)
+    duration_seconds: int = Field(default=624, ge=1, le=3600)
+    max_frames: int = Field(default=600, ge=1, le=600)
     rural_probability: float = Field(default=0.25, ge=0.0, le=1.0)
     seed: int | None = None
     root: str = "data/raw/traversals"
@@ -304,7 +304,7 @@ class TraversalGenerateRequest(StructuralOptionsRequest):
     target_ids: list[str]
     target_mode: TargetMode = "single"
     composition: CompositionMode = "split"
-    duration_seconds: int = Field(default=60, ge=1, le=3600)
+    duration_seconds: int = Field(default=624, ge=1, le=3600)
     fps: int = Field(default=24, ge=1, le=60)
     seed: int = 17
     fragment_size: int = Field(default=96, ge=8, le=1024)

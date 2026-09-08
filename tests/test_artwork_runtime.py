@@ -196,6 +196,52 @@ def test_people_runtime_records_controls_without_claiming_anonymity(tmp_path: Pa
     assert "full-context-contemporary-person-reveal" in sidecar["refusal_policy"]["applicable_refusal_ids"]
 
 
+def test_fragment_runtime_records_approved_unused_search_encounters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    targets, places = _manifests(tmp_path, kind="places", count=17)
+
+    def fake_render(frames: object, _size: tuple[int, int], output: Path, *, fps: int) -> bool:
+        del fps
+        list(frames)  # type: ignore[arg-type]
+        output.write_bytes(b"mp4")
+        return True
+
+    monkeypatch.setattr(artwork_runtime_module, "_render_video_ffmpeg", fake_render)
+    generated = run_artwork(
+        targets,
+        places,
+        tmp_path / "outputs",
+        ArtworkRenderSettings(
+            fragment_size=24,
+            output_width=96,
+            max_contribution_per_source=1,
+            visual_grammar="grid",
+            make_video=True,
+            fps=2,
+            duration_seconds=1,
+            scan_seconds=1,
+            search_budget_seconds=1,
+            require_complete=False,
+            search_scan_max_candidates=0,
+        ),
+        target_id="person-1",
+        artwork="estan-en-todas-partes",
+    )[0]
+    sidecar = json.loads(Path(generated.sidecar_path).read_text(encoding="utf-8"))
+    search = sidecar["fragment_search"]
+
+    assert search["schema"] == "desaparecidos.uy/fragment-search/2.0"
+    assert search["method"] == "variable-structural-regions-with-overlap-and-refinement"
+    assert search["encounter_count"] == 17
+    assert search["contributing_encounter_count"] == search["placement_count"]
+    assert search["non_contributing_encounter_count"] > 0
+    assert len(sidecar["placement_history"]["source_sequence"]) == 17
+    assert sidecar["temporal_causality"]["valid"] is True
+    assert sidecar["source_image_display"] == "approved-place-source-search"
+
+
 def test_search_runtime_computes_causality_and_rejects_corrupted_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -217,8 +263,9 @@ def test_search_runtime_computes_causality_and_rejects_corrupted_history(
         fps=2,
         fragment_size=24,
         output_width=96,
-        max_contribution_per_source=6,
-        contribution_interval=1,
+            max_contribution_per_source=6,
+            finding_interval=1,
+            contribution_interval=1,
         search_similarity=0,
     )
     generated = render_search_artwork(

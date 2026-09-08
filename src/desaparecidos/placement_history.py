@@ -253,6 +253,8 @@ def build_placement_history(
             {
                 "placement_id": f"{target_id}:{index:06d}",
                 "source_id": placement.source_id,
+                **({"manifest_source_id": placement.manifest_source_id}
+                   if getattr(placement, "manifest_source_id", None) else {}),
                 "fragment_id": placement.fragment_id,
                 "source_rect": {
                     "x": placement.source_x,

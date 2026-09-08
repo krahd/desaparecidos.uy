@@ -19,6 +19,7 @@ from .manifests import ManifestKind
 
 CV_POLICY_VERSION = 2
 _CASCADE_PATH = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+_EYE_CASCADE_PATH = os.path.join(cv2.data.haarcascades, "haarcascade_eye.xml")
 
 _MAX_DETECT_SIDE = 640
 _TARGET_MIN_FACE_FRACTION = 0.02
@@ -39,6 +40,7 @@ _PLACE_MIN_UNIQUE_RATIO = 0.004
 _PLACE_MAX_NOISE_UNIQUE_RATIO = 0.08
 
 _cascade: cv2.CascadeClassifier | None = None
+_eye_cascade: cv2.CascadeClassifier | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,29 @@ def detect_faces(image: Image.Image) -> list[tuple[int, int, int, int]]:
         (int(x * inverse), int(y * inverse), int(w * inverse), int(h * inverse))
         for (x, y, w, h) in detections
     ]
+
+
+def detect_face_regions_with_eyes(image: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Return face detections that contain at least one independently detected eye."""
+    global _eye_cascade
+    if _eye_cascade is None:
+        _eye_cascade = cv2.CascadeClassifier(_EYE_CASCADE_PATH)
+    if _eye_cascade.empty():
+        return []
+    gray = np.asarray(image.convert("L"))
+    verified: list[tuple[int, int, int, int]] = []
+    for x, y, width, height in detect_faces(image):
+        face = gray[y:y + height, x:x + width]
+        minimum = max(8, min(width, height) // 10)
+        eyes = _eye_cascade.detectMultiScale(
+            face,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(minimum, minimum),
+        )
+        if len(eyes):
+            verified.append((x, y, width, height))
+    return verified
 
 
 def perceptual_hash(image: Image.Image, hash_size: int = 8) -> str:

@@ -116,6 +116,53 @@ def test_fragment_video_never_loads_unreviewed_people_context(tmp_path) -> None:
     assert frames[0].crop((10,25,155,170)).getbbox() is None
 
 
+def test_fragment_search_shows_approved_unused_sources_before_contributions(tmp_path) -> None:
+    from PIL import Image
+    from desaparecidos.pipeline_core import AssemblyResult, TilePlacement
+    from desaparecidos.search_video import (
+        VideoSettings,
+        fragment_search_metadata,
+        fragment_video_frames,
+        prepare_fragment_search,
+    )
+
+    unused_path = tmp_path / 'unused.png'
+    used_path = tmp_path / 'used.png'
+    Image.new('RGB', (48, 48), (180, 180, 180)).save(unused_path)
+    Image.new('RGB', (48, 48), (240, 240, 240)).save(used_path)
+    rows = [
+        ManifestRow(kind='places', line_number=2, values={
+            'id': 'unused', 'local_path': str(unused_path), 'review_status': 'approved'}),
+        ManifestRow(kind='places', line_number=3, values={
+            'id': 'used', 'local_path': str(used_path), 'review_status': 'approved'}),
+    ]
+    patch = Image.new('RGB', (24, 24), (240, 240, 240))
+    placement = TilePlacement('used', 'used:0', patch, 0, 0, 0, 0)
+    original = AssemblyResult(patch, patch, {'used': 1}, {'used:0': 1}, [placement])
+    assembly, walk = prepare_fragment_search(
+        original, rows, grammar='grid', seed=17, target_id='target')
+    metadata = fragment_search_metadata(walk, 'places')
+
+    assert walk.segment_frame_ids == ['unused', 'used']
+    assert walk.placed_after_frame == [1]
+    assert metadata['contributing_encounter_count'] == 1
+    assert metadata['non_contributing_encounter_count'] == 1
+    assert metadata['encounters'][0]['decision'] == 'scan'
+    assert metadata['encounters'][1]['decision'] == 'contribute'
+
+    target = ManifestRow(kind='targets', line_number=2, values={'id': 'target'})
+    settings = type('Settings', (), {
+        **VideoSettings(show_match_marks=False).__dict__,
+        'fps': 2, 'duration_seconds': 1, 'output_width': 320, 'seed': 17,
+        'video_source_layout': 'grid',
+    })()
+    frames = list(fragment_video_frames(
+        assembly, target, settings, 'estan-en-todas-partes', rows,
+        tmp_path / 'places.csv', walk=walk))
+    assert frames[0].getpixel((80, 90)) == (180, 180, 180)
+    assert frames[0].getpixel((240, 90)) == (0, 0, 0)
+
+
 def test_continuous_walk_advances_during_transfer_and_lands_once() -> None:
     from types import SimpleNamespace
     import numpy as np

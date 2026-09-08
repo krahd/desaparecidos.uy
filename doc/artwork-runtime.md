@@ -29,9 +29,9 @@ The history schema is `desaparecidos.uy/placement-history/1.0`. The output sidec
 
 All three memorials default to 1920×1080 landscape, 24 fps, grayscale only, with search on the left and reconstruction on the right. The shared compositor then shows the reconstructed image, Spanish person details and the memorial title or artist-supplied closing text. It never overlays the target portrait to manufacture completion. The artist interface is monochrome too.
 
-`--playback-mode` (`continuous` or `hold`), `--contribution-seconds` (0.75), `--scan-seconds` (0.33 for traversal, 0.16 for fragment works), `--final-hold-seconds` (4), `--details-hold-seconds` (3), `--text-hold-seconds` (2), `--fade-seconds` (1), `--closing-text`, `--hide-match-marks`, `--fps`, `--duration` and `--output-width` expose the presentation choices in both CLIs. Equivalent fields are available on the localhost artist screens/API. `--split-orientation stacked` is an optional override; the default is `side-by-side`. The deprecated colour flags are rejected.
+`--playback-mode` (`continuous` or `hold`), `--contribution-seconds` (0.75), `--scan-seconds` (0.33), `--final-hold-seconds` (4), `--details-hold-seconds` (3), `--text-hold-seconds` (2), `--fade-seconds` (1), `--closing-text`, `--hide-match-marks`, `--fps`, `--duration` and `--output-width` expose the presentation choices in both CLIs. Equivalent fields are available on the localhost artist screens/API. The shared default is a 600-second search followed by the 20-second closing form. `--split-orientation stacked` is an optional override; the default is `side-by-side`. The deprecated colour flags are rejected.
 
-Continuous playback advances every source encounter at the scan cadence (three per second for traversal at the defaults), while crops travel to their destinations over the contribution duration. Several transfers may be in flight, but each input contributes at most one region and deposits remain in encounter order. The last crop lands before the closing phases. Duration follows these events rather than stretching the walk to the requested length. `hold` playback retains the minimum-duration behaviour and pauses on contributions. `video_presentation` records actual duration, phase allocations and per-placement launch/arrival frames, relative to each target segment.
+Continuous playback advances every source encounter at about three per second, while crops travel to their destinations over the contribution duration. Several transfers may be in flight, but each encounter contributes at most one region and deposits remain in encounter order. Fragment streams may revisit an underlying reviewed source up to their separate cap; traversal frames contribute at most once. The scheduler consumes the 600-second search budget and reserves the final transfer before the closing phases. `hold` playback retains the minimum-duration behaviour and pauses on contributions. `video_presentation` records actual duration, phase allocations and per-placement launch/arrival frames, relative to each target segment.
 
 ## Output accountability
 
@@ -85,11 +85,13 @@ The current controls are deliberately limited and auditable:
 - portrait-oriented target-section ordering prioritises explicit eye, mouth, central-structure and upper-silhouette regions;
 - a positive per-source contribution cap is mandatory;
 - the renderer can prohibit neighbouring target sections from using the same source;
-- generated videos reveal the accumulating fragments rather than the raw contemporary source image;
+- generated videos scan only approved reviewed face crops that pass independent face-and-eye confirmation, including crops that do not contribute to the current portrait, but never reveal the surrounding contemporary photograph;
 - the sidecar records all controls and states that anonymity is not guaranteed;
 - every people-derived result remains `internal_unreviewed` until complete human, legal and contextual review.
 
 These controls reduce structural opportunities for source-person reconstitution. They do not constitute biometric anonymisation and must never be described as such.
+
+During the search phase, verified face crops advance on the left at the scan cadence. A contributing encounter launches only the structurally matched subregion towards its target-aligned rectangle on the right; a non-contributing encounter simply advances the search. Sources repeat in deterministic shuffled cycles during the long search, with a contribution cap of three. The final portrait is completed through 96–768 px square and rectangular regions, including later overlapping refinements, not a uniform grid. The sidecar records both kinds of encounter under `fragment_search`. Pending, rejected and face-gate-rejected imagery is excluded.
 
 Example internal render:
 
@@ -112,6 +114,8 @@ desaparecidos-artwork render \
 Place sources may be ordered across explicit reviewed territorial groups before an optional source limit is applied. The ordering uses declared `department` or `region` fields when present, then recognises Uruguay department names in the existing `location_label`. Material without a defensible territorial label remains `unlocated`.
 
 This mechanism does not claim national coverage. It prevents a large reviewed group from exhausting a bounded source selection before smaller reviewed groups can participate. The sidecar records available groups, realised usage and the absence of any coverage claim.
+
+The video scans selected approved place images on the left in deterministic shuffled cycles, including encounters unused by the current portrait. Only one structurally matched subregion from a contributing encounter transfers to its exact target rectangle. The portrait uses the same 96–768 px large-first, overlapping refinement process and full-coverage requirement as the people work. Pending and rejected imagery is excluded, and `fragment_search` records the complete displayed sequence.
 
 Example render:
 

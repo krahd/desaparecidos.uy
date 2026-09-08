@@ -26,7 +26,7 @@ def _placements(history: dict[str, Any]) -> list[dict[str, Any]]:
 
 def participation_metrics(history: dict[str, Any]) -> dict[str, Any]:
     placements = _placements(history)
-    counts = Counter(str(item.get("source_id", "")) for item in placements)
+    counts = Counter(str(item.get("manifest_source_id") or item.get("source_id", "")) for item in placements)
     counts.pop("", None)
     total = sum(counts.values())
     shares = {source: count / total for source, count in counts.items()} if total else {}
@@ -70,7 +70,7 @@ def source_reconstitution_metrics(history: dict[str, Any]) -> dict[str, Any]:
     placements = _placements(history)
     by_source: dict[str, list[int]] = defaultdict(list)
     for index, placement in enumerate(placements):
-        by_source[str(placement.get("source_id", ""))].append(index)
+        by_source[str(placement.get("manifest_source_id") or placement.get("source_id", ""))].append(index)
     same_source_edges = 0
     largest_component = 0
     largest_component_source = ""

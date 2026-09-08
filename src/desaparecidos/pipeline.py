@@ -47,8 +47,24 @@ class Stage1Settings(VideoSettings):
     unique_tiles: bool = False
     matching_mode: MatchingMode = "legacy"
     colour_output: bool = False
-    duration_seconds: int = 60
+    duration_seconds: int = 624
     fps: int = 24
+    scan_seconds: float = 0.33
+    video_region_size: int = 96
+    reconstruction_mode: str = "refine"
+    max_region_size: int = 768
+    structure_threshold: float = 0.60
+    min_structure: float = 0.001
+    refinement_margin: float = 0.02
+    structure_scale: str = "broad"
+    tone_mode: str = "match-region"
+    finding_interval: int = 30
+    contribution_interval: int = 30
+    search_source_contribution_cap: int = 3
+    search_similarity: float = 0.95
+    require_complete: bool = True
+    max_search_batches: int = 8
+    search_budget_seconds: int = 600
 
 
 def _spatial_descriptor_for(image: Image.Image) -> np.ndarray:

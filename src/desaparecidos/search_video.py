@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import bisect
 import math
-from dataclasses import dataclass
+import random
+from collections import Counter
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
@@ -383,6 +385,25 @@ def video_schedule(walk: Any, requested_frames: int, fps: int, settings: VideoSe
                     additions[i] += 1
                     remainder -= 1
             holds = [hold + extra for hold, extra in zip(holds, additions)]
+        # The search duration is part of the artwork, not merely an upper bound.
+        # Once cadence and contribution gaps are satisfied, spread the remaining
+        # long-search budget across every encounter.
+        budget = round(settings.search_budget_seconds * fps)
+        remaining = max(0, budget - sum(holds))
+        if holds and remaining:
+            per_frame, extra = divmod(remaining, len(holds))
+            holds = [hold + per_frame + (index < extra) for index, hold in enumerate(holds)]
+        if holds and walk.placed_after_frame:
+            last = walk.placed_after_frame[-1]
+            required_tail = max(2, math.ceil(fps * settings.contribution_seconds)) + 1
+            missing_tail = max(0, required_tail - sum(holds[last:]))
+            for index in range(last - 1, -1, -1):
+                moved = min(max(0, holds[index] - 1), missing_tail)
+                holds[index] -= moved
+                holds[-1] += moved
+                missing_tail -= moved
+                if not missing_tail:
+                    break
     closing = search_video_timeline(100000 * fps, fps, settings)
     closing_frames = closing.total - closing.search
     if settings.playback_mode == "continuous":
@@ -498,7 +519,7 @@ def _search_frame(
 
     if visible_count and settings.show_match_marks and not source_frame.get("fragment_field"):
         placement = walk.result.placements[visible_count - 1]
-        if placement.source_id == str(source_frame["id"]):
+        if placement.source_id == str(source_frame.get("source_id", source_frame["id"])):
             source_x = source_bounds[0] + round(placement.source_x * source_scale)
             source_y = source_bounds[1] + round(placement.source_y * source_scale)
             source_w = max(3, round((placement.source_width or placement.image.width) * source_scale))
@@ -645,37 +666,275 @@ def complete_search_video_frames(
             yield _fade(website, _opacity(index, timeline.website_fade_out, rising=False))
 
 
-def fragment_walk(assembly: Any) -> Any:
+def fragment_walk(assembly: Any, source_sequence: Sequence[str] | None = None) -> Any:
     from types import SimpleNamespace
-    return SimpleNamespace(result=assembly, placed_after_frame=list(range(len(assembly.placements))),
-                           segment_frame_ids=[str(i) for i in range(len(assembly.placements))])
+    if source_sequence is None:
+        return SimpleNamespace(result=assembly, placed_after_frame=list(range(len(assembly.placements))),
+                               segment_frame_ids=[placement.source_id for placement in assembly.placements])
+    sequence = list(source_sequence)
+    source_index = {source_id: index for index, source_id in enumerate(sequence)}
+    return SimpleNamespace(
+        result=assembly,
+        placed_after_frame=[source_index[placement.source_id] for placement in assembly.placements],
+        segment_frame_ids=sequence,
+    )
+
+
+def prepare_fragment_search(
+    assembly: Any,
+    source_rows: Sequence[ManifestRow],
+    *,
+    grammar: str,
+    seed: int,
+    target_id: str,
+    max_candidates: int = 0,
+) -> tuple[Any, Any]:
+    """Order an assembly by its approved search stream and retain unused sources.
+
+    The candidate limit bounds the initial approved scan pool, but every source
+    that contributes to the result is retained even when it falls beyond that
+    limit. Pending and rejected rows never reach this function.
+    """
+    from .placement_history import render_placements
+
+    source_ids = [row.id for row in source_rows]
+    if len(set(source_ids)) != len(source_ids):
+        raise ValueError("fragment search source ids must be unique")
+    available = set(source_ids)
+    contributing = {placement.source_id for placement in assembly.placements}
+    missing = sorted(contributing - available)
+    if missing:
+        raise ValueError(f"fragment search is missing contributing approved sources: {', '.join(missing)}")
+    selected = set(source_ids if max_candidates <= 0 else source_ids[:max_candidates])
+    selected.update(contributing)
+    sequence = [source_id for source_id in source_ids if source_id in selected]
+    source_index = {source_id: index for index, source_id in enumerate(sequence)}
+    placements = sorted(
+        assembly.placements,
+        key=lambda placement: source_index[placement.source_id],
+    )
+    image = render_placements(
+        placements,
+        assembly.image.size,
+        grammar=grammar,
+        seed=seed,
+        target_id=target_id,
+        background=BLACK,
+    )
+    ordered = replace(assembly, image=image, placements=placements)
+    return ordered, fragment_walk(ordered, sequence)
+
+
+def fragment_search_metadata(walk: Any, source_kind: str) -> dict[str, Any]:
+    counts = Counter(walk.placed_after_frame)
+    encounters = [
+        {
+            "encounter_index": index,
+            "source_id": source_id,
+            "decision": "contribute" if counts[index] else "scan",
+            "contribution_count": counts[index],
+        }
+        for index, source_id in enumerate(walk.segment_frame_ids)
+    ]
+    contributing = sum(1 for count in counts.values() if count)
+    return {
+        "schema": "desaparecidos.uy/fragment-search/1.0",
+        "approval_policy": "approved-manifest-rows-only",
+        "display_policy": (
+            "reviewed-face-region-only"
+            if source_kind == "people"
+            else "approved-place-image"
+        ),
+        "encounter_count": len(encounters),
+        "contributing_encounter_count": contributing,
+        "non_contributing_encounter_count": len(encounters) - contributing,
+        "placement_count": len(walk.result.placements),
+        "encounters": encounters,
+    }
+
+
+def prepare_structural_fragment_search(
+    target: ManifestRow,
+    target_manifest: str | Path,
+    source_rows: Sequence[ManifestRow],
+    source_manifest: str | Path,
+    source_kind: str,
+    settings: Any,
+) -> tuple[Any, Any, list[dict[str, Any]], dict[str, Any]]:
+    """Search approved face/place streams for variable target-aligned regions."""
+    from types import SimpleNamespace
+
+    from .cv import detect_face_regions_with_eyes
+    from .images import crop_from_row, load_rgb, source_region_from_row
+    from .manifests import row_file_path
+    from .structural_search import search_regions
+
+    target_image = crop_from_row(load_rgb(row_file_path(target, target_manifest)), target)
+    ratio = target_image.height / target_image.width
+    width = max(settings.fragment_size, round(settings.output_width / settings.fragment_size) * settings.fragment_size)
+    height = max(settings.fragment_size, round(width * ratio / settings.fragment_size) * settings.fragment_size)
+    target_canvas = target_image.resize((width, height), Image.Resampling.LANCZOS)
+
+    verified_images: dict[str, Image.Image] = {}
+    eligible: list[ManifestRow] = []
+    excluded: list[dict[str, str]] = []
+    for row in source_rows:
+        if source_kind != "people":
+            eligible.append(row)
+            continue
+        region = source_region_from_row(load_rgb(row_file_path(row, source_manifest)), row, row.kind)
+        if not detect_face_regions_with_eyes(region):
+            excluded.append({"source_id": row.id, "reason": "no-face-and-eye-confirmation-in-reviewed-region"})
+            continue
+        verified_images[row.id] = region
+        eligible.append(row)
+    if not eligible:
+        raise ValueError("no structurally eligible approved source images are available")
+
+    encounter_count = max(len(eligible), math.ceil(settings.search_budget_seconds / settings.scan_seconds))
+    rng = random.Random(settings.seed + sum(ord(char) for char in target.id))
+    frames: list[dict[str, Any]] = []
+    cycle = 0
+    while len(frames) < encounter_count:
+        cycle_rows = list(eligible)
+        rng.shuffle(cycle_rows)
+        for row in cycle_rows:
+            if len(frames) >= encounter_count:
+                break
+            encounter = len(frames)
+            event_id = f"{row.id}@{encounter:05d}"
+
+            def load_source(row: ManifestRow = row) -> Image.Image:
+                if row.id in verified_images:
+                    return verified_images[row.id].copy()
+                image = load_rgb(row_file_path(row, source_manifest))
+                return source_region_from_row(image, row, row.kind)
+
+            frames.append({
+                "id": event_id,
+                "source_id": event_id,
+                "manifest_source_id": row.id,
+                "local_path": str(row_file_path(row, source_manifest)),
+                "load_image": load_source,
+            })
+        cycle += 1
+
+    planned_encounter_count = len(frames)
+    result, encounters, decisions, coverage = search_regions(target_canvas, frames, settings)
+    if settings.require_complete and coverage < 1.0:
+        raise ValueError(
+            f"structural fragment search exhausted {len(frames)} encounters at {coverage:.1%} coverage"
+        )
+    frames = frames[:len(decisions)]
+    walk = SimpleNamespace(
+        result=result,
+        placed_after_frame=encounters,
+        segment_frame_ids=[str(frame["id"]) for frame in frames],
+    )
+    contributing = sum(1 for decision in decisions if decision["action"] in {"place", "refine"})
+    metadata = {
+        "schema": "desaparecidos.uy/fragment-search/2.0",
+        "method": "variable-structural-regions-with-overlap-and-refinement",
+        "approval_policy": "approved-manifest-rows-only",
+        "display_policy": "face-and-eye-confirmed-reviewed-region-only" if source_kind == "people" else "approved-place-image",
+        "approved_source_count": len(source_rows),
+        "eligible_source_count": len(eligible),
+        "excluded_source_count": len(excluded),
+        "excluded_sources": excluded,
+        "encounter_count": len(decisions),
+        "planned_encounter_count": planned_encounter_count,
+        "displayed_encounter_count": len(frames),
+        "contributing_encounter_count": contributing,
+        "non_contributing_encounter_count": len(decisions) - contributing,
+        "placement_count": len(result.placements),
+        "coverage": coverage,
+        "complete": coverage == 1.0,
+        "decisions": decisions,
+    }
+    metadata["manifest_source_usage"] = dict(Counter(
+        decision["manifest_source_id"]
+        for decision in decisions
+        if decision["action"] in {"place", "refine"}
+    ))
+    return result, walk, frames, metadata
+
+
+def structural_fragment_video_frames(
+    assembly: Any,
+    target: ManifestRow,
+    settings: Any,
+    artwork: str,
+    frames: list[dict[str, Any]],
+    walk: Any,
+) -> Iterable[Image.Image]:
+    """Render the common long-search form with exact structural placements."""
+    from .placement_history import render_placements
+
+    cache: dict[int, Image.Image] = {}
+
+    def progress(current_walk: Any, current_target: ManifestRow, count: int) -> Image.Image:
+        if count not in cache:
+            cache.clear()
+            cache[count] = render_placements(
+                current_walk.result.placements[:count],
+                assembly.image.size,
+                grammar="grid",
+                seed=settings.seed,
+                target_id=current_target.id,
+                background=BLACK,
+            )
+        return cache[count]
+
+    yield from complete_search_video_frames(
+        [frames],
+        [target],
+        [walk],
+        [assembly.image],
+        duration_seconds=settings.duration_seconds,
+        fps=settings.fps,
+        output_width=settings.output_width,
+        composition="split",
+        render_progress=progress,
+        settings=settings,
+        artwork=artwork,
+    )
 
 
 def fragment_video_frames(assembly: Any, target: ManifestRow, settings: Any, artwork: str,
                           source_rows: Sequence[ManifestRow], source_manifest: str | Path,
-                          *, grammar: str = "grid", reveal_sources: bool = True) -> Iterable[Image.Image]:
-    """Shared four-phase form, revealing only approved source regions or fragments."""
+                          *, grammar: str = "grid", reveal_sources: bool = True,
+                          walk: Any | None = None) -> Iterable[Image.Image]:
+    """Shared four-phase form over approved contributing and unused sources."""
     from .images import load_rgb, source_region_from_row
     from .manifests import row_file_path
     from .placement_history import render_placements
     from .pipeline_core import _contributing_fragment_field, _matched_fragment_field
 
     rows = {row.id: row for row in source_rows}
-    walk = fragment_walk(assembly)
+    walk = walk or fragment_walk(assembly)
     frames = []
-    for index, placement in enumerate(assembly.placements):
-        row = rows[placement.source_id]
-        frame = {"id": placement.source_id if reveal_sources else str(index), "fragment_field": not reveal_sources}
-        def load_source(p=placement, row=row, frame=frame):
+    placements_by_encounter: dict[int, list[Any]] = {}
+    for index, encounter in enumerate(walk.placed_after_frame):
+        placements_by_encounter.setdefault(encounter, []).append(assembly.placements[index])
+    for encounter, source_id in enumerate(walk.segment_frame_ids):
+        row = rows[source_id]
+        placements = placements_by_encounter.get(encounter, [])
+        frame = {
+            "id": f"{source_id}:{encounter}",
+            "source_id": source_id,
+            "fragment_field": not reveal_sources,
+        }
+        def load_source(placements=placements, row=row, frame=frame):
             if reveal_sources:
                 return source_region_from_row(load_rgb(row_file_path(row, source_manifest)), row, row.kind)
-            # Canonical people work retains its fragment-only source display.
+            if not placements:
+                return Image.new("RGB", assembly.image.size, BLACK)
             if getattr(settings, "video_source_layout", "grid") == "match":
-                field, starts = _matched_fragment_field([p], assembly.image.size)
+                field, starts = _matched_fragment_field(placements, assembly.image.size)
             else:
-                field, starts = _contributing_fragment_field([p], assembly.image.size, seed=settings.seed)
+                field, starts = _contributing_fragment_field(placements, assembly.image.size, seed=settings.seed)
             x, y, _ = starts[0]
-            frame["display_rect"] = (x, y, p.image.width, p.image.height)
+            frame["display_rect"] = (x, y, placements[0].image.width, placements[0].image.height)
             return field
         frame["load_image"] = load_source
         frames.append(frame)

@@ -23,6 +23,7 @@ class StructuralSettings:
     refinement_margin: float = 0.04
     structure_scale: str = "broad"
     tone_mode: str = "source"
+    finding_interval: int = 1
     contribution_interval: int = 6
     search_similarity: float = 0.95
     require_complete: bool = True
@@ -32,8 +33,8 @@ class StructuralSettings:
     def __post_init__(self) -> None:
         if not 0 <= self.max_search_batches <= 32 or self.search_budget_seconds < 1:
             raise ValueError("search batches must be in [0, 32] and playback budget positive")
-        if self.contribution_interval < 1:
-            raise ValueError("contribution interval must be at least one encounter")
+        if self.finding_interval < 1 or self.contribution_interval < 1:
+            raise ValueError("finding and contribution intervals must be at least one encounter")
         if not 0 <= self.search_similarity <= 1:
             raise ValueError("search similarity must be in [0, 1]")
         if self.reconstruction_mode not in {"fixed", "largest-first", "refine"}:
@@ -149,6 +150,7 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
     used_sources: set[str] = set()
     target_descriptor, _ = describe(target)
     coverage = 0.0
+    last_contribution_index = -settings.finding_interval
     refinement_budget = max(1, round(settings.search_budget_seconds / settings.scan_seconds))
     for frame_index, frame in enumerate(frames):
         if settings.require_complete and coverage == 1.0 and frame_index >= refinement_budget:
@@ -158,6 +160,10 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             logging.getLogger(__name__).info("Search %s/%s encounters; %.1f%% covered", frame_index, len(frames), 100 * np.isfinite(quality).mean())
         source_id = str(frame["id"])
         decision: dict[str, Any] = {"frame_index": frame_index, "source_id": source_id, "action": "skip", "reason": "no-structural-match", "best_similarity": None}
+        if frame_index - last_contribution_index < settings.finding_interval:
+            decision["reason"] = "finding-interval"
+            decisions.append(decision)
+            continue
         if source_id in used_sources:
             decision["reason"] = "source-already-contributed"
             decisions.append(decision)
@@ -268,6 +274,7 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             placements.append(placement)
             encounters.append(frame_index)
             used_sources.add(source_id)
+            last_contribution_index = frame_index
             decision.update(action="refine" if refining else "place", reason="accepted-structure", score=round(score, 6), target_rect=[x, y, w, h], source_rect=[sx, sy, sw, sh], placement_index=len(placements) - 1)
         decisions.append(decision)
         if best is not None:

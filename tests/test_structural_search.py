@@ -139,16 +139,18 @@ def test_exposure_adjustment_follows_structural_acceptance_and_records_transform
     assert result.image != target  # The adjusted source crop remains the material.
 
 
-def test_spacing_never_discards_a_rare_missing_region(tmp_path: Path) -> None:
+def test_finding_interval_preserves_encounters_between_regions(tmp_path: Path) -> None:
     target = Image.new('RGB', (128, 64))
     target.paste(pattern(), (0, 0))
     target.paste(pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT), (64, 0))
-    frames = frames_at(tmp_path, pattern(), pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT))
+    blank = Image.new('RGB', (64, 64), 0)
+    frames = frames_at(tmp_path, pattern(), pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT),
+                       blank, blank, blank, blank, pattern().transpose(Image.Transpose.FLIP_LEFT_RIGHT))
     result, encounters, decisions, coverage = search_regions(target, frames,
-        settings(fragment_size=64, max_region_size=64, contribution_interval=6))
-    assert encounters == [0, 1]
+        settings(fragment_size=64, max_region_size=64, finding_interval=6))
+    assert encounters == [0, 6]
     assert coverage == 1
-    assert all(d['action'] != 'skip' for d in decisions)
+    assert all(d['reason'] == 'finding-interval' for d in decisions[1:6])
 
 
 def test_quality_target_stops_only_with_coverage_and_actual_image_similarity(tmp_path: Path) -> None:

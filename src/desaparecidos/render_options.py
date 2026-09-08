@@ -19,6 +19,7 @@ def add_render_options(parser: argparse.ArgumentParser, *, structural: bool = Fa
         parser.add_argument('--allow-incomplete', dest='require_complete', action='store_false', default=True)
         parser.add_argument('--max-search-batches', type=int, default=8)
         parser.add_argument('--search-budget-seconds', type=int, default=300)
+        parser.add_argument('--finding-interval', type=int, default=1)
         parser.add_argument('--contribution-interval', type=int, default=6)
         parser.add_argument('--search-similarity', type=float, default=0.95)
         parser.add_argument('--structure-scale', choices=['broad', 'fine'], default='broad')

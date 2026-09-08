@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from PIL import Image, ImageChops, ImageDraw
 import pytest
@@ -209,6 +210,10 @@ def test_fragment_runtime_records_approved_unused_search_encounters(
         return True
 
     monkeypatch.setattr(artwork_runtime_module, "_render_video_ffmpeg", fake_render)
+    monkeypatch.setattr(
+        "desaparecidos.cv.classify_image",
+        lambda _image, _kind: SimpleNamespace(accept=True, label="place-photo"),
+    )
     generated = run_artwork(
         targets,
         places,

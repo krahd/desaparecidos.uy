@@ -29,6 +29,7 @@ export type StructuralOptions = {
   reconstruction_mode: 'fixed' | 'largest-first' | 'refine';
   max_region_size: number;
   structure_threshold: number;
+  completion_structure_threshold: number;
   min_structure: number;
   refinement_margin: number;
 };
@@ -37,7 +38,8 @@ export const defaultStructuralOptions: StructuralOptions = {
   finding_interval: 30, contribution_interval: 30, search_similarity: 0.95,
   structure_scale: 'broad', tone_mode: 'source',
   reconstruction_mode: 'refine', max_region_size: 384,
-  structure_threshold: 0.82, min_structure: 0.035, refinement_margin: 0.04,
+  structure_threshold: 0.82, completion_structure_threshold: 0.45,
+  min_structure: 0.035, refinement_margin: 0.04,
 };
 
 export function VideoControls({ value, onChange, traversal = false }: {

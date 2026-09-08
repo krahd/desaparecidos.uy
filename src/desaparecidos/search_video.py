@@ -764,7 +764,7 @@ def prepare_structural_fragment_search(
     """Search approved face/place streams for variable target-aligned regions."""
     from types import SimpleNamespace
 
-    from .cv import detect_face_regions_with_eyes
+    from .cv import classify_image, detect_face_regions_with_eyes
     from .images import crop_from_row, load_rgb, source_region_from_row
     from .manifests import row_file_path
     from .structural_search import search_regions
@@ -779,7 +779,12 @@ def prepare_structural_fragment_search(
     eligible: list[ManifestRow] = []
     excluded: list[dict[str, str]] = []
     for row in source_rows:
-        if source_kind != "people":
+        if source_kind == "places":
+            image = load_rgb(row_file_path(row, source_manifest))
+            result = classify_image(image, "places")
+            if not result.accept:
+                excluded.append({"source_id": row.id, "reason": f"runtime-place-gate:{result.label}"})
+                continue
             eligible.append(row)
             continue
         region = source_region_from_row(load_rgb(row_file_path(row, source_manifest)), row, row.kind)
@@ -836,7 +841,7 @@ def prepare_structural_fragment_search(
         "schema": "desaparecidos.uy/fragment-search/2.0",
         "method": "variable-structural-regions-with-overlap-and-refinement",
         "approval_policy": "approved-manifest-rows-only",
-        "display_policy": "face-and-eye-confirmed-reviewed-region-only" if source_kind == "people" else "approved-place-image",
+        "display_policy": "face-and-eye-confirmed-reviewed-region-only" if source_kind == "people" else "runtime-cv-confirmed-approved-place-image",
         "approved_source_count": len(source_rows),
         "eligible_source_count": len(eligible),
         "excluded_source_count": len(excluded),

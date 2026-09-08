@@ -63,7 +63,7 @@ ArtworkKind = Literal["todos-somos-familiares", "estan-en-todas-partes"]
 @dataclass(frozen=True)
 class ArtworkRenderSettings(VideoSettings, StructuralSettings):
     seed: int = 17
-    fragment_size: int = 96
+    fragment_size: int = 48
     reuse_limit: int = 8
     output_width: int = 1920
     max_fragments_per_source: int = 240
@@ -80,15 +80,16 @@ class ArtworkRenderSettings(VideoSettings, StructuralSettings):
     colour_output: bool = False
     scan_seconds: float = 0.33
     reconstruction_mode: str = "refine"
-    max_region_size: int = 768
+    max_region_size: int = 384
     structure_threshold: float = 0.60
+    completion_structure_threshold: float = 0.45
     min_structure: float = 0.001
-    refinement_margin: float = 0.02
+    refinement_margin: float = 0.015
     structure_scale: str = "broad"
     tone_mode: str = "match-region"
-    finding_interval: int = 30
-    contribution_interval: int = 30
-    search_source_contribution_cap: int = 3
+    finding_interval: int = 13
+    contribution_interval: int = 13
+    search_source_contribution_cap: int = 6
     search_similarity: float = 0.95
     require_complete: bool = True
     search_budget_seconds: int = 600
@@ -650,7 +651,7 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--output", default="outputs/artwork")
     render.add_argument("--target-id")
     render.add_argument("--seed", type=int, default=17)
-    render.add_argument("--fragment-size", type=int, default=96)
+    render.add_argument("--fragment-size", type=int, default=48)
     render.add_argument("--reuse-limit", type=int, default=8)
     render.add_argument("--output-width", type=int, default=1920)
     render.add_argument("--source-cap", type=int, default=1)

@@ -99,6 +99,7 @@ class StructuralOptionsRequest(VideoOptionsRequest):
     reconstruction_mode: Literal["fixed", "largest-first", "refine"] = "refine"
     max_region_size: int = Field(default=384, ge=8, le=2048)
     structure_threshold: float = Field(default=0.82, gt=0, le=1)
+    completion_structure_threshold: float = Field(default=0.45, gt=0, le=1)
     min_structure: float = Field(default=0.035, gt=0, le=1)
     refinement_margin: float = Field(default=0.04, ge=0, le=1)
     structure_scale: Literal["broad", "fine"] = "broad"

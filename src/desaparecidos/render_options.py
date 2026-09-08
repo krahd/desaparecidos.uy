@@ -27,6 +27,7 @@ def add_render_options(parser: argparse.ArgumentParser, *, structural: bool = Fa
         parser.add_argument('--reconstruction-mode', choices=['fixed', 'largest-first', 'refine'], default='refine')
         parser.add_argument('--max-region-size', type=int, default=384)
         parser.add_argument('--structure-threshold', type=float, default=0.82)
+        parser.add_argument('--completion-structure-threshold', type=float, default=0.45)
         parser.add_argument('--min-structure', type=float, default=0.035)
         parser.add_argument('--refinement-margin', type=float, default=0.04)
 

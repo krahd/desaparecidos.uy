@@ -48,6 +48,17 @@ def test_place_rejects_flat_graphic() -> None:
     assert result.label == "flat"
 
 
+def test_place_rejects_mostly_white_low_saturation_poster() -> None:
+    poster = Image.new("RGB", (800, 500), "white")
+    draw = ImageDraw.Draw(poster)
+    draw.rectangle((80, 100, 300, 320), fill=(225, 225, 225))
+    for y, width in ((105, 300), (180, 420), (245, 360), (315, 460)):
+        draw.rectangle((380, y, 380 + width, y + 22), fill=(15, 15, 15))
+    result = classify_image(poster, "places")
+    assert result.accept is False
+    assert result.label == "graphic"
+
+
 def test_place_rejects_low_resolution() -> None:
     small = Image.new("RGB", (120, 90), (100, 120, 140))
     result = classify_image(small, "places")

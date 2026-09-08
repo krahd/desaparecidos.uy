@@ -19,6 +19,7 @@ class StructuralSettings:
     reconstruction_mode: ReconstructionMode = "refine"
     max_region_size: int = 384
     structure_threshold: float = 0.82
+    completion_structure_threshold: float = 0.45
     min_structure: float = 0.035
     refinement_margin: float = 0.04
     structure_scale: str = "broad"
@@ -46,6 +47,8 @@ class StructuralSettings:
             raise ValueError("maximum region size must be at least 8")
         if not 0 < self.structure_threshold <= 1 or not 0 < self.min_structure <= 1:
             raise ValueError("structure thresholds must be in (0, 1]")
+        if not 0 < self.completion_structure_threshold <= 1:
+            raise ValueError("completion threshold must be in (0, 1]")
         if not 0 <= self.refinement_margin <= 1:
             raise ValueError("refinement margin must be in [0, 1]")
         if self.structure_scale not in {"broad", "fine"}:
@@ -172,6 +175,14 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             "reason": "no-structural-match",
             "best_similarity": None,
         }
+        match_threshold = settings.structure_threshold
+        if settings.require_complete and coverage >= 0.95:
+            match_threshold = min(
+                settings.structure_threshold,
+                settings.completion_structure_threshold,
+            )
+        decision["required_similarity"] = match_threshold
+        decision["completion_threshold_active"] = match_threshold < settings.structure_threshold
         if frame_index - last_contribution_index < settings.finding_interval:
             decision["reason"] = "finding-interval"
             decisions.append(decision)
@@ -239,7 +250,7 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
                 score = float(scores[row_index, ci])
                 # Refine promising coarse locations before rejecting a rare
                 # missing-region match. Destination geometry never changes.
-                if settings.require_complete and 0.6 <= score < settings.structure_threshold:
+                if settings.require_complete and 0.6 <= score < match_threshold:
                     sx, sy, sw, sh = candidates[ci]
                     for fraction in (4, 8):
                         best_rect = (sx, sy, sw, sh)
@@ -254,23 +265,31 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
                         sx, sy, sw, sh = best_rect
                     candidates.append((sx, sy, sw, sh))
                     ci = len(candidates) - 1
-                if score < settings.structure_threshold:
+                if score < match_threshold:
                     continue
                 if analysis_scale < 1 or settings.require_complete:
                     sx, sy, sw, sh = candidates[ci]
                     native_descriptor, native_strength = describe(source.crop((sx, sy, sx + sw, sy + sh)))
                     score = float(native_descriptor @ descriptors[region_index])
-                    if score < settings.structure_threshold or native_strength < settings.min_structure:
+                    if score < match_threshold or native_strength < settings.min_structure:
                         continue
                 x, y = positions[region_index]
                 q = quality[y:y + h, x:x + w]
                 occupied = np.isfinite(q)
                 if occupied.any():
+                    if score < settings.structure_threshold:
+                        continue
+                    # The per-pixel best accepted score is a lower bound for
+                    # the refinement threshold. Reject against it before the
+                    # substantially more expensive composite-region descriptor.
+                    quality_floor = float(q[occupied].max()) + settings.refinement_margin
+                    if score < quality_floor:
+                        continue
                     # Compare at the same spatial scale, including earlier
                     # subregion replacements, so a coarse score cannot hide damage.
                     previous, strength = describe(output.crop((x, y, x + w, y + h)))
                     old_score = float(previous @ descriptors[region_index]) if strength else 0.0
-                    if score < max(old_score, float(q[occupied].max())) + settings.refinement_margin:
+                    if score < old_score + settings.refinement_margin:
                         continue
                 # Spend a useful encounter on missing structure before polishing
                 # an already occupied area. Area still controls the coarse-to-fine search.

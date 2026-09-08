@@ -38,6 +38,9 @@ _PLACE_MIN_EDGE_DENSITY = 0.015
 _PLACE_MAX_EDGE_DENSITY = 0.32
 _PLACE_MIN_UNIQUE_RATIO = 0.004
 _PLACE_MAX_NOISE_UNIQUE_RATIO = 0.08
+_PLACE_MAX_POSTER_WHITE_FRACTION = 0.78
+_PLACE_MIN_POSTER_LOW_SATURATION_FRACTION = 0.85
+_PLACE_MAX_POSTER_MIDTONE_FRACTION = 0.21
 
 _cascade: cv2.CascadeClassifier | None = None
 _eye_cascade: cv2.CascadeClassifier | None = None
@@ -254,6 +257,19 @@ def classify_image(image: Image.Image, kind: ManifestKind) -> CVResult:
         if face_fraction > _PLACE_MAX_FACE_FRACTION:
             return CVResult(False, "portrait", face_fraction, "prominent face: looks like a portrait, not a place", face)
         photo = photo_likeness_score(image)
+        diagnostic = image.convert("RGB").resize((160, 160), Image.Resampling.LANCZOS)
+        rgb = np.asarray(diagnostic, dtype=np.uint8)
+        gray = np.asarray(diagnostic.convert("L"), dtype=np.uint8)
+        saturation = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[:, :, 1]
+        near_white_fraction = float((gray > 235).mean())
+        low_saturation_fraction = float((saturation < 15).mean())
+        midtone_fraction = float(((gray >= 35) & (gray <= 235)).mean())
+        if (
+            near_white_fraction > _PLACE_MAX_POSTER_WHITE_FRACTION
+            and low_saturation_fraction > _PLACE_MIN_POSTER_LOW_SATURATION_FRACTION
+            and midtone_fraction < _PLACE_MAX_POSTER_MIDTONE_FRACTION
+        ):
+            return CVResult(False, "graphic", near_white_fraction, "mostly white low-saturation layout; likely poster/graphic")
         if photo.texture < _PLACE_MIN_TEXTURE:
             return CVResult(False, "flat", photo.texture, "too flat (likely logo/graphic)")
         if photo.gray_std < _PLACE_MIN_GRAY_STD or photo.color_std < _PLACE_MIN_COLOR_STD:

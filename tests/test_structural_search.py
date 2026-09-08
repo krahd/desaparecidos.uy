@@ -265,3 +265,28 @@ def test_complete_portrait_can_improve_within_the_soft_budget(tmp_path: Path) ->
     assert [d['action'] for d in decisions] == ['place', 'refine']
     assert decisions[-1]['stop_reason'] == 'reconstruction-complete'
     assert result.image == target
+
+
+def test_completion_threshold_only_fills_late_uncovered_region(tmp_path: Path) -> None:
+    tile = pattern().resize((32, 32))
+    target = Image.new('RGB', (640, 32))
+    for x in range(0, target.width, 32):
+        target.paste(tile, (x, 0))
+    approximate = tile.filter(ImageFilter.GaussianBlur(3))
+    frames = frames_at(tmp_path, *([tile] * 19), approximate)
+    result, encounters, decisions, coverage = search_regions(
+        target,
+        frames,
+        settings(
+            require_complete=True,
+            reconstruction_mode='fixed',
+            fragment_size=32,
+            max_region_size=32,
+            structure_threshold=0.99,
+            completion_structure_threshold=0.45,
+        ),
+    )
+    assert coverage == 1 and len(encounters) == 20
+    assert decisions[-1]['completion_threshold_active'] is True
+    assert decisions[-1]['score'] < 0.99
+    assert result.image.getbbox() is not None

@@ -1,6 +1,6 @@
 {
   "schema": "desaparecidos.uy/refusal-paradata/1.0",
-  "policy_id": "memorial-refusals-2026-01",
+  "policy_id": "memorial-refusals-2026-02",
   "refusals": [
     {
       "id": "generative-facial-completion",
@@ -25,6 +25,84 @@
         "A materially different institutional mandate",
         "Documented participation by people with standing",
         "A changed artistic purpose"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "synthetic-ageing",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes",
+        "seguimos-buscando"
+      ],
+      "available_operation": "Generate a later-age appearance from a documentary portrait",
+      "relation_refused": "An inferred later life presented through the represented person's appearance",
+      "decision_basis": {
+        "purpose": "The portrait remains tied to its documentary occasion rather than being projected into an unrecorded present",
+        "mandate": "Independent artist-researcher; no authority to attribute an unrecorded appearance, gesture or utterance to the represented person",
+        "evidence": "Age-conditioned face generation is technically available; the work declines to incorporate it, and the source portrait cannot establish an unrecorded later appearance"
+      },
+      "residual_risks": [
+        "An unaged composite may still be read as a present likeness",
+        "Viewers may infer a life history from the apparent age of a face"
+      ],
+      "review_triggers": [
+        "Documented participation by people with standing",
+        "A materially different mandate and separately reviewed purpose",
+        "A manifestation explicitly reconsidering the represented person's agency"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "facial-animation",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes",
+        "seguimos-buscando"
+      ],
+      "available_operation": "Generate facial gestures or lip movement from a still portrait",
+      "relation_refused": "The represented person apparently performing gestures that they did not supply to the work",
+      "decision_basis": {
+        "purpose": "Motion belongs to source encounters, fragments and their assembly rather than to the represented person's face",
+        "mandate": "Independent artist-researcher; no authority to attribute an unrecorded appearance, gesture or utterance to the represented person",
+        "evidence": "Portrait-animation techniques are available; the work declines to incorporate them, and assembly motion is not evidence of a gesture by the represented person"
+      },
+      "residual_risks": [
+        "Fragment motion can still be read as animating a face",
+        "Display or platform processing may introduce motion outside the maker's control"
+      ],
+      "review_triggers": [
+        "Documented participation by people with standing",
+        "A materially different mandate and separately reviewed purpose",
+        "A manifestation explicitly reconsidering the represented person's agency"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "generated-speech",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes",
+        "seguimos-buscando"
+      ],
+      "available_operation": "Synthesize speech, a cloned voice or conversational replies attributed to the represented person",
+      "relation_refused": "An utterance supplied by the system presented as the represented person's speech or testimony",
+      "decision_basis": {
+        "purpose": "Keep the represented person's utterances outside the work's generative control",
+        "mandate": "Independent artist-researcher; no authority to attribute an unrecorded appearance, gesture or utterance to the represented person",
+        "evidence": "Speech synthesis and conversational generation are available; the work declines to incorporate them, and documentary records cannot establish words newly composed by the system"
+      },
+      "residual_risks": [
+        "Captions and narration may still imply a voice speaking for the represented person",
+        "Documentary quotations can lose their context when circulated"
+      ],
+      "review_triggers": [
+        "Documented participation by people with standing",
+        "A materially different mandate and separately reviewed purpose",
+        "A manifestation explicitly reconsidering the represented person's agency"
       ],
       "access": "public"
     },
@@ -98,6 +176,31 @@
       "review_triggers": [
         "A manifestation that explicitly abandons traversal as its temporal operation",
         "A new live-input architecture with an equivalent causality guarantee",
+        "A changed artistic purpose"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "anticipatory-fragment-assembly",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes"
+      ],
+      "available_operation": "Use a people or place source region before the displayed encounter that supplies it",
+      "relation_refused": "Search presented as a decorative sequence over a portrait assembled independently of its encounters",
+      "decision_basis": {
+        "purpose": "Make displayed source encounters constitute the portrait over time across the triptych",
+        "mandate": "The video claims a causal relation between the encountered present and the assembled likeness",
+        "evidence": "Current fragment-search histories distinguish encounter IDs from underlying manifest sources and record the placement associated with each encounter"
+      },
+      "residual_risks": [
+        "Repeated source cycles can imply novelty where an image has already appeared",
+        "Complete image coverage may be interpreted as political closure"
+      ],
+      "review_triggers": [
+        "A manifestation explicitly changing the role of search",
+        "An alternative source-delivery architecture preserving equivalent encounter causality",
         "A changed artistic purpose"
       ],
       "access": "public"

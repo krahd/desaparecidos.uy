@@ -142,7 +142,7 @@ def render_refusal_paradata(
     lines = [
         "# Paradata of refusal",
         "",
-        "This record documents technically available operations that the artwork deliberately withholds. It distinguishes constitutive boundaries from features that merely have not been implemented.",
+        "This record documents technically available operations that the artwork deliberately withholds. Availability includes techniques that could be incorporated; it does not require an enabled code path. The record distinguishes a reasoned decision against an operation from a feature that merely has not been implemented.",
         "",
         f"- Schema: `{policy['schema']}`",
         f"- Policy: `{policy['policy_id']}`",

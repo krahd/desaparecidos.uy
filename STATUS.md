@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-08 12:23 GMT-6
+Last updated: 2026-09-08 22:04 GMT+0
 
 ## Project purpose
 
@@ -277,6 +277,14 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ## Recent changes
 
+### Refusal-policy correspondence for the AI & Society R15 revision
+
+- Expanded the versioned refusal record to explicitly document synthetic ageing, facial animation and generated speech, alongside the existing representational boundaries. Added anticipatory fragment assembly for the current causal video form of **Todos somos familiares** and **Están en todas partes**; the traversal record retains its stable identity and scope.
+- Archived the previous policy byte-for-byte at `config/refusal-paradata/memorial-refusals-2026-01.json`. New outputs reference `memorial-refusals-2026-02`; historical output records retain their original policy identity and must be checked against that archived revision.
+- Clarified that a technically available alternative need not already have an enabled code path for the artist to record why it is withheld. This documents constitutive decisions without adding image-generation, animation, speech or identity-matching behaviour.
+- R15 now follows the latest committed implementation and the 8 September Elena **Seguimos buscando** edition. The author supplied the matching MP4 and sidecar: full decoding and all 263 source/encounter correspondences passed independent checks, and new manuscript figures were extracted. Individual Mapillary credits still require the matching traversal manifest; the earlier Abeledo attribution is not reused. Historical runtime and release-review flags remain unchanged.
+- Validation for this policy/documentation change: four focused refusal-policy tests passed; the sidecar test requiring a runtime Git checkout was deselected in the partial validation workspace. Earlier full-suite results below belong to their dated implementation changes.
+
 ### 8 September 2026 — expanded candidates and higher-fidelity Elena fragment editions
 
 - Expanded the ignored internal source manifests through bounded, same-domain, robots-aware crawls. The artist explicitly authorised treating CV-accepted candidates as approved for these internal tests. The people manifest now has 176 approved rows; 41 pass the stricter runtime face-and-eye gate and 135 remain excluded from display. A destination-focused Uruguay Natural follow-up produced no new unique accepted rows.
@@ -550,4 +558,4 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the complete 5:24 edition, completion-first workflow and 224-test verification, preserving the earlier calibration record. The separate-repository update follows the user's existing approval. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-08 12:23 GMT-6
+Last updated: 2026-09-08 22:04 GMT+0

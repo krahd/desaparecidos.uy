@@ -20,11 +20,14 @@ def test_canonical_refusal_policy_has_stable_unique_identifiers() -> None:
     policy = load_refusal_paradata()
     ids = [record["id"] for record in policy["refusals"]]
 
-    assert policy["policy_id"] == "memorial-refusals-2026-01"
+    assert policy["policy_id"] == "memorial-refusals-2026-02"
     assert len(ids) == len(set(ids))
     assert "generative-facial-completion" in ids
     assert applicable_refusal_ids(policy, "seguimos-buscando") == [
         "generative-facial-completion",
+        "synthetic-ageing",
+        "facial-animation",
+        "generated-speech",
         "biometric-identification",
         "anticipatory-traversal-assembly",
     ]

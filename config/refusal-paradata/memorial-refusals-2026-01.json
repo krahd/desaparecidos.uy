@@ -1,0 +1,106 @@
+{
+  "schema": "desaparecidos.uy/refusal-paradata/1.0",
+  "policy_id": "memorial-refusals-2026-01",
+  "refusals": [
+    {
+      "id": "generative-facial-completion",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes",
+        "seguimos-buscando"
+      ],
+      "available_operation": "Inferred completion of unknown facial detail",
+      "relation_refused": "Synthetic appearance presented as recovery, restoration, or simulated return",
+      "decision_basis": {
+        "purpose": "Memorial reappearance without simulated return or technological closure",
+        "mandate": "Independent artist-researcher; no forensic, judicial, archival, or organisational authority",
+        "evidence": "The documented portrait remains the historical referent and visible fragments remain materially incomplete"
+      },
+      "residual_risks": [
+        "A composite may still be mistaken for restoration",
+        "Source selection may reproduce archival exclusions"
+      ],
+      "review_triggers": [
+        "A materially different institutional mandate",
+        "Documented participation by people with standing",
+        "A changed artistic purpose"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "biometric-identification",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares",
+        "estan-en-todas-partes",
+        "seguimos-buscando"
+      ],
+      "available_operation": "Face recognition, face-to-name matching, or identity-seeking analysis",
+      "relation_refused": "Living source persons or disappeared persons made into computational identification targets",
+      "decision_basis": {
+        "purpose": "Construct memorial appearances through fragments without identifying source persons",
+        "mandate": "The artwork does not hold investigative, forensic, or biometric authority",
+        "evidence": "Reviewed provenance and documentary portrait records support the memorial relation without identity inference"
+      },
+      "residual_risks": [
+        "Contemporary source fragments may remain recognisable in a completed output",
+        "Viewers may overstate what the image process knows about identity"
+      ],
+      "review_triggers": [
+        "A distinct forensic project with lawful authority and a separate repository",
+        "Documented participation by people with standing",
+        "A changed artistic purpose"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "full-context-contemporary-person-reveal",
+      "status": "refused",
+      "scope": [
+        "todos-somos-familiares"
+      ],
+      "available_operation": "Display of the full contemporary source photograph during fragment emergence",
+      "relation_refused": "A contemporary source person presented as a represented subject of the memorial",
+      "decision_basis": {
+        "purpose": "Use the contemporary social body as dispersed visual material while keeping the disappeared person as the represented subject",
+        "mandate": "Public availability is not treated as blanket consent for contextual exposure",
+        "evidence": "The canonical process video can show accumulating reviewed fragments without revealing the surrounding source photograph"
+      },
+      "residual_risks": [
+        "A reviewed face fragment may still be recognisable",
+        "Repeated or adjacent fragments may imply more of a source face than intended"
+      ],
+      "review_triggers": [
+        "Explicit permission from the depicted person",
+        "A separately reviewed manifestation whose purpose requires contextual display",
+        "A changed source-person relation within the artwork"
+      ],
+      "access": "public"
+    },
+    {
+      "id": "anticipatory-traversal-assembly",
+      "status": "refused",
+      "scope": [
+        "seguimos-buscando"
+      ],
+      "available_operation": "Use of traversal frames before the recorded encounter that made them available",
+      "relation_refused": "Search represented as a decorative sequence over an image assembled with future knowledge",
+      "decision_basis": {
+        "purpose": "Make continuing search and situated encounter constitute the portrait over time",
+        "mandate": "The artwork claims a temporal search relation, not omniscient access to a completed route corpus",
+        "evidence": "Placement histories record each source-frame encounter index and can be evaluated before release"
+      },
+      "residual_risks": [
+        "A completed segment may still imply political closure",
+        "Route and provider coverage shape what can be encountered"
+      ],
+      "review_triggers": [
+        "A manifestation that explicitly abandons traversal as its temporal operation",
+        "A new live-input architecture with an equivalent causality guarantee",
+        "A changed artistic purpose"
+      ],
+      "access": "public"
+    }
+  ]
+}

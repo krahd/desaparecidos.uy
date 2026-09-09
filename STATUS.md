@@ -1,6 +1,6 @@
 # desaparecidos.uy - Project Status
 
-Last updated: 2026-06-18 00:04 GMT-3
+Last updated: 2026-09-09 02:04 GMT-6
 
 ## Project purpose
 
@@ -169,6 +169,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 
 ## Recent changes
 
+- 2026-09-09 02:04 GMT-6: removed the misplaced AI & SOCIETY manuscript and temporary presence sentinel from this branch after preserving the manuscript byte-for-byte in the canonical `krahd/research` AI & SOCIETY archive. Added an ignore rule for `doc/writings/`. This ordinary cleanup commit does not rewrite earlier history.
+
 - Initial project documentation, Stage 1 pipeline, local GUI, manifest templates, tests, and launcher were created.
 - Private GitHub repository `krahd/desaparecidos.uy` was created and `main` was pushed.
 - GUI demo fixtures were added so users can recover from empty template manifests without running CLI commands.
@@ -190,6 +192,8 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 - 2026-06-17 20:31 GMT-3 follow-up: large feature/audit pass. (1) Review thumbnails now keep the source aspect ratio (fixed a collapsing `aspect-ratio`/`height:100%` cycle) and clicking a target thumbnail sets the working portrait (place thumbnails open the viewer). (2) Removed the redundant GUI Download section (the `/api/download` endpoint and CLI remain). (3) Added a vectorised nearest-fragment matcher and a `max_contribution_per_source` cap (GUI "Max tiles per source" slider, `0` = unlimited) plumbed through `Stage1Settings`, `/api/generate`, and `generateStage1`; matcher output is unchanged at the default. (4) Rewrote the crawler as a bounded recursive BFS (depth/page/image caps, cross-domain optional, per-host delay, `robots.txt`) with new `cv.py` (OpenCV Haar faces for targets, texture/aspect/resolution heuristics for places) and `cache.py` (SQLite index + content-addressed store) so images are classified/downloaded once; new crawler params on `/api/crawl` and GUI controls (depth, max pages, total images, cross-domain, CV filter); the crawl summary reports pages/seen/added/CV-rejected/from-cache. (5) Added `opencv-python-headless` to dependencies. (6) Relaxed AGENTS.md/CLAUDE.md crawler-persistence wording.
 
 ## Tests and verification status
+
+- 2026-09-09 branch cleanup: verified that `doc/writings/` contains no tracked files after the staged removal and that `git diff --check` passes. Runtime behaviour was not changed, so the historical branch's application test/build suite was not rerun.
 
 Verification run on 2026-06-17:
 
@@ -273,4 +277,4 @@ Verification run on 2026-06-17:
 
 ---
 
-Last updated: 2026-06-18 00:04 GMT-3
+Last updated: 2026-09-09 02:04 GMT-6

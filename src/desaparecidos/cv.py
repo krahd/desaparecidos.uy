@@ -17,7 +17,7 @@ from PIL import Image
 
 from .manifests import ManifestKind
 
-CV_POLICY_VERSION = 2
+CV_POLICY_VERSION = 4
 _CASCADE_PATH = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
 _EYE_CASCADE_PATH = os.path.join(cv2.data.haarcascades, "haarcascade_eye.xml")
 
@@ -44,6 +44,8 @@ _PLACE_MAX_POSTER_MIDTONE_FRACTION = 0.21
 
 _cascade: cv2.CascadeClassifier | None = None
 _eye_cascade: cv2.CascadeClassifier | None = None
+_yunet_detector: cv2.FaceDetectorYN | None = None
+_yunet_model_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,8 +95,11 @@ def detect_faces(image: Image.Image) -> list[tuple[int, int, int, int]]:
     ]
 
 
-def detect_face_regions_with_eyes(image: Image.Image) -> list[tuple[int, int, int, int]]:
-    """Return face detections that contain at least one independently detected eye."""
+def _face_regions_with_eyes(
+    image: Image.Image,
+    faces: list[tuple[int, int, int, int]],
+) -> list[tuple[int, int, int, int]]:
+    """Return supplied face detections with an independent eye confirmation."""
     global _eye_cascade
     if _eye_cascade is None:
         _eye_cascade = cv2.CascadeClassifier(_EYE_CASCADE_PATH)
@@ -102,7 +107,7 @@ def detect_face_regions_with_eyes(image: Image.Image) -> list[tuple[int, int, in
         return []
     gray = np.asarray(image.convert("L"))
     verified: list[tuple[int, int, int, int]] = []
-    for x, y, width, height in detect_faces(image):
+    for x, y, width, height in faces:
         face = gray[y:y + height, x:x + width]
         minimum = max(8, min(width, height) // 10)
         eyes = _eye_cascade.detectMultiScale(
@@ -114,6 +119,54 @@ def detect_face_regions_with_eyes(image: Image.Image) -> list[tuple[int, int, in
         if len(eyes):
             verified.append((x, y, width, height))
     return verified
+
+
+def detect_face_regions_with_eyes(image: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Return face detections that contain at least one independently detected eye."""
+    return _face_regions_with_eyes(image, detect_faces(image))
+
+
+def detect_yunet_face_regions(
+    image: Image.Image,
+) -> list[tuple[int, int, int, int]] | None:
+    """Return landmark-bearing YuNet detections, or ``None`` when not configured."""
+    global _yunet_detector, _yunet_model_path
+    model_path = os.environ.get("DESAPARECIDOS_YUNET_MODEL", "").strip()
+    if not model_path:
+        return None
+    if not os.path.isfile(model_path):
+        raise ValueError(f"YuNet face model does not exist: {model_path}")
+    if _yunet_detector is None or _yunet_model_path != model_path:
+        _yunet_detector = cv2.FaceDetectorYN.create(
+            model_path,
+            "",
+            (320, 320),
+            score_threshold=0.88,
+            nms_threshold=0.3,
+            top_k=5000,
+        )
+        _yunet_model_path = model_path
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    height, width = rgb.shape[:2]
+    scale = min(1.0, _MAX_DETECT_SIDE / max(height, width))
+    if scale < 1.0:
+        rgb = cv2.resize(rgb, (max(1, round(width * scale)), max(1, round(height * scale))))
+    detect_height, detect_width = rgb.shape[:2]
+    _yunet_detector.setInputSize((detect_width, detect_height))
+    _status, detections = _yunet_detector.detect(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    if detections is None:
+        return []
+    inverse = 1.0 / scale if scale else 1.0
+    boxes: list[tuple[int, int, int, int]] = []
+    for detection in detections:
+        x, y, box_width, box_height = detection[:4]
+        boxes.append((
+            max(0, round(float(x) * inverse)),
+            max(0, round(float(y) * inverse)),
+            max(1, round(float(box_width) * inverse)),
+            max(1, round(float(box_height) * inverse)),
+        ))
+    return boxes
 
 
 def perceptual_hash(image: Image.Image, hash_size: int = 8) -> str:
@@ -226,8 +279,22 @@ def classify_image(image: Image.Image, kind: ManifestKind) -> CVResult:
             return CVResult(False, "bad-aspect", aspect, f"aspect {aspect:.2f} outside people range")
         if texture < _PEOPLE_MIN_TEXTURE:
             return CVResult(False, "flat", texture, "too flat for a people candidate")
+        yunet_faces = detect_yunet_face_regions(image)
+        verified_faces = (
+            yunet_faces
+            if yunet_faces is not None
+            else _face_regions_with_eyes(image, faces)
+        )
+        face = _largest_face(verified_faces)
+        face_fraction = _face_fraction(face, width, height)
         if face is None:
-            return CVResult(False, "no-face", 0.0, "no clear frontal face detected")
+            label = "no-face" if not faces and not yunet_faces else "unconfirmed-face"
+            return CVResult(
+                False,
+                label,
+                0.0,
+                "no frontal face with independent eye confirmation detected",
+            )
         _x, _y, face_width, face_height = face
         if (
             face_width < _PEOPLE_MIN_FACE_SIDE
@@ -243,7 +310,7 @@ def classify_image(image: Image.Image, kind: ManifestKind) -> CVResult:
             )
         return CVResult(
             True,
-            "face",
+            "face-yunet" if yunet_faces is not None else "face",
             face_fraction,
             f"face covers {face_fraction:.0%} of frame",
             face,

@@ -99,10 +99,25 @@ def test_people_rejects_image_without_face() -> None:
 
 def test_people_accepts_clear_detected_face(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cv_module, "detect_faces", lambda image: [(90, 70, 90, 90)])
+    monkeypatch.setattr(
+        cv_module,
+        "_face_regions_with_eyes",
+        lambda _image, faces: faces,
+    )
     result = classify_image(place_photo_image(260, 260), "people")
     assert result.accept is True
     assert result.label == "face"
     assert result.face_box == (90, 70, 90, 90)
+
+
+def test_people_rejects_unconfirmed_face(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cv_module, "detect_faces", lambda image: [(90, 70, 90, 90)])
+    monkeypatch.setattr(cv_module, "_face_regions_with_eyes", lambda _image, _faces: [])
+
+    result = classify_image(place_photo_image(260, 260), "people")
+
+    assert result.accept is False
+    assert result.label == "unconfirmed-face"
 
 
 def test_face_detector_runs_on_noise() -> None:

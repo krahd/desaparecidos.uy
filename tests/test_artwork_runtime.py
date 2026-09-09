@@ -240,6 +240,9 @@ def test_fragment_runtime_records_approved_unused_search_encounters(
     assert search["schema"] == "desaparecidos.uy/fragment-search/2.0"
     assert search["method"] == "variable-structural-regions-with-overlap-and-refinement"
     assert search["encounter_count"] == 17
+    assert search["unique_source_stream"] is True
+    assert search["repeated_source_count"] == 0
+    assert len({decision["manifest_source_id"] for decision in search["decisions"]}) == 17
     assert search["contributing_encounter_count"] == search["placement_count"]
     assert search["non_contributing_encounter_count"] > 0
     assert len(sidecar["placement_history"]["source_sequence"]) == 17

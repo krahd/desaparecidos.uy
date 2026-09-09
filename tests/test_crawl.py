@@ -10,7 +10,14 @@ from PIL import Image
 
 import desaparecidos.crawl as crawl_module
 from desaparecidos.cache import CachedClassification, CachedImage, CrawlCache
-from desaparecidos.crawl import _best_srcset_candidate, _duplicate_reason, crawl_pages, crawl_pages_combined
+from desaparecidos.crawl import (
+    _best_srcset_candidate,
+    _duplicate_reason,
+    _is_same_category_pagination,
+    _normalise_category_pagination,
+    crawl_pages,
+    crawl_pages_combined,
+)
 from desaparecidos.cv import CV_POLICY_VERSION, CVResult
 from desaparecidos.manifests import read_manifest, set_review_status
 
@@ -78,6 +85,23 @@ def test_page_parser_discovers_lazy_loaded_images() -> None:
         "https://example.test/gallery/large.jpg",
         "https://example.test/gallery/wide.jpg",
     ]
+
+
+def test_category_pagination_filter_rejects_file_and_subcategory_links() -> None:
+    page = "https://commons.wikimedia.org/wiki/Category:Portrait_photographs_of_women"
+    assert _is_same_category_pagination(page, f"{page}?filefrom=Example.jpg") is True
+    assert _is_same_category_pagination(
+        page,
+        "https://commons.wikimedia.org/w/index.php?title=Category:Portrait_photographs_of_women&filefrom=Example.jpg",
+    ) is True
+    assert _is_same_category_pagination(page, "https://commons.wikimedia.org/wiki/File:Example.jpg") is False
+    assert _is_same_category_pagination(page, "https://commons.wikimedia.org/wiki/Category:Other") is False
+    assert _normalise_category_pagination(
+        "https://commons.wikimedia.org/w/index.php?title=Category:Portrait_photographs_of_women&filefrom=Example.jpg"
+    ) == (
+        "https://commons.wikimedia.org/wiki/Category:Portrait_photographs_of_women"
+        "?filefrom=Example.jpg"
+    )
 
 
 def test_crawl_pages_appends_pending_manifest_rows_and_trail(tmp_path: Path) -> None:
@@ -341,3 +365,30 @@ def test_crawler_follows_links_to_depth(tmp_path: Path) -> None:
 
     assert summary.pages_crawled == 2
     assert summary.added == 2
+
+
+def test_crawler_filters_image_hosts_before_per_page_cap(tmp_path: Path) -> None:
+    page = "https://example.test/"
+    asset = "https://static.example.test/logo.png"
+    photo = "https://media.example.test/photo.png"
+    session = FakeSession({
+        page: response(f'<img src="{asset}"><img src="{photo}">'),
+        photo: image_response(png_bytes(seed=3)),
+    })
+
+    summary = crawl_pages(
+        [page],
+        "places",
+        tmp_path / "places.csv",
+        output_root=tmp_path / "crawl",
+        session=session,
+        max_images_per_page=1,
+        delay=0,
+        respect_robots=False,
+        use_cv=False,
+        image_hosts={"media.example.test"},
+    )
+
+    assert summary.added == 1
+    assert session.count(asset) == 0
+    assert session.count(photo) == 1

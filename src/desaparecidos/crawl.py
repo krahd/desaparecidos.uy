@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urldefrag, urljoin, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urldefrag, urljoin, urlparse, urlunparse
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -22,7 +22,7 @@ from .manifests import EXPECTED_FIELDS, ManifestKind, read_manifest
 from .paths import display_path
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
-USER_AGENT = "desaparecidos.uy-crawler/0.3"
+USER_AGENT = "desaparecidos.uy-crawler/0.4 (+https://desaparecidos.uy; local research artwork)"
 PHASH_DUPLICATE_THRESHOLD = 10
 
 
@@ -205,11 +205,13 @@ def crawl_pages(
     delay: float = 0.7,
     respect_robots: bool = True,
     use_cv: bool = True,
+    image_hosts: set[str] | None = None,
+    pagination_only: bool = False,
 ) -> CrawlSummary:
     if not pages:
         raise ValueError("at least one page URL is required")
-    if max_images_per_page < 1 or max_images_per_page > 50:
-        raise ValueError("max_images_per_page must be between 1 and 50")
+    if max_images_per_page < 1 or max_images_per_page > 200:
+        raise ValueError("max_images_per_page must be between 1 and 200")
     if max_depth < 0 or max_depth > 4:
         raise ValueError("max_depth must be between 0 and 4")
     if max_pages < 1 or max_pages > 500:
@@ -251,6 +253,8 @@ def crawl_pages(
         "delay": delay,
         "respect_robots": respect_robots,
         "use_cv": use_cv,
+        "image_hosts": sorted(image_hosts or ()),
+        "pagination_only": pagination_only,
     }
 
     with CrawlCache(cache_root) as cache:
@@ -276,7 +280,8 @@ def crawl_pages(
                 _throttle(last_fetch, parsed_page.netloc, delay)
                 status: int | None = None
                 try:
-                    page_response = client.get(
+                    page_response = _get_with_backoff(
+                        client,
                         page_url, timeout=timeout, headers={"User-Agent": USER_AGENT}
                     )
                     status = getattr(page_response, "status_code", None)
@@ -296,9 +301,17 @@ def crawl_pages(
                 page_ordinal += 1
                 cache.put_page_event(run_id, page_ordinal, page_url, depth, parent_url, status, "fetched")
 
-                for image_url in parser.urls[:max_images_per_page]:
+                page_images = parser.urls
+                if image_hosts:
+                    page_images = [
+                        image_url
+                        for image_url in page_images
+                        if urlparse(image_url).netloc in image_hosts
+                    ]
+                for image_url in page_images[:max_images_per_page]:
                     if summary.added >= max_images:
                         break
+                    _throttle(last_fetch, urlparse(image_url).netloc, delay)
                     image_ordinal += 1
                     item, row = _handle_image(
                         client,
@@ -326,6 +339,10 @@ def crawl_pages(
 
                 if depth < max_depth:
                     for link in parser.links:
+                        if pagination_only:
+                            if not _is_same_category_pagination(page_url, link):
+                                continue
+                            link = _normalise_category_pagination(link)
                         if link in visited_pages or link in queued_pages:
                             continue
                         netloc = urlparse(link).netloc
@@ -336,6 +353,268 @@ def crawl_pages(
 
             if rows:
                 _append_rows(manifest_path, kind, rows)
+        finally:
+            cache.finish_run(run_id, summary.to_api())
+            summary.trail_path = display_path(cache.export_run_jsonl(run_id))
+    return summary
+
+
+def _is_same_category_pagination(page_url: str, link: str) -> bool:
+    current = urlparse(page_url)
+    candidate = urlparse(link)
+    if current.netloc != candidate.netloc:
+        return False
+    parameters = parse_qs(candidate.query)
+    if not any(name in parameters for name in ("filefrom", "pagefrom", "subcatfrom")):
+        return False
+
+    def category_title(parsed: object) -> str:
+        path = unquote(parsed.path)  # type: ignore[attr-defined]
+        if path.startswith("/wiki/Category:"):
+            return path.removeprefix("/wiki/").replace("_", " ")
+        title = parse_qs(parsed.query).get("title", [""])[0]  # type: ignore[attr-defined]
+        return unquote(title).replace("_", " ")
+
+    return bool(category_title(current)) and category_title(current) == category_title(candidate)
+
+
+def _normalise_category_pagination(link: str) -> str:
+    """Represent index.php category pagination through its crawlable wiki URL."""
+    parsed = urlparse(link)
+    parameters = parse_qs(parsed.query)
+    title = unquote(parameters.get("title", [""])[0])
+    if parsed.path != "/w/index.php" or not title.startswith("Category:"):
+        return link
+    pagination = {
+        name: values[0]
+        for name, values in parameters.items()
+        if name in {"filefrom", "pagefrom", "subcatfrom"} and values
+    }
+    path = f"/wiki/{title.replace(' ', '_')}"
+    return urlunparse((parsed.scheme, parsed.netloc, path, "", urlencode(pagination), ""))
+
+
+def crawl_mediawiki_categories(
+    categories: list[str],
+    kind: ManifestKind,
+    manifest: str | Path,
+    *,
+    output_root: str | Path = "data/raw/crawl",
+    api_url: str = "https://commons.wikimedia.org/w/api.php",
+    label_prefix: str = "Wikimedia Commons",
+    max_category_depth: int = 2,
+    max_categories: int = 500,
+    max_files: int = 5000,
+    max_images: int = 1000,
+    thumbnail_width: int = 960,
+    delay: float = 0.1,
+    timeout: int = 30,
+    max_bytes: int = 15 * 1024 * 1024,
+    session: requests.Session | None = None,
+) -> CrawlSummary:
+    """Acquire category files through the MediaWiki API, then apply normal gates.
+
+    This avoids treating navigation assets as candidates. It retains the same
+    crawl cache, manifest provenance, exact/perceptual dedupe and CV policy as
+    the HTML crawler.
+    """
+    if not categories:
+        raise ValueError("at least one MediaWiki category is required")
+    if max_category_depth < 0 or max_category_depth > 4:
+        raise ValueError("max_category_depth must be between 0 and 4")
+    if max_categories < 1 or max_categories > 2000:
+        raise ValueError("max_categories must be between 1 and 2000")
+    if max_files < 1 or max_files > 20000:
+        raise ValueError("max_files must be between 1 and 20000")
+    if max_images < 1 or max_images > 1000:
+        raise ValueError("max_images must be between 1 and 1000")
+    if thumbnail_width < 320 or thumbnail_width > 2048:
+        raise ValueError("thumbnail_width must be between 320 and 2048")
+
+    manifest_path = Path(manifest).expanduser()
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_root = Path(output_root).expanduser()
+    cache_root.mkdir(parents=True, exist_ok=True)
+    clean_categories = [
+        value.strip() if value.strip().startswith("Category:") else f"Category:{value.strip()}"
+        for value in categories
+        if value.strip()
+    ]
+    category_pages = [
+        f"https://commons.wikimedia.org/wiki/{value.replace(' ', '_')}"
+        for value in clean_categories
+    ]
+    run_id = _run_id(kind, category_pages)
+    summary = CrawlSummary(
+        manifest=display_path(manifest_path),
+        kind=kind,
+        pages=category_pages,
+        run_id=run_id,
+    )
+    client = session or requests.Session()
+    seen_urls = set(_existing_source_urls(manifest_path, kind))
+    seen_sha, seen_phashes = _existing_dedupe_values(manifest_path, kind)
+    last_fetch: dict[str, float] = {}
+    api_host = urlparse(api_url).netloc
+    queue: deque[tuple[str, int, str | None]] = deque(
+        (category, 0, None) for category in clean_categories
+    )
+    queued = set(clean_categories)
+    visited: set[str] = set()
+    file_titles: list[str] = []
+    file_title_set: set[str] = set()
+    page_ordinal = 0
+    image_ordinal = 0
+    settings = {
+        "mediawiki_api": api_url,
+        "max_category_depth": max_category_depth,
+        "max_categories": max_categories,
+        "max_files": max_files,
+        "max_images": max_images,
+        "thumbnail_width": thumbnail_width,
+        "delay": delay,
+        "respect_robots": True,
+        "use_cv": True,
+    }
+
+    with CrawlCache(cache_root) as cache:
+        cache.start_run(run_id, kind, display_path(manifest_path), category_pages, settings)
+        try:
+            robots: dict[str, RobotFileParser] = {}
+            if not _robots_allowed(client, robots, api_url, timeout):
+                raise ValueError(f"robots.txt disallows MediaWiki API crawl: {api_url}")
+            while queue and len(visited) < max_categories and len(file_titles) < max_files:
+                category, depth, parent = queue.popleft()
+                if category in visited:
+                    continue
+                visited.add(category)
+                continuation: str | None = None
+                page_ok = True
+                while len(file_titles) < max_files:
+                    params = {
+                        "action": "query",
+                        "format": "json",
+                        "formatversion": "2",
+                        "list": "categorymembers",
+                        "cmtitle": category,
+                        "cmtype": "file|subcat",
+                        "cmlimit": "500",
+                    }
+                    if continuation:
+                        params["cmcontinue"] = continuation
+                    _throttle(last_fetch, api_host, delay)
+                    try:
+                        response = _get_with_backoff(
+                            client,
+                            api_url,
+                            params=params,
+                            timeout=timeout,
+                            headers={"User-Agent": USER_AGENT},
+                        )
+                        response.raise_for_status()
+                        payload = response.json()
+                    except Exception as exc:
+                        page_ok = False
+                        summary.errors.append(f"{category}: {exc}")
+                        break
+                    for member in payload.get("query", {}).get("categorymembers", []):
+                        title = str(member.get("title", ""))
+                        namespace = int(member.get("ns", -1))
+                        if namespace == 6 and title and title not in file_title_set:
+                            file_title_set.add(title)
+                            file_titles.append(title)
+                            if len(file_titles) >= max_files:
+                                break
+                        elif (
+                            namespace == 14
+                            and depth < max_category_depth
+                            and title
+                            and title not in queued
+                        ):
+                            queued.add(title)
+                            queue.append((title, depth + 1, category))
+                    continuation = payload.get("continue", {}).get("cmcontinue")
+                    if not continuation:
+                        break
+                page_ordinal += 1
+                summary.pages_crawled += int(page_ok)
+                cache.put_page_event(
+                    run_id,
+                    page_ordinal,
+                    f"https://commons.wikimedia.org/wiki/{category.replace(' ', '_')}",
+                    depth,
+                    None if parent is None else f"https://commons.wikimedia.org/wiki/{parent.replace(' ', '_')}",
+                    200 if page_ok else None,
+                    "fetched" if page_ok else "error",
+                )
+
+            for start in range(0, len(file_titles), 50):
+                if summary.added >= max_images:
+                    break
+                batch = file_titles[start:start + 50]
+                _throttle(last_fetch, api_host, delay)
+                try:
+                    response = _get_with_backoff(
+                        client,
+                        api_url,
+                        params={
+                            "action": "query",
+                            "format": "json",
+                            "formatversion": "2",
+                            "prop": "imageinfo",
+                            "iiprop": "url|mime",
+                            "iiurlwidth": str(thumbnail_width),
+                            "titles": "|".join(batch),
+                        },
+                        timeout=timeout,
+                        headers={"User-Agent": USER_AGENT},
+                    )
+                    response.raise_for_status()
+                    pages = response.json().get("query", {}).get("pages", [])
+                except Exception as exc:
+                    summary.errors.append(f"imageinfo batch {start // 50 + 1}: {exc}")
+                    continue
+                pending_rows: list[dict[str, str]] = []
+                for page in pages:
+                    if summary.added >= max_images:
+                        break
+                    info_rows = page.get("imageinfo") or []
+                    if not info_rows:
+                        continue
+                    info = info_rows[0]
+                    mime = str(info.get("mime", ""))
+                    if mime not in {"image/jpeg", "image/png", "image/webp", "image/tiff"}:
+                        continue
+                    image_url = str(info.get("thumburl") or info.get("url") or "")
+                    page_url = str(info.get("descriptionurl") or "")
+                    if not image_url or not page_url:
+                        continue
+                    image_ordinal += 1
+                    item, row = _handle_image(
+                        client,
+                        cache,
+                        run_id,
+                        image_ordinal,
+                        image_url,
+                        page_url,
+                        kind,
+                        manifest_path,
+                        summary,
+                        seen_urls,
+                        seen_sha,
+                        seen_phashes,
+                        summary.added + 1,
+                        label_prefix=label_prefix,
+                        timeout=timeout,
+                        max_bytes=max_bytes,
+                        use_cv=True,
+                    )
+                    if item is not None:
+                        summary.items.append(item)
+                    if row is not None:
+                        pending_rows.append(row)
+                if pending_rows:
+                    _append_rows(manifest_path, kind, pending_rows)
         finally:
             cache.finish_run(run_id, summary.to_api())
             summary.trail_path = display_path(cache.export_run_jsonl(run_id))
@@ -453,7 +732,9 @@ def crawl_pages_combined(
                 _throttle(last_fetch, parsed_page.netloc, delay)
                 status: int | None = None
                 try:
-                    page_response = client.get(page_url, timeout=timeout, headers={"User-Agent": USER_AGENT})
+                    page_response = _get_with_backoff(
+                        client, page_url, timeout=timeout, headers={"User-Agent": USER_AGENT}
+                    )
                     status = getattr(page_response, "status_code", None)
                     page_response.raise_for_status()
                     parser = PageParser(page_url)
@@ -480,6 +761,7 @@ def crawl_pages_combined(
                     if len(candidate_urls) >= max_images:
                         break
                     candidate_urls.add(image_url)
+                    _throttle(last_fetch, urlparse(image_url).netloc, delay)
                     image_ordinal += 1
                     for kind in ("places", "people"):
                         summary = summaries[kind]
@@ -560,7 +842,9 @@ def _handle_image(
                 summary, seen_sha, seen_phashes, index, label_prefix, cached, use_cv,
             )
 
-        response = client.get(image_url, timeout=timeout, headers={"User-Agent": USER_AGENT})
+        response = _get_with_backoff(
+            client, image_url, timeout=timeout, headers={"User-Agent": USER_AGENT}
+        )
         response.raise_for_status()
         payload = response.content
         if len(payload) > max_bytes:
@@ -785,6 +1069,29 @@ def _throttle(last_fetch: dict[str, float], host: str, delay: float) -> None:
     last_fetch[host] = time.monotonic()
 
 
+def _get_with_backoff(
+    client: requests.Session,
+    url: str,
+    *,
+    attempts: int = 4,
+    **kwargs: object,
+) -> requests.Response:
+    """GET once normally and back off boundedly on server throttling."""
+    response: requests.Response | None = None
+    for attempt in range(attempts):
+        response = client.get(url, **kwargs)
+        if response.status_code not in {429, 503} or attempt == attempts - 1:
+            return response
+        retry_after = response.headers.get("retry-after", "")
+        try:
+            wait = float(retry_after)
+        except ValueError:
+            wait = float(2 ** attempt)
+        time.sleep(min(30.0, max(1.0, wait)))
+    assert response is not None
+    return response
+
+
 def _robots_allowed(
     client: requests.Session,
     robots: dict[str, RobotFileParser],
@@ -797,7 +1104,8 @@ def _robots_allowed(
     if parser is None:
         parser = RobotFileParser()
         try:
-            response = client.get(
+            response = _get_with_backoff(
+                client,
                 urljoin(base, "/robots.txt"), timeout=timeout, headers={"User-Agent": USER_AGENT}
             )
             if response.status_code >= 400:

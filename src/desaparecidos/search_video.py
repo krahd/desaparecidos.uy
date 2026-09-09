@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import bisect
+import hashlib
 import math
 import random
 from collections import Counter
@@ -764,7 +765,7 @@ def prepare_structural_fragment_search(
     """Search approved face/place streams for variable target-aligned regions."""
     from types import SimpleNamespace
 
-    from .cv import classify_image, detect_face_regions_with_eyes
+    from .cv import classify_image
     from .images import crop_from_row, load_rgb, source_region_from_row
     from .manifests import row_file_path
     from .structural_search import search_regions
@@ -779,50 +780,80 @@ def prepare_structural_fragment_search(
     eligible: list[ManifestRow] = []
     excluded: list[dict[str, str]] = []
     for row in source_rows:
+        path = row_file_path(row, source_manifest)
+        expected_sha = row.values.get("content_sha256", "")
+        if expected_sha and hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
+            excluded.append({"source_id": row.id, "reason": "source-content-hash-mismatch"})
+            continue
+        image = load_rgb(path)
         if source_kind == "places":
-            image = load_rgb(row_file_path(row, source_manifest))
             result = classify_image(image, "places")
             if not result.accept:
                 excluded.append({"source_id": row.id, "reason": f"runtime-place-gate:{result.label}"})
                 continue
             eligible.append(row)
             continue
-        region = source_region_from_row(load_rgb(row_file_path(row, source_manifest)), row, row.kind)
-        if not detect_face_regions_with_eyes(region):
-            excluded.append({"source_id": row.id, "reason": "no-face-and-eye-confirmation-in-reviewed-region"})
+        result = classify_image(image, "people")
+        if not result.accept or result.face_box is None:
+            excluded.append({"source_id": row.id, "reason": f"runtime-people-gate:{result.label}"})
+            continue
+        try:
+            region = source_region_from_row(image, row, row.kind)
+        except ValueError as exc:
+            excluded.append({"source_id": row.id, "reason": str(exc)})
+            continue
+        detected_x, detected_y, detected_width, detected_height = result.face_box
+        stored_x, stored_y, stored_width, stored_height = (
+            int(float(row.values[key]))
+            for key in ("face_x", "face_y", "face_width", "face_height")
+        )
+        overlap_width = max(
+            0,
+            min(detected_x + detected_width, stored_x + stored_width)
+            - max(detected_x, stored_x),
+        )
+        overlap_height = max(
+            0,
+            min(detected_y + detected_height, stored_y + stored_height)
+            - max(detected_y, stored_y),
+        )
+        detected_area = max(1, detected_width * detected_height)
+        if overlap_width * overlap_height / detected_area < 0.8:
+            excluded.append({"source_id": row.id, "reason": "reviewed-region-does-not-contain-detected-face"})
             continue
         verified_images[row.id] = region
         eligible.append(row)
     if not eligible:
         raise ValueError("no structurally eligible approved source images are available")
 
-    encounter_count = max(len(eligible), math.ceil(settings.search_budget_seconds / settings.scan_seconds))
+    minimum_unique_encounters = math.ceil(
+        settings.search_budget_seconds / settings.scan_seconds
+    )
+    if settings.require_complete and len(eligible) < minimum_unique_encounters:
+        raise ValueError(
+            "not enough unique eligible source images for the requested search: "
+            f"need at least {minimum_unique_encounters}, found {len(eligible)}"
+        )
     rng = random.Random(settings.seed + sum(ord(char) for char in target.id))
+    shuffled_rows = list(eligible)
+    rng.shuffle(shuffled_rows)
     frames: list[dict[str, Any]] = []
-    cycle = 0
-    while len(frames) < encounter_count:
-        cycle_rows = list(eligible)
-        rng.shuffle(cycle_rows)
-        for row in cycle_rows:
-            if len(frames) >= encounter_count:
-                break
-            encounter = len(frames)
-            event_id = f"{row.id}@{encounter:05d}"
+    for encounter, row in enumerate(shuffled_rows):
+        event_id = f"{row.id}@{encounter:05d}"
 
-            def load_source(row: ManifestRow = row) -> Image.Image:
-                if row.id in verified_images:
-                    return verified_images[row.id].copy()
-                image = load_rgb(row_file_path(row, source_manifest))
-                return source_region_from_row(image, row, row.kind)
+        def load_source(row: ManifestRow = row) -> Image.Image:
+            if row.id in verified_images:
+                return verified_images[row.id].copy()
+            image = load_rgb(row_file_path(row, source_manifest))
+            return source_region_from_row(image, row, row.kind)
 
-            frames.append({
-                "id": event_id,
-                "source_id": event_id,
-                "manifest_source_id": row.id,
-                "local_path": str(row_file_path(row, source_manifest)),
-                "load_image": load_source,
-            })
-        cycle += 1
+        frames.append({
+            "id": event_id,
+            "source_id": event_id,
+            "manifest_source_id": row.id,
+            "local_path": str(row_file_path(row, source_manifest)),
+            "load_image": load_source,
+        })
 
     planned_encounter_count = len(frames)
     result, encounters, decisions, coverage = search_regions(target_canvas, frames, settings)
@@ -841,11 +872,14 @@ def prepare_structural_fragment_search(
         "schema": "desaparecidos.uy/fragment-search/2.0",
         "method": "variable-structural-regions-with-overlap-and-refinement",
         "approval_policy": "approved-manifest-rows-only",
-        "display_policy": "face-and-eye-confirmed-reviewed-region-only" if source_kind == "people" else "runtime-cv-confirmed-approved-place-image",
+        "display_policy": "quality-gated-reviewed-face-region-only" if source_kind == "people" else "runtime-cv-confirmed-approved-place-image",
         "approved_source_count": len(source_rows),
         "eligible_source_count": len(eligible),
         "excluded_source_count": len(excluded),
         "excluded_sources": excluded,
+        "unique_source_stream": True,
+        "minimum_unique_encounter_count": minimum_unique_encounters,
+        "repeated_source_count": 0,
         "encounter_count": len(decisions),
         "planned_encounter_count": planned_encounter_count,
         "displayed_encounter_count": len(frames),

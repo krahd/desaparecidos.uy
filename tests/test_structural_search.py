@@ -105,6 +105,26 @@ def test_source_cannot_contribute_again_and_source_rect_stays_in_bounds(tmp_path
         assert decisions[-1]['reason'] == 'source-already-contributed'
 
 
+def test_complete_search_uses_full_refinement_budget_after_early_match(tmp_path: Path) -> None:
+    frames = frames_at(tmp_path, pattern(), pattern(), pattern(), pattern())
+
+    _result, _encounters, decisions, coverage = search_regions(
+        pattern(),
+        frames,
+        settings(
+            require_complete=True,
+            search_budget_seconds=3,
+            scan_seconds=1,
+            finding_interval=1,
+            search_similarity=0.9,
+            full_refinement_budget=True,
+        ),
+    )
+
+    assert coverage == 1
+    assert len(decisions) == 3
+
+
 def test_repeated_search_events_use_loader_and_respect_manifest_source_cap() -> None:
     target = Image.new('RGB', (128, 64))
     target.paste(pattern(), (0, 0))

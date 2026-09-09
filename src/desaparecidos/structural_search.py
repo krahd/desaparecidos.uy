@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -29,6 +30,7 @@ class StructuralSettings:
     search_source_contribution_cap: int = 1
     search_similarity: float = 0.95
     require_complete: bool = True
+    full_refinement_budget: bool = False
     max_search_batches: int = 8
     search_budget_seconds: int = 300
 
@@ -158,9 +160,14 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
     target_descriptor, _ = describe(target)
     coverage = 0.0
     last_contribution_index = -settings.finding_interval
-    refinement_budget = max(1, round(settings.search_budget_seconds / settings.scan_seconds))
+    refinement_budget = max(1, math.ceil(settings.search_budget_seconds / settings.scan_seconds))
     for frame_index, frame in enumerate(frames):
-        if settings.require_complete and coverage == 1.0 and frame_index >= refinement_budget:
+        if (
+            settings.require_complete
+            and settings.full_refinement_budget
+            and coverage == 1.0
+            and frame_index >= refinement_budget
+        ):
             decisions[-1]['stop_reason'] = 'reconstruction-complete'
             break
         if frame_index % 100 == 0:
@@ -331,7 +338,24 @@ def search_regions(target: Image.Image, frames: list[dict[str, Any]], settings: 
             similarity = min(similarity, tonal_similarity)
             coverage = float(np.isfinite(quality).mean())
             decision.update(reconstruction_similarity=similarity, coverage=coverage)
-            if coverage == 1.0 and ((settings.require_complete and settings.search_similarity == 0) or (settings.search_similarity > 0 and similarity >= settings.search_similarity)):
+            quality_reached = (
+                settings.search_similarity == 0
+                or similarity >= settings.search_similarity
+            )
+            budget_reached = frame_index + 1 >= refinement_budget
+            should_stop = (
+                settings.require_complete
+                and (
+                    budget_reached
+                    if settings.full_refinement_budget
+                    else quality_reached or budget_reached
+                )
+            ) or (
+                not settings.require_complete
+                and settings.search_similarity > 0
+                and quality_reached
+            )
+            if coverage == 1.0 and should_stop:
                 decision["stop_reason"] = "reconstruction-complete" if settings.require_complete else "quality-target-reached"
                 break
     if decisions and "stop_reason" not in decisions[-1]:

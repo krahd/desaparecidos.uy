@@ -84,14 +84,15 @@ class ArtworkRenderSettings(VideoSettings, StructuralSettings):
     structure_threshold: float = 0.60
     completion_structure_threshold: float = 0.45
     min_structure: float = 0.001
-    refinement_margin: float = 0.015
+    refinement_margin: float = 0.005
     structure_scale: str = "broad"
     tone_mode: str = "match-region"
-    finding_interval: int = 13
-    contribution_interval: int = 13
+    finding_interval: int = 8
+    contribution_interval: int = 8
     search_source_contribution_cap: int = 6
     search_similarity: float = 0.95
     require_complete: bool = True
+    full_refinement_budget: bool = True
     search_budget_seconds: int = 600
 
 

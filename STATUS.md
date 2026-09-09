@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-09 02:13 GMT-6
+Last updated: 2026-09-09 02:28 GMT-6
 
 ## Project purpose
 
@@ -289,7 +289,7 @@ These are project-curation counts, not an authoritative historical total. The ta
 
 ### 9 September 2026 — repository-boundary cleanup
 
-- Removed the misplaced `doc/writings/` academic-writing material and `doc/submissions/` Premio Nacional application package from this repository. Added explicit ignore rules so those owner-repository packages are not reintroduced.
+- Removed the misplaced `doc/writings/` academic-writing material and `doc/submissions/` Premio Nacional application package from `main`, and removed the requested AI & SOCIETY manuscript from `paper/ai-society-open-forum`. Added explicit ignore rules so those owner-repository packages are not reintroduced on the cleaned branches.
 - Preserved the project-native historical source archive by moving `doc/writings/references/DDHH/` and the five consolidated historical volumes to the policy-defined `doc/DDHH/` path. Updated all active corpus provenance references and tests to the new path without changing source bytes.
 - Verified the Desaparecidos grant/final-report package in `krahd/grant-applications`, the Premio Nacional owner package in `krahd/professional-opportunities`, the AI & SOCIETY workspace in `krahd/research`, and the project/ownership record in `krahd/tom-work-admin`. Exact misplaced files absent from their canonical owner repositories were recovered there before deletion.
 - The cleanup uses ordinary commits and does not rewrite Git history. Historical commits retain the earlier blobs unless a separate history-purge operation is explicitly authorised.
@@ -526,6 +526,7 @@ Last recorded CI evidence remains GitHub Actions run `30145676564` from 25 July 
 - Structural search uses bounded multiscale and dense crop candidates with native-resolution verification, not exhaustive semantic matching. The 895-frame internal edition reaches 100% coverage with its recorded broad-portrait settings. This is one artistic result, not a guarantee of completion or fidelity for another portrait or traversal.
 - Continuous-video duration follows encounter count and cadence. The optional pause mode can make videos substantially longer than requested; metadata records the actual length in either mode.
 - Browser interaction remains unverified in this session because no browser was connected.
+- A live-tip audit still finds misplaced `doc/writings/` and/or `doc/submissions/` paths on eight legacy remote branches: `agent/mosaic-mode-trigger`, `automation/paper-artwork-figures-20260731`, `backup/summer-publication-plan-2026-06-22`, `feature/conversational-memory-v2`, `import-full-disappeared-corpus`, `submission-premio-nacional-2026`, `urucon-ci-verification` and `verification/artwork-runtime-20260725`. Exact owner-repository copies have been preserved, but deleting whole document trees from all eight remote branch tips requires separate explicit approval. Historical commits would still retain the blobs after ordinary cleanup commits.
 
 ## Pending tasks and next steps
 
@@ -570,4 +571,4 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the complete 5:24 edition, completion-first workflow and 224-test verification, preserving the earlier calibration record. The separate-repository update follows the user's existing approval. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-09 02:13 GMT-6
+Last updated: 2026-09-09 02:28 GMT-6

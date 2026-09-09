@@ -2203,7 +2203,7 @@
     "notes": "Metadata override (place_of_death): Official chronology records the death location as Avenida Italia km 18.500.",
     "source_page": "https://sitiosdememoria.uy/barry-ronald-juan-alejandro",
     "sources": [
-      "doc/writings/references/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/7_partido_peronista_montonero.pdf",
+      "doc/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/7_partido_peronista_montonero.pdf",
       "https://sitiosdememoria.uy/barry-ronald-juan-alejandro",
       "https://sitiosdememoria.uy/desaparicion-forzada"
     ],
@@ -4320,7 +4320,7 @@
     "notes": "Portrait unresolved in 2026-06-20 audit: no public portrait found in Sitios de Memoria, Madres y Familiares person list/API, Parque de la Memoria web search, general web search, or the tracked local portrait corpus. Official Investigación Histórica split PDF mentions Mario Camuirano/Camuyrano Bottini and records death in Argentina on 1975-08-30, but provides no portrait candidate. Metadata override (place_of_death): Official chronology records death in Buenos Aires on 1975-08-30.",
     "source_page": "https://sitiosdememoria.uy/camuyrano-bottini-mario",
     "sources": [
-      "doc/writings/references/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/5_movimiento_tupamaro.pdf",
+      "doc/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/5_movimiento_tupamaro.pdf",
       "https://sitiosdememoria.uy/camuyrano-bottini-mario",
       "https://sitiosdememoria.uy/desaparicion-forzada"
     ],
@@ -7412,7 +7412,7 @@
     "notes": "Sitios de Memoria person page unavailable during import: https://sitiosdememoria.uy/d-elia-pallares-julio-cesar (HTTP Error 404: Not Found). Metadata and portrait candidate imported from the Sitios export row. Metadata override (date_of_birth): Official ficha gives birth date as 28.09.1946. Metadata override (place_of_birth): Official ficha gives birthplace as Montevideo. Metadata override (place_of_disappearance): Official ficha gives detention place at his home in San Fernando. Metadata override (country_of_disappearance): Country inferred from the official detention-place field.",
     "source_page": "https://sitiosdememoria.uy/desaparicion-forzada",
     "sources": [
-      "doc/writings/references/DDHH/tomo2/5-sec5-fichas-personales-anexos/1.2-argentina/Fichas D.pdf",
+      "doc/DDHH/tomo2/5-sec5-fichas-personales-anexos/1.2-argentina/Fichas D.pdf",
       "https://desaparecidos.org.uy/delia-pallares-julio-cesar/",
       "https://desaparecidos.org.uy/wp-content/uploads/2024/10/D%C2%B4ELIA-PALLARES-Julio-Cesar-QR_.jpg",
       "https://sitiosdememoria.uy/desaparicion-forzada"
@@ -13506,7 +13506,7 @@
     "notes": "Metadata override (place_of_death): Official chronology records death at the Lagomar chalet where she lived.",
     "source_page": "https://sitiosdememoria.uy/mata-freixas-susana-beatriz",
     "sources": [
-      "doc/writings/references/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/7_partido_peronista_montonero.pdf",
+      "doc/DDHH/tomo1/1-sec1-cronologia-hechos-represivos/7_partido_peronista_montonero.pdf",
       "https://sitiosdememoria.uy/desaparicion-forzada",
       "https://sitiosdememoria.uy/mata-freixas-susana-beatriz"
     ],
@@ -15479,7 +15479,7 @@
     "notes": "Sitios de Memoria person page unavailable during import: https://sitiosdememoria.uy/o-neill-velazquez-heber-eduardo (HTTP Error 404: Not Found). Metadata and portrait candidate imported from the Sitios export row. Metadata override (date_of_birth): Official ficha gives birth date as 30.06.1954. Metadata override (place_of_birth): Official ficha gives birthplace as Montevideo. Metadata override (place_of_disappearance): Official ficha gives detention place during his wine-delivery route. Metadata override (country_of_disappearance): Country inferred from the official detention-place field.",
     "source_page": "https://sitiosdememoria.uy/desaparicion-forzada",
     "sources": [
-      "doc/writings/references/DDHH/tomo2/5-sec5-fichas-personales-anexos/1.2-argentina/Fichas O-P.pdf",
+      "doc/DDHH/tomo2/5-sec5-fichas-personales-anexos/1.2-argentina/Fichas O-P.pdf",
       "https://sitiosdememoria.uy/desaparicion-forzada"
     ],
     "field_sources": {

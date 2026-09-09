@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-08 17:17 GMT-6
+Last updated: 2026-09-09 02:04 GMT-6
 
 ## Project purpose
 
@@ -287,6 +287,13 @@ These are project-curation counts, not an authoritative historical total. The ta
 - R15 now follows the latest committed implementation and the 8 September Elena **Seguimos buscando** edition. The author supplied the matching MP4 and sidecar: full decoding and all 263 source/encounter correspondences passed independent checks, and new manuscript figures were extracted. Individual Mapillary credits still require the matching traversal manifest; the earlier Abeledo attribution is not reused. Historical runtime and release-review flags remain unchanged.
 - Validation for this policy/documentation change: four focused refusal-policy tests passed; the sidecar test requiring a runtime Git checkout was deselected in the partial validation workspace. Earlier full-suite results below belong to their dated implementation changes.
 
+### 9 September 2026 — repository-boundary cleanup
+
+- Removed the misplaced `doc/writings/` academic-writing material and `doc/submissions/` Premio Nacional application package from this repository. Added explicit ignore rules so those owner-repository packages are not reintroduced.
+- Preserved the project-native historical source archive by moving `doc/writings/references/DDHH/` and the five consolidated historical volumes to the policy-defined `doc/DDHH/` path. Updated all active corpus provenance references and tests to the new path without changing source bytes.
+- Verified the Desaparecidos grant/final-report package in `krahd/grant-applications`, the Premio Nacional owner package in `krahd/professional-opportunities`, the AI & SOCIETY workspace in `krahd/research`, and the project/ownership record in `krahd/tom-work-admin`. Exact misplaced files absent from their canonical owner repositories were recovered there before deletion.
+- The cleanup uses ordinary commits and does not rewrite Git history. Historical commits retain the earlier blobs unless a separate history-purge operation is explicitly authorised.
+
 ### 8 September 2026 — expanded candidates and higher-fidelity Elena fragment editions
 
 - Expanded the ignored people corpus through bounded, same-domain, robots-aware Wikimedia Commons category crawls. Per-host image throttling and bounded 429/503 backoff prevent the image requests from overwhelming page-level pacing. Exact and perceptual deduplication remain active. The artist authorised approval for these internal tests only after the current quality pass.
@@ -432,9 +439,11 @@ Final review edition: [`seguimos-buscando-route-20260905033506-2702c8a4-17-20260
 
 - Added the auditable conversational-memory core model and synthetic tests for consent, provenance, correction and withdrawal.
 - Added mandatory cross-repository administration guidance in `WORK-ADMIN.md`.
-- Preserved the Premio Nacional de Artes Visuales application text materials on `main`.
+- The Premio Nacional de Artes Visuales application materials are preserved in their canonical `krahd/professional-opportunities` package rather than in this project repository.
 
 ## Tests and verification status
+
+Repository-boundary cleanup: `.venv/bin/python -m pytest -q` passed all 235 tests with the existing Starlette/httpx warning; `.venv/bin/python -m compileall -q src tests scripts`, `git diff --check`, frontend Vitest (eight tests), and the TypeScript/Vite build passed with the existing large-chunk advisory. Active provenance paths contain no reference to the removed `doc/writings/references/DDHH` location, both mandatory `STATUS.md` timestamps match, and the referenced files exist under `doc/DDHH/`. SHA-256 verification confirmed all 15 recovered PNAV files and both recovered AI & SOCIETY files are byte-identical to their source Git blobs.
 
 Expanded-candidate/no-repeat/high-fidelity fragment revision: `.venv/bin/python -m pytest -q` passed with 235 tests and the existing Starlette/httpx warning; the focused CV, crawler, source-quality, structural and artwork-runtime subset passed 51 tests. `.venv/bin/python -m compileall -q src tests scripts`, `git diff --check`, frontend Vitest (eight tests) and the TypeScript/Vite build passed; the existing large-chunk advisory remains. Both new MP4s passed full `ffmpeg` decoding and `ffprobe` verification as 1920×1080 H.264/yuv420p at 24 fps, 14,880 frames and exactly 620 seconds. Sidecar invariants confirm 1,819 distinct displayed source IDs, 228 distinct contributing source IDs, zero repeats and 100% coverage in each work. Independent causal evaluations report no violations or future-source use; low-level luminance correlations are 0.981 for Todos and 0.977 for Están. The final stills and middle/late encoded frames were visually inspected against Elena's target portrait for portrait progression, face-crop-only people display, place-only source display and preservation of the irregular overlapping assembly.
 
@@ -555,10 +564,10 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 
 ## Documentation alignment notes
 
-- `AGENTS.md`, `README.md`, `doc/artwork-runtime.md`, `doc/output-sidecar-schema.md`, `doc/refusal-paradata.md`, `doc/development-roadmap.md`, `web/publication.example.json` and this status report reflect the approved-source fragment search, 3.0 sidecar, presentation schema 3.0, structural search, common monochrome video form and current release contracts.
+- `AGENTS.md`, `README.md`, `doc/artwork-runtime.md`, `doc/output-sidecar-schema.md`, `doc/refusal-paradata.md`, `doc/development-roadmap.md`, `web/publication.example.json` and this status report reflect the approved-source fragment search, 3.0 sidecar, presentation schema 3.0, structural search, common monochrome video form and current release contracts. The project-native historical sources now reside at `doc/DDHH/`; manuscripts and opportunity packages remain in their owner repositories.
 - `doc/seguimos-buscando-public-performance.md`, `LICENSE`, `LICENSE-PROTOCOL.md` and `LICENSING.md` reflect the current prototype and public-reuse boundaries.
 - `doc/STATUS.md` remains a pointer to this canonical report.
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the complete 5:24 edition, completion-first workflow and 224-test verification, preserving the earlier calibration record. The separate-repository update follows the user's existing approval. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-08 17:17 GMT-6
+Last updated: 2026-09-09 02:04 GMT-6

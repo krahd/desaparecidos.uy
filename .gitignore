@@ -61,3 +61,7 @@ doc/fotos-desaparecidos.zip
 # Large local source archives
 /doc/fotos-desaparecidos.zip
 *.zip
+
+# Material owned by the academic-writing and professional-opportunities repositories
+/doc/writings/
+/doc/submissions/

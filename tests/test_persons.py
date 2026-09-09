@@ -293,7 +293,7 @@ def test_apply_metadata_overrides_records_field_provenance(tmp_path: Path) -> No
                 "value": "1946-09-28",
                 "source_id": "investigacion-historica",
                 "source_ref": "Fichas D.pdf",
-                "source_page": "doc/writings/references/DDHH/Fichas D.pdf",
+                "source_page": "doc/DDHH/Fichas D.pdf",
                 "notes": "Fixture source.",
             }
         ],
@@ -305,7 +305,7 @@ def test_apply_metadata_overrides_records_field_provenance(tmp_path: Path) -> No
     assert people[0]["date_of_birth"] == "1946-09-28"
     assert people[0]["field_sources"]["date_of_birth"] == "investigacion-historica"
     assert people[0]["field_source_refs"]["date_of_birth"] == "Fichas D.pdf"
-    assert people[0]["sources"] == ["doc/writings/references/DDHH/Fichas D.pdf"]
+    assert people[0]["sources"] == ["doc/DDHH/Fichas D.pdf"]
     assert "Metadata override (date_of_birth): Fixture source." in people[0]["notes"]
 
 

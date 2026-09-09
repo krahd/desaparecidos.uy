@@ -144,7 +144,7 @@ def test_place_runtime_persists_overlap_history_and_territorial_account(tmp_path
     assert ImageChops.difference(channels[0], channels[1]).getbbox() is None
     assert ImageChops.difference(channels[1], channels[2]).getbbox() is None
     assert sidecar["settings"]["colour_output"] is False
-    assert sidecar["refusal_policy"]["policy_id"] == "memorial-refusals-2026-01"
+    assert sidecar["refusal_policy"]["policy_id"] == "memorial-refusals-2026-02"
     assert "generative-facial-completion" in sidecar["refusal_policy"]["applicable_refusal_ids"]
     manifests = {
         item["role"]: item for item in sidecar["runtime_provenance"]["input_manifests"]

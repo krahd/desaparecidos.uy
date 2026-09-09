@@ -1,6 +1,6 @@
 # desaparecidos.uy Project Status
 
-Last updated: 2026-09-09 02:04 GMT-6
+Last updated: 2026-09-09 02:13 GMT-6
 
 ## Project purpose
 
@@ -285,7 +285,7 @@ These are project-curation counts, not an authoritative historical total. The ta
 - Archived the previous policy byte-for-byte at `config/refusal-paradata/memorial-refusals-2026-01.json`. New outputs reference `memorial-refusals-2026-02`; historical output records retain their original policy identity and must be checked against that archived revision.
 - Clarified that a technically available alternative need not already have an enabled code path for the artist to record why it is withheld. This documents constitutive decisions without adding image-generation, animation, speech or identity-matching behaviour.
 - R15 now follows the latest committed implementation and the 8 September Elena **Seguimos buscando** edition. The author supplied the matching MP4 and sidecar: full decoding and all 263 source/encounter correspondences passed independent checks, and new manuscript figures were extracted. Individual Mapillary credits still require the matching traversal manifest; the earlier Abeledo attribution is not reused. Historical runtime and release-review flags remain unchanged.
-- Validation for this policy/documentation change: four focused refusal-policy tests passed; the sidecar test requiring a runtime Git checkout was deselected in the partial validation workspace. Earlier full-suite results below belong to their dated implementation changes.
+- Validation for this policy/documentation change: four focused refusal-policy tests passed; the sidecar test requiring a runtime Git checkout was deselected in the partial validation workspace. After integration, two stale sidecar assertions were aligned with `memorial-refusals-2026-02`; their focused tests and the full 235-test Python suite pass. Earlier full-suite results below belong to their dated implementation changes.
 
 ### 9 September 2026 — repository-boundary cleanup
 
@@ -570,4 +570,4 @@ For the ZKM / Arte Útil submission, the remaining project-level evidence improv
 - The URUCON paper package remains in the external academic-writing repository and retains its previously recorded evidence revision. The current work supports a separate AI & Society improvement and does not silently rewrite that artifact.
 - The required local `krahd/tom-work-admin/projects/desaparecidos-uy.md` summary now records the complete 5:24 edition, completion-first workflow and 224-test verification, preserving the earlier calibration record. The separate-repository update follows the user's existing approval. Existing changes were preserved; registry lifecycle state and deadline did not change.
 
-Last updated: 2026-09-09 02:04 GMT-6
+Last updated: 2026-09-09 02:13 GMT-6

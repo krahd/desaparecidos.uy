@@ -19,7 +19,9 @@ The project proposes a triptych of related works:
 2. **Están en todas partes** — disappeared persons’ public images are reassembled from fragments extracted from images of Uruguay’s places, surfaces, streets, walls, landscapes, and material environments.
 3. **Seguimos buscando** — disappeared persons’ public images are reassembled through a process of traversal, search, and visual scanning across Uruguay’s contemporary image field.
 
-All three titles are direct, intentional references. *Todos somos familiares* refers to the phrase [used publicly by Madres y Familiares](https://desaparecidos.org.uy/2023/) and to the [2022 collective photographic action of that name](https://imagenesdelsilencio.uy/projects/todos-somos-familiares-2022/), organised by Imágenes del Silencio in coordination with Madres y Familiares. In that action, marchers carried portraits for a collective photograph; in this work, fragments of contemporary faces compose each portrait.
+The three titles are retained as written. In a standalone listing, use *desaparecidos.uy: [piece title]*. When displaying the three works together, use *desaparecidos.uy* as the heading and *tríptico* as a descriptor, not as a prefix to each title.
+
+*Todos somos familiares* refers to the phrase [used publicly by Madres y Familiares](https://desaparecidos.org.uy/2023/) and to the [2022 collective photographic action of that name](https://imagenesdelsilencio.uy/projects/todos-somos-familiares-2022/), organised by Imágenes del Silencio in coordination with Madres y Familiares. In that action, marchers carried portraits for a collective photograph; in this work, fragments of contemporary faces compose each portrait. No specific source is attributed to *Están en todas partes*; the artist recalls a possible Uruguayan or Argentine antecedent but has not identified one.
 
 These works are not photo mosaics of the disappeared. They are computational memorial systems in which the present visual field of Uruguay—its people, places, streets, and publicly circulating images—is decomposed into fragments and made to participate in the reappearance of those whom state terror attempted to erase.
 
